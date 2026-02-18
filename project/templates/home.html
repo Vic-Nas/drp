@@ -41,7 +41,12 @@
     <div id="myDrops" class="drop-list">
       <p class="empty muted">nothing yet.</p>
     </div>
-    <button class="btn-sm" id="clearAll" style="margin-top:.8rem;display:none">clear all</button>
+    <div class="dashboard-actions">
+      <button class="btn-sm" id="exportBtn" style="display:none">↓ export</button>
+      <label for="importInput" class="btn-sm" id="importLabel" style="display:none;cursor:pointer">↑ import</label>
+      <input type="file" id="importInput" accept=".json" hidden/>
+      <button class="btn-sm danger" id="clearAll" style="display:none">clear all</button>
+    </div>
   </div>
 
 </div>
@@ -71,12 +76,21 @@ function renderDashboard() {
   const drops = getMyDrops();
   const el = document.getElementById('myDrops');
   const clearBtn = document.getElementById('clearAll');
+  const exportBtn = document.getElementById('exportBtn');
+  const importLabel = document.getElementById('importLabel');
+  
   if (!drops.length) {
     el.innerHTML = '<p class="empty muted">nothing yet.</p>';
     clearBtn.style.display = 'none';
+    exportBtn.style.display = 'none';
+    importLabel.style.display = '';
     return;
   }
+  
   clearBtn.style.display = '';
+  exportBtn.style.display = '';
+  importLabel.style.display = '';
+  
   el.innerHTML = drops.map(d => `
     <div class="drop-item">
       <span class="drop-icon">${d.kind === 'file' ? '📎' : '📋'}</span>
@@ -88,8 +102,56 @@ function renderDashboard() {
 }
 
 document.getElementById('clearAll').addEventListener('click', () => {
+  if (!confirm('Clear all drops from your dashboard? This only removes them from your local list, not from the server.')) return;
   localStorage.removeItem('drp_drops');
   renderDashboard();
+});
+
+// ── Export dashboard ──────────────────────────────────────────────────────────
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const drops = getMyDrops();
+  const data = {
+    version: 1,
+    exported: new Date().toISOString(),
+    drops: drops
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `drp-dashboard-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+  showToast('dashboard exported!');
+});
+
+// ── Import dashboard ──────────────────────────────────────────────────────────
+document.getElementById('importInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.drops || !Array.isArray(data.drops)) {
+        showToast('Invalid dashboard file');
+        return;
+      }
+      
+      // Merge with existing drops (keep newer ones)
+      const existing = getMyDrops();
+      const existingKeys = new Set(existing.map(d => d.key));
+      const newDrops = data.drops.filter(d => !existingKeys.has(d.key));
+      
+      saveMyDrops([...existing, ...newDrops]);
+      renderDashboard();
+      showToast(`imported ${newDrops.length} drops!`);
+    } catch (err) {
+      showToast('Failed to import dashboard');
+      console.error(err);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = ''; // Reset input
 });
 
 renderDashboard();
