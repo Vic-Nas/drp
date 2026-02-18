@@ -75,8 +75,17 @@ class UserProfile(models.Model):
     plan_since = models.DateTimeField(null=True, blank=True)   # when they last upgraded
     email_verified = models.BooleanField(default=False)
 
+
     # Computed storage usage (updated on save/delete of drops)
     storage_used_bytes = models.PositiveBigIntegerField(default=0)
+
+    # Lemon Squeezy billing
+    ls_customer_id = models.CharField(max_length=64, blank=True, default='',
+                                      help_text='Lemon Squeezy customer ID')
+    ls_subscription_id = models.CharField(max_length=64, blank=True, default='',
+                                          help_text='Lemon Squeezy subscription ID')
+    ls_subscription_status = models.CharField(max_length=32, blank=True, default='',
+                                              help_text='active, cancelled, expired, etc.')
 
     def __str__(self):
         return f'{self.user.username} [{self.plan}]'
