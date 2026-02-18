@@ -1,39 +1,182 @@
 {% extends 'base.html' %}
-{% block title %}drp — drop files, share instantly{% endblock %}
+{% block title %}drp — drop it.{% endblock %}
 
 {% block content %}
-<section class="hero">
-  <h1>drop it.</h1>
-  <p>No account. No friction. Just a key.</p>
-</section>
+<div class="home-wrap">
 
-<section class="upload-box" id="uploadBox">
-  <div class="drop-zone" id="dropZone">
-    <span id="dropLabel">drag & drop files here or <label for="fileInput" class="link">browse</label></span>
-    <input type="file" id="fileInput" multiple hidden/>
+  <!-- Left: Create -->
+  <div class="creator">
+    <h1>drop it.</h1>
+    <p class="tagline">paste text or drop a file. get a key. share the link.</p>
+
+    <div class="key-row">
+      <span class="prefix">drp /</span>
+      <input type="text" id="keyInput" placeholder="your-key (auto if empty)" autocomplete="off" spellcheck="false"/>
+      <span id="keyStatus"></span>
+    </div>
+
+    <div class="content-area">
+      <textarea id="textInput" placeholder="paste text, code, links…" rows="6"></textarea>
+      <div class="or-divider">or</div>
+      <div class="drop-zone" id="dropZone">
+        <span id="dropLabel">drag & drop a file or <label for="fileInput" class="link">browse</label></span>
+        <input type="file" id="fileInput" hidden/>
+      </div>
+      <div id="filePreview" class="file-preview hidden"></div>
+    </div>
+
+    <button class="btn" id="saveBtn">save & get link</button>
+    <p id="errorMsg" class="error hidden"></p>
   </div>
 
-  <div class="key-row">
-    <span class="prefix">drp /</span>
-    <input type="text" id="keyInput" placeholder="your-key (optional)" autocomplete="off" spellcheck="false"/>
-    <span id="keyStatus"></span>
+  <!-- Right: My drops (localStorage) -->
+  <div class="dashboard">
+    <h3>my drops</h3>
+    <div id="myDrops" class="drop-list">
+      <p class="empty muted">nothing yet.</p>
+    </div>
+    <button class="btn-sm" id="clearAll" style="margin-top:.8rem;display:none">clear all</button>
   </div>
 
-  <div id="fileList" class="file-list hidden"></div>
+</div>
+{% endblock %}
 
-  <button id="uploadBtn" class="btn" disabled>upload</button>
-  <p id="uploadMsg" class="msg hidden"></p>
-</section>
+{% block scripts %}
+<script>
+// ── Storage helpers ───────────────────────────────────────────────────────────
+function getMyDrops() {
+  try { return JSON.parse(localStorage.getItem('drp_drops') || '[]'); } catch { return []; }
+}
+function saveMyDrops(drops) {
+  localStorage.setItem('drp_drops', JSON.stringify(drops));
+}
+function addDrop(key, kind, label) {
+  const drops = getMyDrops().filter(d => d.key !== key);
+  drops.unshift({ key, kind, label, saved: Date.now() });
+  saveMyDrops(drops.slice(0, 50));
+  renderDashboard();
+}
+function removeDrop(key) {
+  saveMyDrops(getMyDrops().filter(d => d.key !== key));
+  renderDashboard();
+}
 
-<section class="how">
-  <div>
-    <strong>1.</strong> drop your files
-  </div>
-  <div>
-    <strong>2.</strong> pick a key or get one
-  </div>
-  <div>
-    <strong>3.</strong> share the link
-  </div>
-</section>
+function renderDashboard() {
+  const drops = getMyDrops();
+  const el = document.getElementById('myDrops');
+  const clearBtn = document.getElementById('clearAll');
+  if (!drops.length) {
+    el.innerHTML = '<p class="empty muted">nothing yet.</p>';
+    clearBtn.style.display = 'none';
+    return;
+  }
+  clearBtn.style.display = '';
+  el.innerHTML = drops.map(d => `
+    <div class="drop-item">
+      <span class="drop-icon">${d.kind === 'file' ? '📎' : '📋'}</span>
+      <a href="/${d.key}/" class="drop-key">${d.key}</a>
+      <span class="drop-label muted">${d.label || ''}</span>
+      <button class="btn-sm danger" onclick="removeDrop('${d.key}')">✕</button>
+    </div>
+  `).join('');
+}
+
+document.getElementById('clearAll').addEventListener('click', () => {
+  localStorage.removeItem('drp_drops');
+  renderDashboard();
+});
+
+renderDashboard();
+
+// ── Key check ─────────────────────────────────────────────────────────────────
+let keyTimer = null;
+const keyInput = document.getElementById('keyInput');
+const keyStatus = document.getElementById('keyStatus');
+
+keyInput.addEventListener('input', () => {
+  clearTimeout(keyTimer);
+  const val = keyInput.value.trim();
+  if (!val) { keyStatus.textContent = ''; return; }
+  keyTimer = setTimeout(async () => {
+    const res = await fetch(`/check-key/?key=${encodeURIComponent(val)}`);
+    const data = await res.json();
+    keyStatus.textContent = data.available ? '✓' : '✗ taken';
+    keyStatus.className = data.available ? 'ok' : 'taken';
+  }, 400);
+});
+
+// ── File select ───────────────────────────────────────────────────────────────
+let selectedFile = null;
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const filePreview = document.getElementById('filePreview');
+const textInput = document.getElementById('textInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); setFile(e.dataTransfer.files[0]); });
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
+
+function setFile(f) {
+  if (!f) return;
+  selectedFile = f;
+  textInput.value = '';
+  textInput.disabled = true;
+  filePreview.classList.remove('hidden');
+  filePreview.innerHTML = `<span>📎 ${f.name} (${formatSize(f.size)})</span> <button class="btn-sm danger" onclick="clearFile()">✕</button>`;
+  dropZone.classList.add('has-file');
+  document.getElementById('dropLabel').textContent = 'click to change file';
+}
+
+function clearFile() {
+  selectedFile = null;
+  fileInput.value = '';
+  textInput.disabled = false;
+  filePreview.classList.add('hidden');
+  dropZone.classList.remove('has-file');
+  document.getElementById('dropLabel').innerHTML = 'drag & drop a file or <label for="fileInput" class="link">browse</label>';
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  const key = keyInput.value.trim();
+  const text = textInput.value.trim();
+  const errEl = document.getElementById('errorMsg');
+  errEl.classList.add('hidden');
+
+  if (!text && !selectedFile) {
+    errEl.textContent = 'Add some text or a file first.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const fd = new FormData();
+  if (key) fd.append('key', key);
+  fd.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+
+  if (selectedFile) {
+    fd.append('file', selectedFile);
+  } else {
+    fd.append('content', text);
+  }
+
+  const saveBtn = document.getElementById('saveBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'saving…';
+
+  const res = await fetch('/save/', { method: 'POST', body: fd });
+  const data = await res.json();
+
+  if (res.ok) {
+    addDrop(data.key, data.kind, selectedFile ? selectedFile.name : text.slice(0, 30));
+    window.location.href = data.redirect;
+  } else {
+    errEl.textContent = data.error || 'Something went wrong.';
+    errEl.classList.remove('hidden');
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'save & get link';
+  }
+});
+</script>
 {% endblock %}

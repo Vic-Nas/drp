@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+{% block title %}drp / {{ drop.key }}{% endblock %}
+
+{% block content %}
+<div class="drop-page">
+
+  <!-- Key + URL header -->
+  <div class="drop-header">
+    <div class="key-row">
+      <span class="prefix">drp /</span>
+      <input type="text" id="keyInput" value="{{ drop.key }}" autocomplete="off" spellcheck="false"/>
+      <span id="keyStatus"></span>
+      <button class="btn-sm" id="renameBtn">rename</button>
+    </div>
+    <div class="share-url">
+      <span id="urlDisplay">{{ request.build_absolute_uri }}</span>
+      <button class="btn-sm" onclick="copyUrl()">copy link</button>
+    </div>
+    <p class="share-hint">
+      {% if drop.kind == 'text' %}clipboard — expires 24h after creation{% else %}file — expires 90 days after last access{% endif %}
+    </p>
+  </div>
+
+  <!-- Content -->
+  {% if drop.kind == 'text' %}
+  <div class="drop-content">
+    <div class="clip-existing">
+      <pre id="clipContent">{{ drop.content }}</pre>
+      <div class="clip-actions">
+        <button class="btn-sm" onclick="copyContent()">copy text</button>
+        <button class="btn-sm" onclick="downloadText()">download .txt</button>
+      </div>
+    </div>
+    <form id="editForm" class="clip-form" style="margin-top:1rem">
+      {% csrf_token %}
+      <textarea id="editArea" rows="6">{{ drop.content }}</textarea>
+      <button type="submit" class="btn">update</button>
+    </form>
+  </div>
+
+  {% else %}
+  <div class="drop-content file-drop">
+    <div class="file-card big">
+      <span class="file-icon">📎</span>
+      <div>
+        <div class="fname">{{ drop.filename }}</div>
+        <div class="fsize muted">{{ drop.filesize|filesizeformat }}</div>
+      </div>
+      <a href="/{{ drop.key }}/download/" class="btn">↓ download</a>
+    </div>
+    <p class="muted" style="margin-top:.8rem;font-size:.85rem">replace file:</p>
+    <div class="drop-zone small" id="dropZone">
+      <span>drop new file or <label for="fileInput" class="link">browse</label></span>
+      <input type="file" id="fileInput" hidden/>
+    </div>
+    <button class="btn" id="replaceBtn" disabled style="margin-top:.6rem">replace</button>
+  </div>
+  {% endif %}
+
+  <div style="margin-top:1.5rem">
+    <button class="btn-sm danger" onclick="deleteDrop()">delete this drop</button>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const KEY = '{{ drop.key }}';
+const BASE = window.location.origin;
+
+function copyUrl() {
+  navigator.clipboard.writeText(document.getElementById('urlDisplay').textContent);
+  showToast('link copied!');
+}
+
+function copyContent() {
+  navigator.clipboard.writeText(document.getElementById('clipContent').innerText);
+  showToast('copied!');
+}
+
+function downloadText() {
+  const text = document.getElementById('clipContent').innerText;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: 'text/plain'}));
+  a.download = `drp-${KEY}.txt`;
+  a.click();
+}
+
+// ── Rename ────────────────────────────────────────────────────────────────────
+const keyInput = document.getElementById('keyInput');
+const keyStatus = document.getElementById('keyStatus');
+let keyTimer = null;
+
+keyInput.addEventListener('input', () => {
+  clearTimeout(keyTimer);
+  const val = keyInput.value.trim();
+  document.getElementById('urlDisplay').textContent = `${BASE}/${val}/`;
+  keyTimer = setTimeout(async () => {
+    if (!val || val === KEY) { keyStatus.textContent = ''; return; }
+    const res = await fetch(`/check-key/?key=${encodeURIComponent(val)}`);
+    const data = await res.json();
+    keyStatus.textContent = data.available ? '✓' : '✗ taken';
+    keyStatus.className = data.available ? 'ok' : 'taken';
+  }, 400);
+});
+
+document.getElementById('renameBtn').addEventListener('click', async () => {
+  const newKey = keyInput.value.trim();
+  if (!newKey || newKey === KEY) return;
+  const fd = new FormData();
+  fd.append('new_key', newKey);
+  fd.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+  const res = await fetch(`/${KEY}/rename/`, { method: 'POST', body: fd });
+  const data = await res.json();
+  if (res.ok) {
+    // Update localStorage
+    try {
+      const drops = JSON.parse(localStorage.getItem('drp_drops') || '[]');
+      const d = drops.find(d => d.key === KEY);
+      if (d) { d.key = data.key; localStorage.setItem('drp_drops', JSON.stringify(drops)); }
+    } catch {}
+    window.location.href = data.redirect;
+  } else {
+    showToast(data.error || 'Rename failed.');
+  }
+});
+
+// ── Edit text ─────────────────────────────────────────────────────────────────
+const editForm = document.getElementById('editForm');
+if (editForm) {
+  editForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const fd = new FormData();
+    fd.append('key', KEY);
+    fd.append('content', document.getElementById('editArea').value);
+    fd.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+    const res = await fetch('/save/', { method: 'POST', body: fd });
+    if (res.ok) { showToast('saved!'); document.getElementById('clipContent').innerText = document.getElementById('editArea').value; }
+    else showToast('Failed to save.');
+  });
+}
+
+// ── Replace file ──────────────────────────────────────────────────────────────
+let newFile = null;
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const replaceBtn = document.getElementById('replaceBtn');
+
+if (dropZone) {
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); setFile(e.dataTransfer.files[0]); });
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
+}
+
+function setFile(f) {
+  newFile = f;
+  if (replaceBtn) replaceBtn.disabled = false;
+  if (dropZone) dropZone.querySelector('span').textContent = `${f.name} — ready to replace`;
+}
+
+if (replaceBtn) {
+  replaceBtn.addEventListener('click', async () => {
+    if (!newFile) return;
+    const fd = new FormData();
+    fd.append('key', KEY);
+    fd.append('file', newFile);
+    fd.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+    replaceBtn.disabled = true; replaceBtn.textContent = 'replacing…';
+    const res = await fetch('/save/', { method: 'POST', body: fd });
+    if (res.ok) window.location.reload();
+    else { showToast('Replace failed.'); replaceBtn.disabled = false; replaceBtn.textContent = 'replace'; }
+  });
+}
+
+// ── Delete ────────────────────────────────────────────────────────────────────
+async function deleteDrop() {
+  if (!confirm('Delete this drop? This cannot be undone.')) return;
+  const res = await fetch(`/${KEY}/delete/`, { method: 'DELETE', headers: { 'X-CSRFToken': getCookie('csrftoken') } });
+  if (res.ok) {
+    try {
+      const drops = JSON.parse(localStorage.getItem('drp_drops') || '[]');
+      localStorage.setItem('drp_drops', JSON.stringify(drops.filter(d => d.key !== KEY)));
+    } catch {}
+    window.location.href = '/';
+  }
+}
+</script>
+{% endblock %}

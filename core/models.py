@@ -3,41 +3,37 @@ from django.utils import timezone
 from datetime import timedelta
 
 
-class Bin(models.Model):
+class Drop(models.Model):
+    TEXT = 'text'
+    FILE = 'file'
+    TYPE_CHOICES = [(TEXT, 'Text'), (FILE, 'File')]
+
     key = models.SlugField(max_length=128, unique=True)
+    kind = models.CharField(max_length=4, choices=TYPE_CHOICES)
+
+    # Text
+    content = models.TextField(blank=True, default='')
+
+    # File
+    file = models.FileField(upload_to='drp/drops/', blank=True, null=True)
+    filename = models.CharField(max_length=255, blank=True, default='')
+    filesize = models.PositiveBigIntegerField(default=0)
+
     created_at = models.DateTimeField(auto_now_add=True)
-    last_accessed = models.DateTimeField(auto_now=True)
+    last_accessed = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.key
-
-    def total_size(self):
-        return sum(f.size for f in self.files.all())
+        return f'{self.key} ({self.kind})'
 
     def is_expired(self):
-        expiry = self.last_accessed + timedelta(days=90)
-        return timezone.now() > expiry
+        if self.kind == self.TEXT:
+            return timezone.now() > self.created_at + timedelta(hours=24)
+        return timezone.now() > self.last_accessed + timedelta(days=90)
 
+    def touch(self):
+        Drop.objects.filter(pk=self.pk).update(last_accessed=timezone.now())
 
-class BinFile(models.Model):
-    bin = models.ForeignKey(Bin, on_delete=models.CASCADE, related_name='files')
-    filename = models.CharField(max_length=255)
-    file = models.FileField(upload_to='bins/')
-    size = models.PositiveBigIntegerField(default=0)  # bytes
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return f'{self.bin.key}/{self.filename}'
-
-
-class Clipboard(models.Model):
-    key = models.SlugField(max_length=128, unique=True)
-    content = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def __str__(self):
-        return self.key
-
-    def is_expired(self):
-        expiry = self.created_at + timedelta(hours=24)
-        return timezone.now() > expiry
+    def hard_delete(self):
+        if self.file:
+            self.file.delete(save=False)
+        self.delete()
