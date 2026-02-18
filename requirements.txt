@@ -1,0 +1,9 @@
+django>=5.0
+python-dotenv
+cloudinary
+django-cloudinary-storage
+dj-database-url
+whitenoise
+gunicorn
+requests
+watchdog

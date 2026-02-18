@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}drp — drop files, share instantly{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <h1>drop it.</h1>
+  <p>No account. No friction. Just a key.</p>
+</section>
+
+<section class="upload-box" id="uploadBox">
+  <div class="drop-zone" id="dropZone">
+    <span id="dropLabel">drag & drop files here or <label for="fileInput" class="link">browse</label></span>
+    <input type="file" id="fileInput" multiple hidden/>
+  </div>
+
+  <div class="key-row">
+    <span class="prefix">drp /</span>
+    <input type="text" id="keyInput" placeholder="your-key (optional)" autocomplete="off" spellcheck="false"/>
+    <span id="keyStatus"></span>
+  </div>
+
+  <div id="fileList" class="file-list hidden"></div>
+
+  <button id="uploadBtn" class="btn" disabled>upload</button>
+  <p id="uploadMsg" class="msg hidden"></p>
+</section>
+
+<section class="how">
+  <div>
+    <strong>1.</strong> drop your files
+  </div>
+  <div>
+    <strong>2.</strong> pick a key or get one
+  </div>
+  <div>
+    <strong>3.</strong> share the link
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}drp / c / {{ key }}{% endblock %}
+
+{% block content %}
+<section class="clipboard-page">
+  <h2>/ c / {{ key }}</h2>
+  {% if clip %}
+    <div class="clip-box">
+      <pre id="clipContent">{{ clip.content }}</pre>
+      <button class="btn-sm" onclick="copyClip()">copy</button>
+      <small class="expiry">expires in 24h from creation</small>
+    </div>
+  {% endif %}
+
+  <form method="post" class="clip-form">
+    {% csrf_token %}
+    <textarea name="content" placeholder="paste anything here…" rows="8">{% if clip %}{{ clip.content }}{% endif %}</textarea>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <button type="submit" class="btn">save</button>
+  </form>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function copyClip() {
+    const text = document.getElementById('clipContent').innerText;
+    navigator.clipboard.writeText(text);
+    showToast('copied!');
+  }
+</script>
+{% endblock %}
