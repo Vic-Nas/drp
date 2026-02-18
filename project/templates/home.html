@@ -248,22 +248,6 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
       const data = JSON.parse(xhr.responseText);
       if (xhr.status === 200) {
         addDrop(data.key, data.kind, selectedFile ? selectedFile.name : text.slice(0, 30));
-        if (data.new) {
-          const lines = [
-            'drp — key file',
-            '===============',
-            'key:  ' + data.key,
-            'url:  ' + window.location.origin + '/' + data.key + '/',
-            'type: ' + data.kind,
-            'saved: ' + new Date().toISOString(),
-            '',
-            'keep this to access your drop later.',
-          ].join('\n');
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(new Blob([lines], {type: 'text/plain'}));
-          a.download = 'drp-' + data.key + '.txt';
-          a.click();
-        }
         
         // Show result box instead of redirecting
         document.getElementById('resultUrl').href = window.location.origin + '/' + data.key + '/';
