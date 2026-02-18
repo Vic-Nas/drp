@@ -210,6 +210,8 @@ textarea:disabled { opacity: .4; }
 }
 .share-url span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .share-hint { color: var(--muted); font-size: .78rem; margin-top: .35rem; }
+.lock-hint { font-size: .78rem; margin-top: .35rem; color: #f0a500; }
+.lock-hint.unlocked { color: var(--muted); }
 
 .clip-existing {
   background: var(--surface);

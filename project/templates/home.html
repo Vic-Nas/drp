@@ -1,282 +1,230 @@
-:root {
-  --bg: #0f0f0f;
-  --surface: #1a1a1a;
-  --border: #2a2a2a;
-  --text: #e8e8e8;
-  --muted: #888;
-  --accent: #5b8dee;
-  --danger: #e05555;
-  --radius: 8px;
+{% extends 'base.html' %}
+{% block title %}drp — drop it.{% endblock %}
+
+{% block content %}
+<div class="home-wrap">
+
+  <!-- Left: Create -->
+  <div class="creator">
+    <h1>drop it.</h1>
+    <p class="tagline">paste text or drop a file. get a key. share the link.</p>
+
+    <div class="key-row">
+      <span class="prefix">drp /</span>
+      <input type="text" id="keyInput" placeholder="your-key (auto if empty)" autocomplete="off" spellcheck="false"/>
+      <span id="keyStatus"></span>
+    </div>
+
+    <div class="content-area">
+      <textarea id="textInput" placeholder="paste text, code, links…" rows="6"></textarea>
+      <div class="or-divider">or</div>
+      <div class="drop-zone" id="dropZone">
+        <span id="dropLabel">drag & drop a file or <label for="fileInput" class="link">browse</label></span>
+        <input type="file" id="fileInput" hidden/>
+      </div>
+      <div id="filePreview" class="file-preview hidden"></div>
+    </div>
+
+    <button class="btn" id="saveBtn">save & get link</button>
+    <p id="errorMsg" class="error hidden"></p>
+
+    <div id="resultBox" class="result-box hidden">
+      <span class="muted">your link:</span>
+      <a id="resultUrl" href="#" target="_blank"></a>
+      <button class="btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('resultUrl').href); showToast('copied!')">copy</button>
+    </div>
+  </div>
+
+  <!-- Right: My drops (localStorage) -->
+  <div class="dashboard">
+    <h3>my drops</h3>
+    <div id="myDrops" class="drop-list">
+      <p class="empty muted">nothing yet.</p>
+    </div>
+    <button class="btn-sm" id="clearAll" style="margin-top:.8rem;display:none">clear all</button>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Storage helpers ───────────────────────────────────────────────────────────
+function getMyDrops() {
+  try { return JSON.parse(localStorage.getItem('drp_drops') || '[]'); } catch { return []; }
+}
+function saveMyDrops(drops) {
+  localStorage.setItem('drp_drops', JSON.stringify(drops));
+}
+function addDrop(key, kind, label) {
+  const drops = getMyDrops().filter(d => d.key !== key);
+  drops.unshift({ key, kind, label, saved: Date.now() });
+  saveMyDrops(drops.slice(0, 50));
+  renderDashboard();
+}
+function removeDrop(key) {
+  saveMyDrops(getMyDrops().filter(d => d.key !== key));
+  renderDashboard();
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: system-ui, sans-serif;
-  font-size: 15px;
-  line-height: 1.6;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
+function renderDashboard() {
+  const drops = getMyDrops();
+  const el = document.getElementById('myDrops');
+  const clearBtn = document.getElementById('clearAll');
+  if (!drops.length) {
+    el.innerHTML = '<p class="empty muted">nothing yet.</p>';
+    clearBtn.style.display = 'none';
+    return;
+  }
+  clearBtn.style.display = '';
+  el.innerHTML = drops.map(d => `
+    <div class="drop-item">
+      <span class="drop-icon">${d.kind === 'file' ? '📎' : '📋'}</span>
+      <a href="/${d.key}/" class="drop-key">${d.key}</a>
+      <span class="drop-label muted">${d.label || ''}</span>
+      <button class="btn-sm danger" onclick="removeDrop('${d.key}')">✕</button>
+    </div>
+  `).join('');
 }
 
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+document.getElementById('clearAll').addEventListener('click', () => {
+  localStorage.removeItem('drp_drops');
+  renderDashboard();
+});
 
-header {
-  padding: 1rem 2rem;
-  border-bottom: 1px solid var(--border);
+renderDashboard();
+
+// ── Key check ─────────────────────────────────────────────────────────────────
+let keyTimer = null;
+const keyInput = document.getElementById('keyInput');
+const keyStatus = document.getElementById('keyStatus');
+
+keyInput.addEventListener('input', () => {
+  clearTimeout(keyTimer);
+  const val = keyInput.value.trim();
+  if (!val) { keyStatus.textContent = ''; return; }
+  keyTimer = setTimeout(async () => {
+    const res = await fetch(`/check-key/?key=${encodeURIComponent(val)}`);
+    const data = await res.json();
+    keyStatus.textContent = data.available ? '✓' : '✗ taken';
+    keyStatus.className = data.available ? 'ok' : 'taken';
+  }, 400);
+});
+
+// ── File select ───────────────────────────────────────────────────────────────
+let selectedFile = null;
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const filePreview = document.getElementById('filePreview');
+const textInput = document.getElementById('textInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); setFile(e.dataTransfer.files[0]); });
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
+
+function setFile(f) {
+  if (!f) return;
+  selectedFile = f;
+  textInput.value = '';
+  textInput.disabled = true;
+  filePreview.classList.remove('hidden');
+  filePreview.innerHTML = `<span>📎 ${f.name} (${formatSize(f.size)})</span> <button class="btn-sm danger" onclick="clearFile()">✕</button>`;
+  dropZone.classList.add('has-file');
+  document.getElementById('dropLabel').textContent = 'click to change file';
 }
 
-.logo {
-  font-size: 1.4rem;
-  font-weight: 800;
-  letter-spacing: -1px;
-  color: var(--text);
+function clearFile() {
+  selectedFile = null;
+  fileInput.value = '';
+  textInput.disabled = false;
+  filePreview.classList.add('hidden');
+  dropZone.classList.remove('has-file');
+  document.getElementById('dropLabel').innerHTML = 'drag & drop a file or <label for="fileInput" class="link">browse</label>';
 }
 
-main {
-  flex: 1;
-  max-width: 900px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 2.5rem 1.5rem;
-}
+// ── Save ──────────────────────────────────────────────────────────────────────
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  const key = keyInput.value.trim();
+  const text = textInput.value.trim();
+  const errEl = document.getElementById('errorMsg');
+  errEl.classList.add('hidden');
 
-footer {
-  text-align: center;
-  padding: 1.2rem;
-  color: var(--muted);
-  border-top: 1px solid var(--border);
-  font-size: 0.8rem;
-}
+  if (!text && !selectedFile) {
+    errEl.textContent = 'Add some text or a file first.';
+    errEl.classList.remove('hidden');
+    return;
+  }
 
-/* ── Home layout ── */
-.home-wrap {
-  display: grid;
-  grid-template-columns: 1fr 280px;
-  gap: 2rem;
-  align-items: start;
-}
+  const fd = new FormData();
+  if (key) fd.append('key', key);
 
-.creator h1 { font-size: 2.5rem; font-weight: 800; letter-spacing: -1.5px; margin-bottom: .3rem; }
-.tagline { color: var(--muted); margin-bottom: 1.2rem; }
+  if (selectedFile) {
+    fd.append('file', selectedFile);
+  } else {
+    fd.append('content', text);
+  }
 
-/* ── Key row ── */
-.key-row {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: .5rem .8rem;
-  margin-bottom: 1rem;
-}
-.prefix { color: var(--muted); font-size: .9rem; white-space: nowrap; }
-.key-row input {
-  flex: 1;
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--text);
-  font-size: .95rem;
-  font-family: monospace;
-  font-weight: 600;
-}
-#keyStatus { font-size: .8rem; white-space: nowrap; }
-#keyStatus.ok { color: #5bc87a; }
-#keyStatus.taken { color: var(--danger); }
+  const saveBtn = document.getElementById('saveBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'saving…';
 
-/* ── Content area ── */
-.content-area { display: flex; flex-direction: column; gap: .8rem; margin-bottom: 1rem; }
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/save/');
+  xhr.setRequestHeader('X-CSRFToken', getCookie('csrftoken'));
 
-textarea {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text);
-  font-size: .9rem;
-  padding: .8rem;
-  resize: vertical;
-  font-family: monospace;
-  outline: none;
-  width: 100%;
-}
-textarea:focus { border-color: var(--accent); }
-textarea:disabled { opacity: .4; }
+  xhr.upload.addEventListener('progress', e => {
+    if (e.lengthComputable) {
+      const pct = Math.round((e.loaded / e.total) * 100);
+      saveBtn.textContent = pct < 100 ? `uploading… ${pct}%` : 'saving…';
+    }
+  });
 
-.or-divider { text-align: center; color: var(--muted); font-size: .85rem; }
+  xhr.addEventListener('load', () => {
+    try {
+      const data = JSON.parse(xhr.responseText);
+      if (xhr.status === 200) {
+        addDrop(data.key, data.kind, selectedFile ? selectedFile.name : text.slice(0, 30));
+        if (data.new) {
+          const lines = [
+            'drp — key file',
+            '===============',
+            'key:  ' + data.key,
+            'url:  ' + window.location.origin + '/' + data.key + '/',
+            'type: ' + data.kind,
+            'saved: ' + new Date().toISOString(),
+            '',
+            'keep this to access your drop later.',
+          ].join('\n');
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([lines], {type: 'text/plain'}));
+          a.download = 'drp-' + data.key + '.txt';
+          a.click();
+        }
+        window.location.href = data.redirect;
+      } else {
+        errEl.textContent = data.error || 'Something went wrong.';
+        errEl.classList.remove('hidden');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'save & get link';
+      }
+    } catch {
+      errEl.textContent = 'Unexpected error.';
+      errEl.classList.remove('hidden');
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'save & get link';
+    }
+  });
 
-/* ── Drop zone ── */
-.drop-zone {
-  border: 2px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 1.8rem 1rem;
-  text-align: center;
-  color: var(--muted);
-  cursor: pointer;
-  transition: border-color .2s, background .2s;
-}
-.drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: rgba(91,141,238,.05); }
-.drop-zone.small { padding: 1rem; }
-.drop-zone.has-file { border-color: #5bc87a; }
-.link { color: var(--accent); cursor: pointer; }
+  xhr.addEventListener('error', () => {
+    errEl.textContent = 'Network error.';
+    errEl.classList.remove('hidden');
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'save & get link';
+  });
 
-.file-preview {
-  display: flex;
-  align-items: center;
-  gap: .8rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: .6rem .9rem;
-  font-size: .88rem;
-}
-
-/* ── Buttons ── */
-.btn {
-  background: var(--accent);
-  color: white;
-  border: none;
-  border-radius: var(--radius);
-  padding: .6rem 1.4rem;
-  font-size: .95rem;
-  cursor: pointer;
-  font-weight: 600;
-  transition: opacity .2s;
-  display: inline-block;
-  text-decoration: none;
-}
-.btn:hover:not(:disabled) { opacity: .85; text-decoration: none; }
-.btn:disabled { opacity: .4; cursor: not-allowed; }
-
-.btn-sm {
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: .3rem .7rem;
-  font-size: .82rem;
-  cursor: pointer;
-  text-decoration: none;
-  transition: border-color .2s;
-  white-space: nowrap;
-}
-.btn-sm:hover { border-color: var(--accent); text-decoration: none; }
-.btn-sm.danger { color: var(--danger); border-color: transparent; }
-.btn-sm.danger:hover { border-color: var(--danger); }
-
-/* ── Dashboard ── */
-.dashboard {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem;
-}
-.dashboard h3 { font-size: .9rem; color: var(--muted); margin-bottom: .8rem; text-transform: uppercase; letter-spacing: .05em; }
-.drop-list { display: flex; flex-direction: column; gap: .4rem; }
-.drop-item {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  padding: .35rem .2rem;
-  border-bottom: 1px solid var(--border);
-  font-size: .88rem;
-}
-.drop-item:last-child { border-bottom: none; }
-.drop-key { font-family: monospace; font-weight: 600; flex: 1; }
-.drop-label { font-size: .78rem; color: var(--muted); max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.drop-icon { font-size: .9rem; }
-
-/* ── Drop page ── */
-.drop-page { max-width: 680px; }
-
-.drop-header { margin-bottom: 1.5rem; }
-.share-url {
-  display: flex;
-  align-items: center;
-  gap: .7rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: .6rem .9rem;
-  font-family: monospace;
-  font-size: .88rem;
-  color: var(--accent);
-  margin-top: .5rem;
-}
-.share-url span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.share-hint { color: var(--muted); font-size: .78rem; margin-top: .35rem; }
-
-.clip-existing {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem;
-}
-.clip-existing pre { white-space: pre-wrap; word-break: break-all; font-size: .88rem; font-family: monospace; }
-.clip-actions { display: flex; align-items: center; gap: .5rem; margin-top: .7rem; }
-.clip-form { margin-top: 1rem; display: flex; flex-direction: column; gap: .6rem; }
-
-.file-card.big {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.2rem;
-}
-.file-icon { font-size: 2rem; }
-.fname { font-weight: 600; }
-.fsize { font-size: .82rem; }
-
-/* ── Misc ── */
-.muted { color: var(--muted); }
-.hidden { display: none !important; }
-.error { color: var(--danger); font-size: .85rem; }
-.empty { font-size: .85rem; }
-
-/* ── Toast ── */
-.toast {
-  position: fixed;
-  bottom: 1.5rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--text);
-  color: var(--bg);
-  padding: .5rem 1.2rem;
-  border-radius: 20px;
-  font-size: .85rem;
-  font-weight: 600;
-  opacity: 0;
-  transition: opacity .2s;
-  pointer-events: none;
-  z-index: 999;
-}
-.toast.show { opacity: 1; }
-
-@media (max-width: 700px) {
-  .home-wrap { grid-template-columns: 1fr; }
-  .dashboard { order: -1; }
-  main { padding: 1.5rem 1rem; }
-  .creator h1 { font-size: 1.8rem; }
-}
-
-/* ── Result box ── */
-.result-box {
-  display: flex;
-  align-items: center;
-  gap: .7rem;
-  background: var(--surface);
-  border: 1px solid #5bc87a;
-  border-radius: var(--radius);
-  padding: .6rem .9rem;
-  margin-top: .8rem;
-  font-family: monospace;
-  font-size: .9rem;
-}
-.result-box a { color: var(--accent); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  xhr.send(fd);
+});
+</script>
+{% endblock %}

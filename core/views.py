@@ -2,6 +2,7 @@ import secrets
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse, JsonResponse, Http404
 from django.utils import timezone
+from datetime import timedelta
 from django.conf import settings
 from .models import Drop
 
@@ -36,7 +37,7 @@ def save_drop(request):
 
     key = request.POST.get('key', '').strip() or _gen_key()
 
-    # Check if key exists — if so, only allow overwrite (same session intent)
+    # Check if key exists
     existing = Drop.objects.filter(key=key).first()
     if existing and existing.is_expired():
         existing.hard_delete()
@@ -60,20 +61,21 @@ def save_drop(request):
         else:
             drop = Drop.objects.create(key=key, kind=Drop.FILE, file=f, filename=f.name, filesize=f.size)
     else:
-        content = request.POST.get('content', '').strip()
+        text = request.POST.get('content', '').strip()
         max_bytes = settings.CLIPBOARD_MAX_SIZE_KB * 1024
-        if len(content.encode()) > max_bytes:
+        if len(text.encode()) > max_bytes:
             return JsonResponse({'error': f'Text exceeds {settings.CLIPBOARD_MAX_SIZE_KB}KB.'}, status=400)
         if existing:
-            existing.content = content
+            existing.content = text
             existing.kind = Drop.TEXT
             existing.created_at = timezone.now()
             existing.save()
             drop = existing
         else:
-            drop = Drop.objects.create(key=key, kind=Drop.TEXT, content=content)
+            drop = Drop.objects.create(key=key, kind=Drop.TEXT, content=text)
 
-    return JsonResponse({'key': drop.key, 'kind': drop.kind, 'redirect': f'/{drop.key}/'})
+    is_new = existing is None
+    return JsonResponse({'key': drop.key, 'kind': drop.kind, 'redirect': f'/{drop.key}/', 'new': is_new})
 
 
 # ── View / edit a drop ────────────────────────────────────────────────────────

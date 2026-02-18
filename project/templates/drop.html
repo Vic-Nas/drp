@@ -16,6 +16,11 @@
       <span id="urlDisplay">{{ request.build_absolute_uri }}</span>
       <button class="btn-sm" onclick="copyUrl()">copy link</button>
     </div>
+    {% if drop.is_locked %}
+    <p class="lock-hint">🔒 locked for 24h after creation — only you can edit right now</p>
+    {% else %}
+    <p class="lock-hint unlocked">🔓 lock expired — anyone with the key can now replace this content</p>
+    {% endif %}
     <p class="share-hint">
       {% if drop.kind == 'text' %}clipboard — expires 24h after creation{% else %}file — expires 90 days after last access{% endif %}
     </p>
