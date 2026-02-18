@@ -23,7 +23,9 @@ CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 ```
-
+Note:
+You do need to run python manage.py makemigrations locally
+the first time.
 Done.
 
 ## Run locally
