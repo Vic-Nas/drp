@@ -23,6 +23,10 @@ CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 ```
+5. Start command
+```
+python manage.py collectstatic && python manage.py runserver
+```
 Note:
 You do need to run python manage.py makemigrations locally
 the first time.
