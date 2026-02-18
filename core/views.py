@@ -13,7 +13,9 @@ from .models import Bin, BinFile, Clipboard
 # ── Home ──────────────────────────────────────────────────────────────────────
 
 def home(request):
-    return render(request, 'home.html')
+    import secrets
+    key = secrets.token_urlsafe(6)
+    return redirect(f'/c/{key}/')
 
 
 # ── Bin ───────────────────────────────────────────────────────────────────────
@@ -120,7 +122,7 @@ def clipboard_view(request, key):
         clip = Clipboard.objects.get(key=key)
         if clip.is_expired():
             clip.delete()
-            raise Http404
+            clip = None
     except Clipboard.DoesNotExist:
         clip = None
 
@@ -129,8 +131,7 @@ def clipboard_view(request, key):
         max_bytes = settings.CLIPBOARD_MAX_SIZE_KB * 1024
         if len(content.encode()) > max_bytes:
             return render(request, 'clipboard.html', {
-                'key': key,
-                'clip': clip,
+                'key': key, 'clip': clip,
                 'error': f'Content exceeds {settings.CLIPBOARD_MAX_SIZE_KB}KB limit.'
             })
         clip, _ = Clipboard.objects.update_or_create(
@@ -139,4 +140,11 @@ def clipboard_view(request, key):
         )
         return redirect(f'/c/{key}/')
 
-    return render(request, 'clipboard.html', {'key': key, 'clip': clip})
+    # Also load any files stored under this key
+    try:
+        bin_obj = Bin.objects.get(key=key)
+        bin_files = bin_obj.files.all().order_by('-uploaded_at')
+    except Bin.DoesNotExist:
+        bin_files = []
+
+    return render(request, 'clipboard.html', {'key': key, 'clip': clip, 'bin_files': bin_files})

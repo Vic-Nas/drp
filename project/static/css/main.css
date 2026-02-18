@@ -197,8 +197,51 @@ main {
 .file-card .faction { display: flex; gap: 0.4rem; }
 .empty { color: var(--muted); text-align: center; padding: 2rem; }
 
+/* Clipboard header */
+.clip-header { margin-bottom: 1.5rem; }
+.clip-header .key-row { margin-bottom: 0.7rem; }
+.clip-header .key-row input { font-size: 1rem; font-weight: 600; }
+
+.share-url {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6rem 0.9rem;
+  font-family: monospace;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+.share-url span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-hint { color: var(--muted); font-size: 0.8rem; margin-top: 0.4rem; }
+
+/* Tabs */
+.tabs { display: flex; gap: 0.3rem; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border); }
+.tab {
+  background: none;
+  border: none;
+  color: var(--muted);
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.tab:hover { color: var(--text); }
+
+.clip-existing {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.clip-actions { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.7rem; }
+
 /* Clipboard */
-.clipboard-page h2 { font-family: monospace; margin-bottom: 1.5rem; font-size: 1.3rem; }
 .clip-box {
   background: var(--surface);
   border: 1px solid var(--border);
