@@ -202,7 +202,24 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
           a.download = 'drp-' + data.key + '.txt';
           a.click();
         }
-        window.location.href = data.redirect;
+        
+        // Show result box instead of redirecting
+        document.getElementById('resultUrl').href = window.location.origin + '/' + data.key + '/';
+        document.getElementById('resultUrl').textContent = window.location.origin + '/' + data.key + '/';
+        document.getElementById('resultBox').classList.remove('hidden');
+        
+        // Clear form
+        textInput.value = '';
+        textInput.disabled = false;
+        keyInput.value = '';
+        keyStatus.textContent = '';
+        clearFile();
+        
+        // Reset button
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'save & get link';
+        
+        showToast('drop created!');
       } else {
         errEl.textContent = data.error || 'Something went wrong.';
         errEl.classList.remove('hidden');
