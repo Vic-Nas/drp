@@ -5,5 +5,6 @@ from core import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', views.home, name='home'),
+    path('billing/', include('billing.urls')),
     path('', include('core.urls')),
 ]

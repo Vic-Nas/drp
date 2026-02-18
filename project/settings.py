@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     'cloudinary',
     'cloudinary_storage',
     'core',
+    'billing',
 ]
 
 MIDDLEWARE = [
@@ -86,7 +87,7 @@ USE_TZ = True
 # Auth
 LOGIN_URL = '/auth/login/'
 LOGIN_REDIRECT_URL = '/'
-PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
+PASSWORD_RESET_TIMEOUT = 86400  # 24 hours
 
 # Static files
 STATIC_URL = '/static/'
@@ -102,22 +103,17 @@ CLOUDINARY_STORAGE = {
 }
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.RawMediaCloudinaryStorage'
 
-# Admin contact
+# Admin
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'you@yourdomain.com')
-
-# Public URL of your site
 if DOMAIN:
     SITE_URL = f'https://{DOMAIN}'
 else:
     SITE_URL = 'http://localhost:8000'
 
 # ── Email ─────────────────────────────────────────────────────────────────────
-# For local dev, emails print to console — no Gmail needed
-# For production, set EMAIL_* env vars and comment out the console backend below
-
 EMAIL_BACKEND = os.environ.get(
     'EMAIL_BACKEND',
-    'django.core.mail.backends.console.EmailBackend'   # default: console for local dev
+    'django.core.mail.backends.console.EmailBackend'
 )
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
@@ -126,15 +122,14 @@ EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@drp.app')
 
-# ── Cache (signup rate limiting) ──────────────────────────────────────────────
-# Local dev: DatabaseCache (run: python manage.py createcachetable)
-# Production: switch to Redis for better performance
-# CACHES = {
-#     "default": {
-#         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-#         "LOCATION": os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1"),
-#     }
-# }
+# ── Lemon Squeezy ─────────────────────────────────────────────────────────────
+LEMONSQUEEZY_API_KEY = os.environ.get('LEMONSQUEEZY_API_KEY', '')
+LEMONSQUEEZY_SIGNING_SECRET = os.environ.get('LEMONSQUEEZY_SIGNING_SECRET', '')
+LEMONSQUEEZY_STORE_ID = os.environ.get('LEMONSQUEEZY_STORE_ID', '')
+LEMONSQUEEZY_STARTER_VARIANT_ID = os.environ.get('LEMONSQUEEZY_STARTER_VARIANT_ID', '')
+LEMONSQUEEZY_PRO_VARIANT_ID = os.environ.get('LEMONSQUEEZY_PRO_VARIANT_ID', '')
+
+# ── Cache ─────────────────────────────────────────────────────────────────────
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
@@ -142,7 +137,6 @@ CACHES = {
     }
 }
 
-# Keep these for backwards compat (anon limits, referenced in templates)
 ANON_BIN_MAX_SIZE_MB = 200
 CLIPBOARD_MAX_SIZE_KB = 500
 

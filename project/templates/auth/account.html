@@ -13,31 +13,71 @@
     <h2>plan</h2>
     <div class="plan-status">
       <span class="plan-badge plan-badge--{{ profile.plan }}">{{ profile.plan|capfirst }}</span>
-      {% if not profile.is_paid %}
-        <span class="muted" style="font-size:.85rem">
-          — <a href="/auth/register/#plans">upgrade</a> for locked drops, more storage &amp; longer expiry
-        </span>
-      {% else %}
+
+      {% if profile.is_paid %}
         <span class="muted" style="font-size:.85rem">
           ${{ plan_limits.price_monthly }}/mo ·
           {{ plan_limits.max_file_mb }}MB per file ·
           up to {{ plan_limits.max_expiry_days }} day expiry
         </span>
+        {% if profile.ls_subscription_status == 'cancelled' %}
+          <span class="muted" style="font-size:.82rem;color:var(--danger)">
+            · cancels at period end
+          </span>
+        {% endif %}
       {% endif %}
     </div>
 
     {% if profile.is_paid %}
-    <div class="storage-bar-wrap" style="margin-top:1rem">
-      <div class="storage-label">
-        {{ profile.storage_used_gb|floatformat:2 }} GB
-        / {{ profile.storage_quota_gb }} GB used
-      </div>
-      <div class="storage-bar">
-        <div class="storage-bar-fill"
-             style="width:{% widthratio profile.storage_used_bytes profile.storage_quota_bytes 100 %}%">
+      <!-- Storage bar -->
+      <div class="storage-bar-wrap" style="margin-top:1rem">
+        <div class="storage-label">
+          {{ profile.storage_used_gb|floatformat:2 }} GB
+          / {{ profile.storage_quota_gb }} GB used
+        </div>
+        <div class="storage-bar">
+          <div class="storage-bar-fill"
+               style="width:{% widthratio profile.storage_used_bytes profile.storage_quota_bytes 100 %}%">
+          </div>
         </div>
       </div>
-    </div>
+      <!-- Manage / cancel -->
+      <div style="margin-top:1rem">
+        <a href="/billing/portal/" class="btn-sm">manage subscription →</a>
+      </div>
+
+    {% else %}
+      <!-- Upgrade cards -->
+      <div class="plan-grid" style="margin-top:1rem">
+        <div class="plan-card">
+          <div class="plan-name">Starter</div>
+          <div class="plan-price">$3<span>/mo</span></div>
+          <ul>
+            <li>1 GB per file</li>
+            <li>5 GB total storage</li>
+            <li>Up to 1 year expiry</li>
+            <li>Drops locked to your account</li>
+            <li>Renewable drops</li>
+          </ul>
+          <a href="/billing/checkout/starter/" class="btn" style="margin-top:1rem;display:inline-block;width:100%;text-align:center">
+            upgrade →
+          </a>
+        </div>
+        <div class="plan-card plan-card--pro">
+          <div class="plan-name">Pro</div>
+          <div class="plan-price">$8<span>/mo</span></div>
+          <ul>
+            <li>5 GB per file</li>
+            <li>20 GB total storage</li>
+            <li>Up to 3 years expiry</li>
+            <li>Drops locked to your account</li>
+            <li>Renewable drops</li>
+          </ul>
+          <a href="/billing/checkout/pro/" class="btn" style="margin-top:1rem;display:inline-block;width:100%;text-align:center">
+            upgrade →
+          </a>
+        </div>
+      </div>
     {% endif %}
   </div>
 
@@ -73,9 +113,7 @@
             {% elif drop.kind == 'text' %}24h from creation
             {% else %}90d inactive{% endif %}
           </td>
-          <td>
-            <a href="/{{ drop.key }}/" class="btn-sm">view</a>
-          </td>
+          <td><a href="/{{ drop.key }}/" class="btn-sm">view</a></td>
         </tr>
         {% endfor %}
       </tbody>
