@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('save/', views.save_drop, name='save_drop'),
     path('check-key/', views.check_key, name='check_key'),
+    path('help/', views.help_view, name='help'),
     path('<slug:key>/', views.drop_view, name='drop_view'),
     path('<slug:key>/download/', views.download_drop, name='download_drop'),
     path('<slug:key>/rename/', views.rename_key, name='rename_key'),

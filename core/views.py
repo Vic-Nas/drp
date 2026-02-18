@@ -126,3 +126,9 @@ def download_drop(request, key):
         raise Http404
     drop.touch()
     return redirect(drop.file.url)
+
+
+# ── Help ──────────────────────────────────────────────────────────────────────
+
+def help_view(request):
+    return render(request, 'help.html')

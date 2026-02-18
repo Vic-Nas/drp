@@ -282,3 +282,26 @@ textarea:disabled { opacity: .4; }
   font-size: .9rem;
 }
 .result-box a { color: var(--accent); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Dashboard actions ── */
+.dashboard-actions {
+  display: flex;
+  gap: .4rem;
+  margin-top: .8rem;
+  flex-wrap: wrap;
+}
+
+/* ── Help page ── */
+.help-page { max-width: 640px; }
+.help-page h1 { font-size: 2rem; font-weight: 800; letter-spacing: -1px; margin-bottom: 1.5rem; }
+.help-page section { margin-bottom: 1.8rem; }
+.help-page h2 { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: .4rem; text-transform: uppercase; letter-spacing: .05em; font-size: .82rem; }
+.help-page p { color: var(--text); line-height: 1.7; margin-bottom: .5rem; }
+.help-page code { background: var(--surface); padding: .1em .4em; border-radius: 4px; font-family: monospace; font-size: .88em; }
+.help-page pre { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .8rem 1rem; margin: .5rem 0; }
+.help-page pre code { background: none; padding: 0; }
+
+/* ── Header nav ── */
+header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; border-bottom: 1px solid var(--border); }
+nav a { color: var(--muted); font-size: .88rem; }
+nav a:hover { color: var(--text); text-decoration: none; }

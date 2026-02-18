@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}drp — how it works{% endblock %}
+{% block content %}
+<div class="help-page">
+  <h1>how it works</h1>
+
+  <section>
+    <h2>the idea</h2>
+    <p>drp is a lightweight drop point for text and files. No account, no login. A <strong>key</strong> is your address — whoever has it can access the content.</p>
+  </section>
+
+  <section>
+    <h2>dropping something</h2>
+    <p>From the home page, paste text or drop a file. Pick a key or leave it blank for an auto-generated one. Hit <em>save & get link</em> — you'll land on <code>drp.yourdomain.com/your-key</code> with a shareable URL ready to copy.</p>
+  </section>
+
+  <section>
+    <h2>accessing a drop</h2>
+    <p>Go to <code>/your-key</code>. If it's text, you can read, copy, or download it. If it's a file, you can download it. You can also edit or replace the content directly on that page.</p>
+  </section>
+
+  <section>
+    <h2>keys</h2>
+    <p>The key is the only thing protecting your content — think of it as a password and URL in one. Make it long and random for sensitive content, short and memorable for easy sharing. You can rename a key at any time; the old URL stops working immediately.</p>
+  </section>
+
+  <section>
+    <h2>expiry</h2>
+    <p>Text drops expire <strong>24 hours</strong> after creation. File drops expire after <strong>90 days of inactivity</strong>. When a drop expires, everything is permanently deleted — the content, the file, and the key is freed up.</p>
+  </section>
+
+  <section>
+    <h2>your dashboard</h2>
+    <p>The home page shows drops you've created in this browser. This list lives in your browser's local storage — it's never sent to our server. You can export it as a JSON file and re-import it on any device to restore your dashboard.</p>
+  </section>
+
+  <section>
+    <h2>sync client</h2>
+    <p>The sync client watches a local folder and automatically uploads new or changed files to a key of your choice. Install it with:</p>
+    <pre><code>pip install watchdog requests
+python sync/client.py --setup</code></pre>
+    <p>It will ask for your host, key, and local folder. From then on, any file you drop in that folder syncs to your drp key automatically.</p>
+  </section>
+
+  <section>
+    <h2>privacy</h2>
+    <p>drp is open source. Files are stored on Cloudinary. Text is stored in a database. There is no encryption — don't store secrets. The key is security through obscurity only.</p>
+  </section>
+</div>
+{% endblock %}
