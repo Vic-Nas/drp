@@ -29,12 +29,16 @@
       <div class="clip-actions">
         <button class="btn-sm" onclick="copyContent()">copy text</button>
         <button class="btn-sm" onclick="downloadText()">download .txt</button>
+        <button class="btn-sm" onclick="toggleEdit()">edit</button>
       </div>
     </div>
-    <form id="editForm" class="clip-form" style="margin-top:1rem">
+    <form id="editForm" class="clip-form hidden" style="margin-top:1rem">
       {% csrf_token %}
       <textarea id="editArea" rows="6">{{ drop.content }}</textarea>
-      <button type="submit" class="btn">update</button>
+      <div style="display:flex;gap:.5rem">
+        <button type="submit" class="btn">update</button>
+        <button type="button" class="btn-sm" onclick="toggleEdit()">cancel</button>
+      </div>
     </form>
   </div>
 
@@ -72,6 +76,11 @@ const BASE = window.location.origin;
 function copyUrl() {
   navigator.clipboard.writeText(document.getElementById('urlDisplay').textContent);
   showToast('link copied!');
+}
+
+function toggleEdit() {
+  const form = document.getElementById('editForm');
+  form.classList.toggle('hidden');
 }
 
 function copyContent() {

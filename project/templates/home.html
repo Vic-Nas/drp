@@ -27,6 +27,12 @@
 
     <button class="btn" id="saveBtn">save & get link</button>
     <p id="errorMsg" class="error hidden"></p>
+
+    <div id="resultBox" class="result-box hidden">
+      <span class="muted">your link:</span>
+      <a id="resultUrl" href="#" target="_blank"></a>
+      <button class="btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('resultUrl').href); showToast('copied!')">copy</button>
+    </div>
   </div>
 
   <!-- Right: My drops (localStorage) -->
@@ -170,7 +176,19 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
 
   if (res.ok) {
     addDrop(data.key, data.kind, selectedFile ? selectedFile.name : text.slice(0, 30));
-    window.location.href = data.redirect;
+    // Show result inline instead of redirecting
+    const url = `${window.location.origin}/${data.key}/`;
+    document.getElementById('resultBox').classList.remove('hidden');
+    document.getElementById('resultUrl').textContent = url;
+    document.getElementById('resultUrl').href = url;
+    document.getElementById('resultKey').textContent = data.key;
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'save & get link';
+    // Reset form
+    textInput.value = ''; textInput.disabled = false;
+    clearFile && clearFile();
+    keyInput.value = ''; keyStatus.textContent = '';
+    renderDashboard();
   } else {
     errEl.textContent = data.error || 'Something went wrong.';
     errEl.classList.remove('hidden');

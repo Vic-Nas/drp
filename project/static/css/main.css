@@ -265,3 +265,18 @@ textarea:disabled { opacity: .4; }
   main { padding: 1.5rem 1rem; }
   .creator h1 { font-size: 1.8rem; }
 }
+
+/* ── Result box ── */
+.result-box {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  background: var(--surface);
+  border: 1px solid #5bc87a;
+  border-radius: var(--radius);
+  padding: .6rem .9rem;
+  margin-top: .8rem;
+  font-family: monospace;
+  font-size: .9rem;
+}
+.result-box a { color: var(--accent); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
