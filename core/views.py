@@ -6,7 +6,6 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.cache import cache
-from django.core.mail import send_mail
 from django.db import models as db_models
 from django.http import JsonResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
@@ -139,9 +138,10 @@ def save_drop(request):
                     storage_used_bytes=db_models.F('storage_used_bytes') + delta
                 )
         else:
-            # Paid expiry
             expires_at = None
+            locked_until = None
             expiry_days = request.POST.get('expiry_days')
+
             if is_paid_user and expiry_days:
                 try:
                     expiry_days = int(expiry_days)
@@ -150,6 +150,9 @@ def save_drop(request):
                     expires_at = timezone.now() + timedelta(days=expiry_days)
                 except (ValueError, TypeError):
                     pass
+            elif not request.user.is_authenticated:
+                # Anon drops: locked for 24h after creation so creator can still edit
+                locked_until = timezone.now() + timedelta(hours=24)
 
             owner = request.user if request.user.is_authenticated else None
             drop = Drop.objects.create(
@@ -157,6 +160,7 @@ def save_drop(request):
                 file=f, filename=f.name, filesize=f.size,
                 owner=owner,
                 locked=is_paid_user,
+                locked_until=locked_until,
                 expires_at=expires_at,
             )
             if owner and f.size:
@@ -178,7 +182,9 @@ def save_drop(request):
             drop = existing
         else:
             expires_at = None
+            locked_until = None
             expiry_days = request.POST.get('expiry_days')
+
             if is_paid_user and expiry_days:
                 try:
                     expiry_days = int(expiry_days)
@@ -187,12 +193,15 @@ def save_drop(request):
                     expires_at = timezone.now() + timedelta(days=expiry_days)
                 except (ValueError, TypeError):
                     pass
+            elif not request.user.is_authenticated:
+                locked_until = timezone.now() + timedelta(hours=24)
 
             owner = request.user if request.user.is_authenticated else None
             drop = Drop.objects.create(
                 key=key, kind=Drop.TEXT, content=text,
                 owner=owner,
                 locked=is_paid_user,
+                locked_until=locked_until,
                 expires_at=expires_at,
             )
 
@@ -308,12 +317,15 @@ def register_view(request):
             elif User.objects.filter(email=email).exists():
                 error = 'An account with that email already exists.'
             else:
-                username = email  # use email as username
+                username = email
                 user = User.objects.create_user(username=username, email=email, password=password)
                 login(request, user)
                 return redirect('home')
 
-    return render(request, 'auth/register.html', {'error': error})
+    return render(request, 'auth/register.html', {
+        'error': error,
+        'admin_email': settings.ADMIN_EMAIL,
+    })
 
 
 # ── Auth: Login ───────────────────────────────────────────────────────────────
@@ -326,7 +338,6 @@ def login_view(request):
     if request.method == 'POST':
         email = request.POST.get('email', '').strip().lower()
         password = request.POST.get('password', '')
-        # Django username = email
         user = authenticate(request, username=email, password=password)
         if user:
             login(request, user)
@@ -343,35 +354,6 @@ def login_view(request):
 def logout_view(request):
     logout(request)
     return redirect('home')
-
-
-# ── Auth: Forgot password ─────────────────────────────────────────────────────
-
-def forgot_password_view(request):
-    sent = False
-    error = None
-    if request.method == 'POST':
-        email = request.POST.get('email', '').strip().lower()
-        if not email:
-            error = 'Please enter your email.'
-        else:
-            # Always show success to avoid user enumeration
-            if User.objects.filter(email=email).exists():
-                send_mail(
-                    subject=f'[drp] Password reset request for {email}',
-                    message=(
-                        f'A user has requested a password reset.\n\n'
-                        f'Email: {email}\n\n'
-                        f'Reset their password via the admin panel:\n'
-                        f'{settings.SITE_URL}/admin/auth/user/?q={email}\n'
-                    ),
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[settings.ADMIN_EMAIL],
-                    fail_silently=True,
-                )
-            sent = True
-
-    return render(request, 'auth/forgot_password.html', {'sent': sent, 'error': error})
 
 
 # ── Account dashboard ─────────────────────────────────────────────────────────

@@ -83,6 +83,11 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
+# Auth
+LOGIN_URL = '/auth/login/'
+LOGIN_REDIRECT_URL = '/'
+PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
+
 # Static files
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'project' / 'static']
@@ -97,31 +102,33 @@ CLOUDINARY_STORAGE = {
 }
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.RawMediaCloudinaryStorage'
 
-
-# Admin contact — receives forgot-password emails
+# Admin contact
 ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'you@yourdomain.com')
 
-# Public URL of your site (used in admin email links)
+# Public URL of your site
 if DOMAIN:
     SITE_URL = f'https://{DOMAIN}'
 else:
     SITE_URL = 'http://localhost:8000'
 
-# Email backend
-# For production set these env vars and use SMTP:
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# ── Email ─────────────────────────────────────────────────────────────────────
+# For local dev, emails print to console — no Gmail needed
+# For production, set EMAIL_* env vars and comment out the console backend below
+
+EMAIL_BACKEND = os.environ.get(
+    'EMAIL_BACKEND',
+    'django.core.mail.backends.console.EmailBackend'   # default: console for local dev
+)
 EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
 EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@drp.app')
 
-# For local dev — prints emails to console instead of sending
-# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-
-# Cache (used for signup rate limiting)
-# For local dev sqlite works fine. In prod, point at Redis:
+# ── Cache (signup rate limiting) ──────────────────────────────────────────────
+# Local dev: DatabaseCache (run: python manage.py createcachetable)
+# Production: switch to Redis for better performance
 # CACHES = {
 #     "default": {
 #         "BACKEND": "django.core.cache.backends.redis.RedisCache",
