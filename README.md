@@ -25,7 +25,7 @@ CLOUDINARY_API_SECRET=
 ```
 5. Start command
 ```
-python manage.py collectstatic --noinput && python manage.py runserver
+python manage.py collectstatic --noinput && python manage.py migrate && gunicorn project.wsgi --bind 0.0.0.0:$PORT
 ```
 Note:
 You do need to run python manage.py makemigrations locally
