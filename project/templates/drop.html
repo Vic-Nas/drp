@@ -8,22 +8,42 @@
   <div class="drop-header">
     <div class="key-row">
       <span class="prefix">drp /</span>
-      <input type="text" id="keyInput" value="{{ drop.key }}" autocomplete="off" spellcheck="false"/>
-      <span id="keyStatus"></span>
-      <button class="btn-sm" id="renameBtn">rename</button>
+      <input type="text" id="keyInput" value="{{ drop.key }}"
+             autocomplete="off" spellcheck="false"
+             {% if not can_edit %}disabled{% endif %}/>
+      {% if can_edit %}<span id="keyStatus"></span>
+      <button class="btn-sm" id="renameBtn">rename</button>{% endif %}
     </div>
     <div class="share-url">
       <span id="urlDisplay">{{ request.build_absolute_uri }}</span>
       <button class="btn-sm" onclick="copyUrl()">copy link</button>
     </div>
-    {% if drop.is_locked %}
-    <p class="lock-hint">🔒 locked for 24h after creation — only you can edit right now</p>
-    {% else %}
-    <p class="lock-hint unlocked">🔓 lock expired — anyone with the key can now replace this content</p>
-    {% endif %}
-    <p class="share-hint">
-      {% if drop.kind == 'text' %}clipboard — expires 24h after creation{% else %}file — expires 90 days after last access{% endif %}
+
+    <!-- Lock / expiry status -->
+    <p class="lock-hint {% if not drop.locked %}unlocked{% endif %}">
+      {% if drop.locked %}
+        🔒 locked — only the owner can edit or delete
+      {% elif drop.is_creation_locked %}
+        🔒 locked for 24h after creation
+      {% else %}
+        🔓 anyone with the key can replace this content
+      {% endif %}
     </p>
+
+    {% if drop.expires_at %}
+    <p class="share-hint">
+      expires {{ drop.expires_at|date:"N j, Y" }}
+      {% if is_owner %}
+        · <button class="btn-link" id="renewBtn">renew</button>
+        <span id="renewStatus" class="muted" style="font-size:.78rem"></span>
+      {% endif %}
+    </p>
+    {% else %}
+    <p class="share-hint">
+      {% if drop.kind == 'text' %}clipboard — expires 24h after creation
+      {% else %}file — expires 90 days after last access{% endif %}
+    </p>
+    {% endif %}
   </div>
 
   <!-- Content -->
@@ -34,9 +54,10 @@
       <div class="clip-actions">
         <button class="btn-sm" onclick="copyContent()">copy text</button>
         <button class="btn-sm" onclick="downloadText()">download .txt</button>
-        <button class="btn-sm" onclick="toggleEdit()">edit</button>
+        {% if can_edit %}<button class="btn-sm" onclick="toggleEdit()">edit</button>{% endif %}
       </div>
     </div>
+    {% if can_edit %}
     <form id="editForm" class="clip-form hidden" style="margin-top:1rem">
       {% csrf_token %}
       <textarea id="editArea" rows="6">{{ drop.content }}</textarea>
@@ -45,6 +66,7 @@
         <button type="button" class="btn-sm" onclick="toggleEdit()">cancel</button>
       </div>
     </form>
+    {% endif %}
   </div>
 
   {% else %}
@@ -57,18 +79,22 @@
       </div>
       <a href="/{{ drop.key }}/download/" class="btn">↓ download</a>
     </div>
+    {% if can_edit %}
     <p class="muted" style="margin-top:.8rem;font-size:.85rem">replace file:</p>
     <div class="drop-zone small" id="dropZone">
       <span>drop new file or <label for="fileInput" class="link">browse</label></span>
       <input type="file" id="fileInput" hidden/>
     </div>
     <button class="btn" id="replaceBtn" disabled style="margin-top:.6rem">replace</button>
+    {% endif %}
   </div>
   {% endif %}
 
+  {% if can_edit %}
   <div style="margin-top:1.5rem">
     <button class="btn-sm danger" onclick="deleteDrop()">delete this drop</button>
   </div>
+  {% endif %}
 
 </div>
 {% endblock %}
@@ -77,68 +103,62 @@
 <script>
 const KEY = '{{ drop.key }}';
 const BASE = window.location.origin;
+const CAN_EDIT = {{ can_edit|yesno:"true,false" }};
+const IS_OWNER = {{ is_owner|yesno:"true,false" }};
 
 function copyUrl() {
   navigator.clipboard.writeText(document.getElementById('urlDisplay').textContent);
   showToast('link copied!');
 }
-
 function toggleEdit() {
-  const form = document.getElementById('editForm');
-  form.classList.toggle('hidden');
+  document.getElementById('editForm').classList.toggle('hidden');
 }
-
 function copyContent() {
   navigator.clipboard.writeText(document.getElementById('clipContent').innerText);
   showToast('copied!');
 }
-
 function downloadText() {
   const text = document.getElementById('clipContent').innerText;
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], {type: 'text/plain'}));
+  a.href = URL.createObjectURL(new Blob([text], {type:'text/plain'}));
   a.download = `drp-${KEY}.txt`;
   a.click();
 }
 
 // ── Rename ────────────────────────────────────────────────────────────────────
-const keyInput = document.getElementById('keyInput');
-const keyStatus = document.getElementById('keyStatus');
-let keyTimer = null;
+if (CAN_EDIT) {
+  const keyInput = document.getElementById('keyInput');
+  const keyStatus = document.getElementById('keyStatus');
+  let keyTimer = null;
 
-keyInput.addEventListener('input', () => {
-  clearTimeout(keyTimer);
-  const val = keyInput.value.trim();
-  document.getElementById('urlDisplay').textContent = `${BASE}/${val}/`;
-  keyTimer = setTimeout(async () => {
-    if (!val || val === KEY) { keyStatus.textContent = ''; return; }
-    const res = await fetch(`/check-key/?key=${encodeURIComponent(val)}`);
+  keyInput.addEventListener('input', () => {
+    clearTimeout(keyTimer);
+    const val = keyInput.value.trim();
+    document.getElementById('urlDisplay').textContent = `${BASE}/${val}/`;
+    keyTimer = setTimeout(async () => {
+      if (!val || val === KEY) { keyStatus.textContent = ''; return; }
+      const res = await fetch(`/check-key/?key=${encodeURIComponent(val)}`);
+      const data = await res.json();
+      keyStatus.textContent = data.available ? '✓' : '✗ taken';
+      keyStatus.className = data.available ? 'ok' : 'taken';
+    }, 400);
+  });
+
+  document.getElementById('renameBtn').addEventListener('click', async () => {
+    const newKey = keyInput.value.trim();
+    if (!newKey || newKey === KEY) return;
+    const fd = new FormData();
+    fd.append('new_key', newKey);
+    fd.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+    const res = await fetch(`/${KEY}/rename/`, { method: 'POST', body: fd });
     const data = await res.json();
-    keyStatus.textContent = data.available ? '✓' : '✗ taken';
-    keyStatus.className = data.available ? 'ok' : 'taken';
-  }, 400);
-});
-
-document.getElementById('renameBtn').addEventListener('click', async () => {
-  const newKey = keyInput.value.trim();
-  if (!newKey || newKey === KEY) return;
-  const fd = new FormData();
-  fd.append('new_key', newKey);
-  fd.append('csrfmiddlewaretoken', getCookie('csrftoken'));
-  const res = await fetch(`/${KEY}/rename/`, { method: 'POST', body: fd });
-  const data = await res.json();
-  if (res.ok) {
-    // Update localStorage
-    try {
-      const drops = JSON.parse(localStorage.getItem('drp_drops') || '[]');
-      const d = drops.find(d => d.key === KEY);
-      if (d) { d.key = data.key; localStorage.setItem('drp_drops', JSON.stringify(drops)); }
-    } catch {}
-    window.location.href = data.redirect;
-  } else {
-    showToast(data.error || 'Rename failed.');
-  }
-});
+    if (res.ok) {
+      window.location.href = data.redirect;
+    } else {
+      showToast(data.error || 'Rename failed.');
+    }
+  });
+}
 
 // ── Edit text ─────────────────────────────────────────────────────────────────
 const editForm = document.getElementById('editForm');
@@ -150,8 +170,11 @@ if (editForm) {
     fd.append('content', document.getElementById('editArea').value);
     fd.append('csrfmiddlewaretoken', getCookie('csrftoken'));
     const res = await fetch('/save/', { method: 'POST', body: fd });
-    if (res.ok) { showToast('saved!'); document.getElementById('clipContent').innerText = document.getElementById('editArea').value; }
-    else showToast('Failed to save.');
+    if (res.ok) {
+      showToast('saved!');
+      document.getElementById('clipContent').innerText = document.getElementById('editArea').value;
+      toggleEdit();
+    } else showToast('Failed to save.');
   });
 }
 
@@ -168,13 +191,11 @@ if (dropZone) {
   dropZone.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
 }
-
 function setFile(f) {
   newFile = f;
   if (replaceBtn) replaceBtn.disabled = false;
   if (dropZone) dropZone.querySelector('span').textContent = `${f.name} — ready to replace`;
 }
-
 if (replaceBtn) {
   replaceBtn.addEventListener('click', async () => {
     if (!newFile) return;
@@ -189,11 +210,37 @@ if (replaceBtn) {
   });
 }
 
+// ── Renew ─────────────────────────────────────────────────────────────────────
+const renewBtn = document.getElementById('renewBtn');
+if (renewBtn) {
+  renewBtn.addEventListener('click', async () => {
+    renewBtn.disabled = true;
+    const res = await fetch(`/${KEY}/renew/`, {
+      method: 'POST',
+      headers: { 'X-CSRFToken': getCookie('csrftoken') },
+    });
+    const data = await res.json();
+    if (res.ok) {
+      const d = new Date(data.expires_at);
+      document.getElementById('renewStatus').textContent =
+        `renewed → expires ${d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'})}`;
+      showToast('drop renewed!');
+    } else {
+      showToast(data.error || 'Renew failed.');
+      renewBtn.disabled = false;
+    }
+  });
+}
+
 // ── Delete ────────────────────────────────────────────────────────────────────
 async function deleteDrop() {
   if (!confirm('Delete this drop? This cannot be undone.')) return;
-  const res = await fetch(`/${KEY}/delete/`, { method: 'DELETE', headers: { 'X-CSRFToken': getCookie('csrftoken') } });
+  const res = await fetch(`/${KEY}/delete/`, {
+    method: 'DELETE',
+    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+  });
   if (res.ok) {
+    // Clean up localStorage too (for anon drops they may have saved)
     try {
       const drops = JSON.parse(localStorage.getItem('drp_drops') || '[]');
       localStorage.setItem('drp_drops', JSON.stringify(drops.filter(d => d.key !== KEY)));

@@ -97,10 +97,46 @@ CLOUDINARY_STORAGE = {
 }
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.RawMediaCloudinaryStorage'
 
-# Limits
+
+# Admin contact — receives forgot-password emails
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'you@yourdomain.com')
+
+# Public URL of your site (used in admin email links)
+if DOMAIN:
+    SITE_URL = f'https://{DOMAIN}'
+else:
+    SITE_URL = 'http://localhost:8000'
+
+# Email backend
+# For production set these env vars and use SMTP:
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+
+# For local dev — prints emails to console instead of sending
+# EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Cache (used for signup rate limiting)
+# For local dev sqlite works fine. In prod, point at Redis:
+# CACHES = {
+#     "default": {
+#         "BACKEND": "django.core.cache.backends.redis.RedisCache",
+#         "LOCATION": os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/1"),
+#     }
+# }
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "drp_cache",
+    }
+}
+
+# Keep these for backwards compat (anon limits, referenced in templates)
 ANON_BIN_MAX_SIZE_MB = 200
 CLIPBOARD_MAX_SIZE_KB = 500
-CLIPBOARD_EXPIRY_HOURS = 24
-BIN_INACTIVE_EXPIRY_DAYS = 90
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}drp — account{% endblock %}
+{% block content %}
+<div class="account-page">
+
+  <div class="account-header">
+    <h1>account</h1>
+    <p class="muted">{{ user.email }}</p>
+  </div>
+
+  <!-- Plan -->
+  <div class="account-section">
+    <h2>plan</h2>
+    <div class="plan-status">
+      <span class="plan-badge plan-badge--{{ profile.plan }}">{{ profile.plan|capfirst }}</span>
+      {% if not profile.is_paid %}
+        <span class="muted" style="font-size:.85rem">
+          — <a href="/auth/register/#plans">upgrade</a> for locked drops, more storage & longer expiry
+        </span>
+      {% else %}
+        <span class="muted" style="font-size:.85rem">
+          ${{ plan_limits.price_monthly }}/mo ·
+          {{ plan_limits.max_file_mb }}MB per file ·
+          up to {{ plan_limits.max_expiry_days }} day expiry
+        </span>
+      {% endif %}
+    </div>
+
+    {% if profile.is_paid %}
+    <div class="storage-bar-wrap" style="margin-top:1rem">
+      <div class="storage-label">
+        {{ profile.storage_used_gb|floatformat:2 }} GB
+        / {{ profile.storage_quota_gb }} GB used
+      </div>
+      <div class="storage-bar">
+        <div class="storage-bar-fill"
+             style="width:{% widthratio profile.storage_used_bytes profile.storage_quota_bytes 100 %}%">
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Drops -->
+  <div class="account-section">
+    <h2>your drops</h2>
+    {% if drops %}
+    <table class="drops-table">
+      <thead>
+        <tr>
+          <th>key</th>
+          <th>type</th>
+          <th>size</th>
+          <th>created</th>
+          <th>expires</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for drop in drops %}
+        <tr>
+          <td><a href="/{{ drop.key }}/" class="mono">{{ drop.key }}</a></td>
+          <td>
+            {% if drop.kind == 'file' %}📎 {{ drop.filename|truncatechars:24 }}
+            {% else %}📋 {{ drop.content|truncatechars:24 }}{% endif %}
+          </td>
+          <td class="muted">
+            {% if drop.kind == 'file' %}{{ drop.filesize|filesizeformat }}{% else %}—{% endif %}
+          </td>
+          <td class="muted">{{ drop.created_at|date:"M j, Y" }}</td>
+          <td class="muted">
+            {% if drop.expires_at %}{{ drop.expires_at|date:"M j, Y" }}
+            {% elif drop.kind == 'text' %}24h from creation
+            {% else %}90d inactive{% endif %}
+          </td>
+          <td>
+            <a href="/{{ drop.key }}/" class="btn-sm">view</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="muted empty">no drops yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="account-section">
+    <a href="/auth/logout/" class="btn-sm danger">log out</a>
+  </div>
+
+</div>
+{% endblock %}

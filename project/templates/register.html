@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}drp — create account{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <h1>create account</h1>
+  <p class="muted">free accounts sync your drops across devices.</p>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  <form method="post" class="auth-form">
+    {% csrf_token %}
+    <div class="field">
+      <label for="email">email</label>
+      <input type="email" name="email" id="email" required autofocus/>
+    </div>
+    <div class="field">
+      <label for="password">password</label>
+      <input type="password" name="password" id="password" required minlength="8"/>
+    </div>
+    <div class="field">
+      <label for="password2">confirm password</label>
+      <input type="password" name="password2" id="password2" required/>
+    </div>
+    <button type="submit" class="btn">create account</button>
+  </form>
+
+  <p class="auth-alt muted">already have an account? <a href="/auth/login/">log in</a></p>
+
+  <div class="plan-cards" style="margin-top:2rem">
+    <p class="muted" style="margin-bottom:.8rem;font-size:.85rem">upgrade anytime for paid features:</p>
+    <div class="plan-grid">
+      <div class="plan-card">
+        <div class="plan-name">Starter</div>
+        <div class="plan-price">$3<span>/mo</span></div>
+        <ul>
+          <li>1 GB per file</li>
+          <li>5 GB total storage</li>
+          <li>Up to 1 year expiry</li>
+          <li>Drops locked to your account</li>
+          <li>Renewable drops</li>
+        </ul>
+      </div>
+      <div class="plan-card plan-card--pro">
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">$8<span>/mo</span></div>
+        <ul>
+          <li>5 GB per file</li>
+          <li>20 GB total storage</li>
+          <li>Up to 3 years expiry</li>
+          <li>Drops locked to your account</li>
+          <li>Renewable drops</li>
+        </ul>
+      </div>
+    </div>
+    <p class="muted" style="font-size:.78rem;margin-top:.6rem">
+      To upgrade, email <a href="mailto:{{ admin_email }}">us</a> after creating your account.
+    </p>
+  </div>
+</div>
+{% endblock %}

@@ -1,6 +1,4 @@
 from django.core.management.base import BaseCommand
-from django.utils import timezone
-from datetime import timedelta
 from core.models import Drop
 
 
@@ -8,7 +6,7 @@ class Command(BaseCommand):
     help = 'Delete expired drops'
 
     def handle(self, *args, **kwargs):
-        all_drops = Drop.objects.all()
+        all_drops = Drop.objects.select_related('owner__profile').all()
         deleted = 0
         for drop in all_drops:
             if drop.is_expired():

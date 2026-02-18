@@ -6,7 +6,6 @@
   <title>{% block title %}drp{% endblock %}</title>
   {% load static %}
   <link rel="stylesheet" href="{% static 'css/main.css' %}"/>
-  {% load static %}
   <link rel="icon" href="{% static 'favicon.ico' %}">
 </head>
 <body>
@@ -14,13 +13,27 @@
     <a href="/" class="logo">drp</a>
     <nav>
       <a href="/help/">how it works</a>
+      {% if user.is_authenticated %}
+        <a href="/auth/account/">
+          {% if user.profile.is_paid %}<span class="plan-badge">{{ user.profile.plan }}</span>{% endif %}
+          {{ user.email }}
+        </a>
+        <a href="/auth/logout/">logout</a>
+      {% else %}
+        <a href="/auth/login/">login</a>
+        <a href="/auth/register/" class="btn-nav">sign up</a>
+      {% endif %}
     </nav>
   </header>
   <main>
     {% block content %}{% endblock %}
   </main>
   <footer>
-    <small>text clears in 24h · files expire after 90 days inactive · <a href="https://github.com/Vic-Nas/drp">open source</a></small>
+    <small>
+      anon: text 24h · files 90d inactive ·
+      paid: from creation, renewable ·
+      <a href="https://github.com/Vic-Nas/drp">open source</a>
+    </small>
   </footer>
   <script src="{% static 'js/main.js' %}"></script>
   {% block scripts %}{% endblock %}

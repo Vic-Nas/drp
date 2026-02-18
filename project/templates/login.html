@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}drp — log in{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <h1>log in</h1>
+
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+  <form method="post" class="auth-form">
+    {% csrf_token %}
+    <div class="field">
+      <label for="email">email</label>
+      <input type="email" name="email" id="email" required autofocus/>
+    </div>
+    <div class="field">
+      <label for="password">password</label>
+      <input type="password" name="password" id="password" required/>
+    </div>
+    <button type="submit" class="btn">log in</button>
+  </form>
+
+  <p class="auth-alt muted">
+    <a href="/auth/forgot-password/">forgot password?</a>
+    · no account? <a href="/auth/register/">sign up</a>
+  </p>
+</div>
+{% endblock %}
