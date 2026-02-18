@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 """
 drp sync client
-Watches a local folder and syncs it to a drp bin.
+Watches a local folder and syncs files to a drp key per file.
+
+Each file gets its own key: filename (without extension) by default.
+Keys are stored in drp_sync.json so you know which key = which file.
 
 Usage:
-  python client.py --bin mykey --folder ~/Documents/drp --host https://yoursite.com
-
-Config is saved to drp_sync.json after first run.
+  python client.py --setup
+  python client.py
 """
 
 import os
 import sys
 import json
 import time
-import hashlib
+import secrets
 import argparse
 import requests
 from pathlib import Path
@@ -35,104 +37,164 @@ def save_config(cfg):
     print(f'Config saved to {CONFIG_FILE}')
 
 
-# ── API helpers ───────────────────────────────────────────────────────────────
+# ── API ───────────────────────────────────────────────────────────────────────
 
-def upload_file(host, bin_key, filepath):
-    url = f'{host}/b/{bin_key}/upload/'
+def get_csrf(host, session):
+    """Hit home page to get CSRF cookie."""
+    session.get(f'{host}/', timeout=10)
+    return session.cookies.get('csrftoken', '')
+
+def upload_file(host, session, filepath, key=None):
+    """Upload a file as a Drop. Returns the key used."""
+    csrf = get_csrf(host, session)
     with open(filepath, 'rb') as f:
+        data = {'csrfmiddlewaretoken': csrf}
+        if key:
+            data['key'] = key
         try:
-            res = requests.post(url, files={'files': (os.path.basename(filepath), f)}, timeout=30)
+            res = session.post(
+                f'{host}/save/',
+                files={'file': (os.path.basename(filepath), f)},
+                data=data,
+                timeout=60
+            )
             if res.ok:
-                print(f'  ↑ uploaded: {os.path.basename(filepath)}')
+                result = res.json()
+                print(f'  ↑ {os.path.basename(filepath)} → {host}/{result["key"]}/')
+                return result['key']
             else:
                 print(f'  ✗ failed: {os.path.basename(filepath)} — {res.text}')
         except Exception as e:
-            print(f'  ✗ error uploading {os.path.basename(filepath)}: {e}')
+            print(f'  ✗ error: {e}')
+    return key
 
-
-def delete_file_by_name(host, bin_key, filename):
-    # Fetch file list to find ID
+def delete_drop(host, session, key):
+    """Delete a drop by key."""
+    csrf = get_csrf(host, session)
     try:
-        res = requests.get(f'{host}/b/{bin_key}/', timeout=10)
-        # Simple parse — in prod you'd have a /api/bin/<key>/files/ endpoint
-        print(f'  ~ delete not yet implemented via API for: {filename}')
+        res = session.delete(
+            f'{host}/{key}/delete/',
+            headers={'X-CSRFToken': csrf},
+            timeout=10
+        )
+        if res.ok:
+            print(f'  ✗ deleted: {key}')
+        else:
+            print(f'  ~ could not delete {key}: {res.status_code}')
     except Exception as e:
-        print(f'  ✗ error: {e}')
+        print(f'  ✗ error deleting {key}: {e}')
+
+
+# ── Key mapping ───────────────────────────────────────────────────────────────
+
+def key_for_file(filename, key_map):
+    """Get existing key for a filename or None."""
+    return key_map.get(filename)
+
+def slug(name):
+    """Turn a filename into a url-safe slug."""
+    stem = Path(name).stem
+    safe = ''.join(c if c.isalnum() or c in '-_' else '-' for c in stem).strip('-')
+    return safe[:40] or secrets.token_urlsafe(6)
 
 
 # ── Watchdog handler ──────────────────────────────────────────────────────────
 
 class SyncHandler(FileSystemEventHandler):
-    def __init__(self, host, bin_key, folder):
+    def __init__(self, host, folder, key_map, cfg):
         self.host = host
-        self.bin_key = bin_key
         self.folder = folder
+        self.key_map = key_map  # filename → key
+        self.cfg = cfg
+        self.session = requests.Session()
+
+    def _save(self):
+        self.cfg['key_map'] = self.key_map
+        save_config(self.cfg)
 
     def on_created(self, event):
         if event.is_directory: return
-        print(f'[+] new file: {event.src_path}')
-        upload_file(self.host, self.bin_key, event.src_path)
+        name = os.path.basename(event.src_path)
+        print(f'[+] {name}')
+        suggested_key = self.key_map.get(name) or slug(name)
+        key = upload_file(self.host, self.session, event.src_path, key=suggested_key)
+        if key:
+            self.key_map[name] = key
+            self._save()
 
     def on_modified(self, event):
         if event.is_directory: return
-        print(f'[~] modified: {event.src_path}')
-        upload_file(self.host, self.bin_key, event.src_path)
+        name = os.path.basename(event.src_path)
+        print(f'[~] {name}')
+        key = self.key_map.get(name)
+        new_key = upload_file(self.host, self.session, event.src_path, key=key)
+        if new_key:
+            self.key_map[name] = new_key
+            self._save()
 
     def on_deleted(self, event):
         if event.is_directory: return
-        filename = os.path.basename(event.src_path)
-        print(f'[-] deleted: {filename}')
-        delete_file_by_name(self.host, self.bin_key, filename)
+        name = os.path.basename(event.src_path)
+        key = self.key_map.pop(name, None)
+        if key:
+            print(f'[-] {name} (key: {key})')
+            delete_drop(self.host, self.session, key)
+            self._save()
+        else:
+            print(f'[-] {name} (no key tracked, skipping)')
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description='drp sync client')
-    parser.add_argument('--bin', help='Bin key to sync to')
-    parser.add_argument('--folder', help='Local folder to watch')
-    parser.add_argument('--host', default='http://localhost:8000', help='drp host URL')
+    parser.add_argument('--host', default=None, help='drp host (e.g. https://drp.yourdomain.com)')
+    parser.add_argument('--folder', default=None, help='Local folder to watch')
     parser.add_argument('--setup', action='store_true', help='Run setup wizard')
     args = parser.parse_args()
 
     cfg = load_config()
 
-    # Setup wizard
-    if args.setup or not cfg:
+    if args.setup or not cfg.get('host') or not cfg.get('folder'):
         print('drp sync setup')
         print('──────────────')
-        cfg['host'] = input(f'Host [{args.host}]: ').strip() or args.host
-        cfg['bin_key'] = input('Bin key: ').strip()
-        cfg['folder'] = input('Local folder to sync: ').strip()
+        default_host = cfg.get('host', 'http://localhost:8000')
+        cfg['host'] = input(f'Host [{default_host}]: ').strip() or default_host
+        default_folder = cfg.get('folder', str(Path.home() / 'drp-sync'))
+        cfg['folder'] = input(f'Folder [{default_folder}]: ').strip() or default_folder
+        cfg.setdefault('key_map', {})
         save_config(cfg)
 
-    # CLI args override config
-    host = args.host if args.host != 'http://localhost:8000' else cfg.get('host', args.host)
-    bin_key = args.bin or cfg.get('bin_key')
-    folder = args.folder or cfg.get('folder')
+    host = args.host or cfg['host']
+    folder = Path(args.folder or cfg['folder']).expanduser().resolve()
+    key_map = cfg.get('key_map', {})
 
-    if not bin_key or not folder:
-        print('Error: bin key and folder required. Run with --setup')
-        sys.exit(1)
-
-    folder = Path(folder).expanduser().resolve()
     if not folder.exists():
         folder.mkdir(parents=True)
-        print(f'Created folder: {folder}')
+        print(f'Created: {folder}')
 
-    print(f'\ndrp sync started')
-    print(f'  bin:    {host}/b/{bin_key}/')
+    print(f'\ndrp sync')
+    print(f'  host:   {host}')
     print(f'  folder: {folder}')
-    print(f'  watching for changes...\n')
+    print(f'  tracking {len(key_map)} file(s)\n')
 
-    # Initial sync — upload everything in folder
-    for f in folder.iterdir():
+    session = requests.Session()
+
+    # Initial sync
+    for f in sorted(folder.iterdir()):
         if f.is_file():
-            print(f'[initial] uploading {f.name}')
-            upload_file(host, bin_key, str(f))
+            existing_key = key_map.get(f.name)
+            print(f'[init] {f.name}')
+            key = upload_file(host, session, str(f), key=existing_key or slug(f.name))
+            if key:
+                key_map[f.name] = key
 
-    # Watch
-    handler = SyncHandler(host, bin_key, folder)
+    cfg['key_map'] = key_map
+    save_config(cfg)
+
+    print('\nwatching for changes… (Ctrl+C to stop)\n')
+
+    handler = SyncHandler(host, folder, key_map, cfg)
     observer = Observer()
     observer.schedule(handler, str(folder), recursive=False)
     observer.start()
