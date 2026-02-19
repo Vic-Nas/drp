@@ -44,7 +44,7 @@ jobs:
         run: python -m cli --version
 
       - name: Run unit tests
-        run: python -m pytest cli/tests_unit.py -v
+        run: python -m pytest -v
 
       # ── Smoke tests (require DRP_SMOKE_HOST secret) ───────────────────────
 

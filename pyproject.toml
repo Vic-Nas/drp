@@ -1,3 +1,5 @@
+[tool.pytest.ini_options]
+testpaths = ["cli/tests_unit.py", "core/tests_error_reporting.py"]
 [build-system]
 requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
