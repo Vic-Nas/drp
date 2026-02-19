@@ -2,6 +2,7 @@
 Drop creation, retrieval, and download views.
 """
 
+import secrets
 from datetime import timedelta
 
 from django.conf import settings
@@ -17,11 +18,14 @@ from .helpers import (
     upload_to_cloudinary, destroy_cloudinary, add_storage,
 )
 
+ANON_COOKIE = 'drp_anon'
+
 
 # ── Home ──────────────────────────────────────────────────────────────────────
 
 @ensure_csrf_cookie
 def home(request):
+    claimed = request.session.pop('claimed_drops', 0)
     server_drops = []
     if request.user.is_authenticated:
         server_drops = (
@@ -29,16 +33,15 @@ def home(request):
             .filter(owner=request.user)
             .order_by('-created_at')[:50]
         )
-    return render(request, 'home.html', {'server_drops': server_drops})
+    return render(request, 'home.html', {
+        'server_drops': server_drops,
+        'claimed': claimed,
+    })
 
 
 # ── Check key ─────────────────────────────────────────────────────────────────
 
 def check_key(request):
-    """
-    GET /check-key/?key=foo&ns=c
-    Returns whether the key is available in the given namespace.
-    """
     key = request.GET.get('key', '').strip()
     ns = request.GET.get('ns', Drop.NS_CLIPBOARD)
     if not key:
@@ -72,10 +75,27 @@ def save_drop(request):
 
     paid = is_paid_user(request.user)
 
+    # Resolve anon token — reuse existing cookie or mint a new one
+    anon_token = None
+    if not request.user.is_authenticated:
+        anon_token = request.COOKIES.get(ANON_COOKIE) or secrets.token_urlsafe(32)
+
     if f:
-        return _save_file(request, f, ns, key, existing, paid)
+        response = _save_file(request, f, ns, key, existing, paid, anon_token)
     else:
-        return _save_text(request, ns, key, existing, paid)
+        response = _save_text(request, ns, key, existing, paid, anon_token)
+
+    # Set or refresh the anon cookie on new drops
+    if anon_token and not existing:
+        response.set_cookie(
+            ANON_COOKIE,
+            anon_token,
+            max_age=7 * 24 * 3600,
+            httponly=True,
+            samesite='Lax',
+        )
+
+    return response
 
 
 def _expiry_and_lock(request, paid):
@@ -99,7 +119,7 @@ def _expiry_and_lock(request, paid):
     return expires_at, locked_until
 
 
-def _save_file(request, f, ns, key, existing, paid):
+def _save_file(request, f, ns, key, existing, paid, anon_token):
     if f.size > max_file_bytes(request.user):
         limit = Plan.get(user_plan(request.user), 'max_file_mb')
         return JsonResponse({'error': f'File exceeds {limit} MB limit.'}, status=400)
@@ -141,6 +161,7 @@ def _save_file(request, f, ns, key, existing, paid):
             locked_until=locked_until,
             expires_at=expires_at,
             max_lifetime_secs=max_lifetime_secs(request.user, ns),
+            anon_token=anon_token,
         )
         add_storage(request.user, f.size)
 
@@ -153,7 +174,7 @@ def _save_file(request, f, ns, key, existing, paid):
     })
 
 
-def _save_text(request, ns, key, existing, paid):
+def _save_text(request, ns, key, existing, paid, anon_token):
     text = request.POST.get('content', '').strip()
     if len(text.encode()) > max_text_bytes(request.user):
         limit = Plan.get(user_plan(request.user), 'max_text_kb')
@@ -174,6 +195,7 @@ def _save_text(request, ns, key, existing, paid):
             locked_until=locked_until,
             expires_at=expires_at,
             max_lifetime_secs=max_lifetime_secs(request.user, ns),
+            anon_token=anon_token,
         )
 
     return JsonResponse({
@@ -188,7 +210,6 @@ def _save_text(request, ns, key, existing, paid):
 # ── View drop ─────────────────────────────────────────────────────────────────
 
 def _drop_response(request, drop):
-    """Common handler after drop is resolved — JSON or HTML."""
     if drop.is_expired():
         drop.hard_delete()
         if 'application/json' in request.headers.get('Accept', ''):
@@ -224,7 +245,6 @@ def _drop_response(request, drop):
 
 
 def clipboard_view(request, key):
-    """GET /key/ — view a clipboard drop."""
     drop = Drop.objects.filter(ns=Drop.NS_CLIPBOARD, key=key).first()
     if not drop:
         if 'application/json' in request.headers.get('Accept', ''):
@@ -234,7 +254,6 @@ def clipboard_view(request, key):
 
 
 def file_view(request, key):
-    """GET /f/key/ — view a file drop."""
     drop = Drop.objects.filter(ns=Drop.NS_FILE, key=key).first()
     if not drop:
         if 'application/json' in request.headers.get('Accept', ''):
@@ -246,7 +265,6 @@ def file_view(request, key):
 # ── Download ──────────────────────────────────────────────────────────────────
 
 def download_drop(request, key):
-    """GET /f/key/download/ — redirect to Cloudinary URL."""
     drop = Drop.objects.filter(ns=Drop.NS_FILE, key=key).first()
     if not drop:
         raise Http404

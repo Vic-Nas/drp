@@ -13,7 +13,9 @@ from django.shortcuts import render, redirect
 from django.views.decorators.http import require_POST
 
 from core.models import Drop, Plan, SavedDrop
-from .helpers import check_signup_rate, user_plan
+from .helpers import check_signup_rate, user_plan, claim_anon_drops
+
+ANON_COOKIE = 'drp_anon'
 
 
 # ── Register ──────────────────────────────────────────────────────────────────
@@ -43,9 +45,20 @@ def register_view(request):
             else:
                 user = User.objects.create_user(username=email, email=email, password=password)
                 login(request, user)
+
+                token = request.COOKIES.get(ANON_COOKIE)
+                claimed = claim_anon_drops(user, token)
+                if claimed:
+                    request.session['claimed_drops'] = claimed
+
                 if plan_choice in ('starter', 'pro'):
-                    return redirect(f'/billing/checkout/{plan_choice}/')
-                return redirect('home')
+                    response = redirect(f'/billing/checkout/{plan_choice}/')
+                else:
+                    response = redirect('home')
+
+                if token:
+                    response.delete_cookie(ANON_COOKIE)
+                return response
 
     return render(request, 'auth/register.html', {
         'error': error,
@@ -66,7 +79,17 @@ def login_view(request):
         user = authenticate(request, username=email, password=password)
         if user:
             login(request, user)
-            return redirect(request.GET.get('next', '/'))
+
+            token = request.COOKIES.get(ANON_COOKIE)
+            claimed = claim_anon_drops(user, token)
+            if claimed:
+                request.session['claimed_drops'] = claimed
+
+            response = redirect(request.GET.get('next', '/'))
+            if token:
+                response.delete_cookie(ANON_COOKIE)
+            return response
+
         error = 'Invalid email or password.'
 
     return render(request, 'auth/login.html', {'error': error})
@@ -86,7 +109,6 @@ def account_view(request):
     profile = request.user.profile
     profile.recalc_storage()
 
-    # Clean expired owned drops
     for d in Drop.objects.filter(owner=request.user):
         if d.is_expired():
             d.hard_delete()
@@ -143,21 +165,14 @@ def export_drops(request):
 @login_required
 @require_POST
 def import_drops(request):
-    """
-    Accept a JSON export and bookmark all drops in it for the current user.
-    No content is stored. No ownership is transferred.
-    The importer gets SavedDrop entries pointing to the original keys.
-    """
     try:
         data = json.loads(request.body)
     except (json.JSONDecodeError, UnicodeDecodeError):
         return JsonResponse({'error': 'Invalid JSON.'}, status=400)
 
-    # Accept both {drops: [], saved: []} and a bare list
     if isinstance(data, list):
         entries = data
     else:
-        # Merge owned drops and previously saved drops from the export
         entries = data.get('drops', []) + data.get('saved', [])
 
     if not entries:
@@ -182,7 +197,7 @@ def import_drops(request):
         if created:
             imported += 1
         else:
-            skipped += 1  # already bookmarked
+            skipped += 1
 
     return JsonResponse({'imported': imported, 'skipped': skipped})
 

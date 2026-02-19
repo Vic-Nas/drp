@@ -191,6 +191,25 @@ textarea:disabled { opacity: .4; }
 .drop-label { font-size: .78rem; color: var(--muted); max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drop-icon { font-size: .9rem; }
 
+/* ── Claim banner ── */
+.claim-banner {
+  background: rgba(91, 200, 122, .1);
+  border: 1px solid #5bc87a;
+  border-radius: var(--radius);
+  padding: .55rem .9rem;
+  font-size: .88rem;
+  color: #5bc87a;
+  margin-bottom: 1rem;
+}
+
+/* ── Anon nudge (below result box) ── */
+.anon-nudge {
+  font-size: .82rem;
+  color: var(--muted);
+  margin-top: .5rem;
+}
+.anon-nudge a { color: var(--accent); }
+
 /* ── Anon upsell ── */
 .anon-upsell {
   margin-top: 1rem;

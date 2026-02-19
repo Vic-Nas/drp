@@ -9,6 +9,12 @@
     <h1>drop it.</h1>
     <p class="tagline">paste text or drop a file. get a key. share the link.</p>
 
+    {% if claimed %}
+    <div class="claim-banner">
+      ✓ {{ claimed }} drop{{ claimed|pluralize }} claimed and added to your account.
+    </div>
+    {% endif %}
+
     <div class="key-row">
       <span class="prefix">drp /</span>
       <input type="text" id="keyInput" placeholder="auto-generated (or type your own)" autocomplete="off" spellcheck="false"/>
@@ -54,19 +60,24 @@
       <a id="resultUrl" href="#" target="_blank"></a>
       <button class="btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('resultUrl').href); showToast('copied!')">copy</button>
     </div>
+
+    {% if not user.is_authenticated %}
+    <p id="anonNudge" class="anon-nudge hidden">
+      Drop expires in 7 days. <a href="/auth/register/">Sign up free</a> to claim it and extend to 30 days.
+    </p>
+    {% endif %}
   </div>
 
   <!-- Right: Dashboard -->
   <div class="dashboard">
     {% if user.is_authenticated %}
       <h3>my drops</h3>
-      <!-- Server-side list for logged-in users -->
       <div class="drop-list" id="myDrops">
         {% if server_drops %}
           {% for drop in server_drops %}
           <div class="drop-item">
             <span class="drop-icon">{% if drop.kind == 'file' %}📎{% else %}📋{% endif %}</span>
-            <a href="/{{ drop.key }}/" class="drop-key">{{ drop.key }}</a>
+            <a href="{% if drop.ns == 'f' %}/f/{{ drop.key }}/{% else %}/{{ drop.key }}/{% endif %}" class="drop-key">{{ drop.key }}</a>
             <span class="drop-label muted">
               {% if drop.kind == 'file' %}{{ drop.filename|truncatechars:20 }}{% else %}{{ drop.content|truncatechars:20 }}{% endif %}
             </span>
@@ -92,7 +103,6 @@
       {% endif %}
 
     {% else %}
-      <!-- Anon: recent drops (localStorage) + upsell -->
       <h3>my drops</h3>
       <div id="myDrops" class="drop-list">
         <p class="empty muted" id="anonEmpty">nothing yet.</p>
@@ -102,15 +112,14 @@
         <button class="btn-sm danger" id="clearAll">clear all</button>
       </div>
 
-      <!-- Upsell -->
       <div class="anon-upsell">
         <p class="upsell-heading">free account unlocks:</p>
         <ul class="upsell-list">
-          <li>✓ drops synced across devices</li>
-          <li>✓ save & bookmark others' drops</li>
-          <li>✓ export &amp; import collections</li>
+          <li>✓ claim &amp; keep drops you create</li>
           <li>✓ 48h idle timeout (vs 24h)</li>
           <li>✓ 30-day max lifetime (vs 7d)</li>
+          <li>✓ save &amp; bookmark others' drops</li>
+          <li>✓ export &amp; import collections</li>
         </ul>
         <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap">
           <a href="/auth/register/" class="btn" style="font-size:.82rem;padding:.4rem .9rem">sign up free</a>
@@ -129,7 +138,6 @@ const IS_AUTHED = {{ user.is_authenticated|yesno:"true,false" }};
 const IS_PAID   = {{ user.is_authenticated|yesno:"true,false" }}
                   && {{ user.profile.is_paid|default:"false"|yesno:"true,false" }};
 
-// ── localStorage helpers (anon only) ──────────────────────────────────────────
 function getMyDrops() {
   try { return JSON.parse(localStorage.getItem('drp_drops') || '[]'); } catch { return []; }
 }
@@ -188,7 +196,6 @@ if (!IS_AUTHED) {
   });
 }
 
-// ── Key check ─────────────────────────────────────────────────────────────────
 let keyTimer = null;
 const keyInput = document.getElementById('keyInput');
 const keyStatus = document.getElementById('keyStatus');
@@ -205,7 +212,6 @@ keyInput.addEventListener('input', () => {
   }, 400);
 });
 
-// ── File select ───────────────────────────────────────────────────────────────
 let selectedFile = null;
 const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
@@ -238,7 +244,6 @@ function clearFile() {
   document.getElementById('dropLabel').innerHTML = 'drag & drop a file or <label for="fileInput" class="link">browse</label>';
 }
 
-// ── Save ──────────────────────────────────────────────────────────────────────
 document.getElementById('saveBtn').addEventListener('click', async () => {
   const key = keyInput.value.trim();
   const text = textInput.value.trim();
@@ -253,11 +258,8 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
 
   const fd = new FormData();
   if (key) fd.append('key', key);
-  if (selectedFile) {
-    fd.append('file', selectedFile);
-  } else {
-    fd.append('content', text);
-  }
+  if (selectedFile) { fd.append('file', selectedFile); }
+  else { fd.append('content', text); }
   const expiryEl = document.getElementById('expiryDays');
   if (expiryEl) fd.append('expiry_days', expiryEl.value);
 
@@ -282,6 +284,8 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
       if (xhr.status === 200) {
         if (!IS_AUTHED) {
           addDropLocal(data.key, data.kind, selectedFile ? selectedFile.name : text.slice(0, 30));
+          const nudge = document.getElementById('anonNudge');
+          if (nudge) nudge.classList.remove('hidden');
         } else {
           window.location.reload();
           return;

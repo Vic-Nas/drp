@@ -146,6 +146,9 @@ class Drop(models.Model):
         related_name='drops',
     )
 
+    # Token set on anonymous drops so they can be claimed on signup/login
+    anon_token = models.CharField(max_length=64, null=True, blank=True, db_index=True)
+
     content = models.TextField(blank=True, default='')
 
     file_url       = models.URLField(blank=True, default='')
@@ -153,13 +156,13 @@ class Drop(models.Model):
     filename       = models.CharField(max_length=255, blank=True, default='')
     filesize       = models.PositiveBigIntegerField(default=0)
 
-    created_at       = models.DateTimeField(auto_now_add=True)
-    last_accessed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    created_at        = models.DateTimeField(auto_now_add=True)
+    last_accessed_at  = models.DateTimeField(null=True, blank=True, db_index=True)
     max_lifetime_secs = models.PositiveIntegerField(null=True, blank=True)
 
-    locked       = models.BooleanField(default=False)
-    locked_until = models.DateTimeField(null=True, blank=True)
-    expires_at   = models.DateTimeField(null=True, blank=True)
+    locked        = models.BooleanField(default=False)
+    locked_until  = models.DateTimeField(null=True, blank=True)
+    expires_at    = models.DateTimeField(null=True, blank=True)
     renewal_count = models.PositiveIntegerField(default=0)
 
     class Meta:

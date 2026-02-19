@@ -1,5 +1,6 @@
 """
-Shared helpers: rate limiting, plan limits, Cloudinary, key generation.
+Shared helpers: rate limiting, plan limits, Cloudinary, key generation,
+anon drop claiming.
 """
 
 import secrets
@@ -121,3 +122,32 @@ def sub_storage(owner_id, bytes_amount):
         UserProfile.objects.filter(user_id=owner_id).update(
             storage_used_bytes=db_models.F('storage_used_bytes') - bytes_amount
         )
+
+
+# ── Anon drop claiming ────────────────────────────────────────────────────────
+
+def claim_anon_drops(user, token):
+    """
+    Reassign all unclaimed anon drops with the given token to user.
+    Upgrades their lifetime to free-tier limits and locks them to the account.
+    Returns the number of drops claimed.
+    """
+    if not token:
+        return 0
+    drops = Drop.objects.filter(anon_token=token, owner=None)
+    count = drops.count()
+    if not count:
+        return 0
+    drops.update(
+        owner=user,
+        locked=True,
+        locked_until=None,
+        anon_token=None,
+        # Extend clipboard max lifetime to free tier (files already have no secs cap)
+        max_lifetime_secs=db_models.Case(
+            db_models.When(ns=Drop.NS_CLIPBOARD, then=30 * 24 * 3600),
+            default=None,
+            output_field=db_models.IntegerField(),
+        ),
+    )
+    return count
