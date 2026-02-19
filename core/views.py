@@ -221,8 +221,22 @@ def drop_view(request, key):
     drop = get_object_or_404(Drop, key=key)
     if drop.is_expired():
         drop.hard_delete()
+        if 'application/json' in request.headers.get('Accept', ''):
+            return JsonResponse({'error': 'expired'}, status=410)
         return render(request, 'expired.html', {'key': key})
     drop.touch()
+
+    # JSON API for CLI clients
+    if 'application/json' in request.headers.get('Accept', ''):
+        data = {'key': drop.key, 'kind': drop.kind, 'created_at': drop.created_at.isoformat()}
+        if drop.kind == Drop.TEXT:
+            data['content'] = drop.content
+        else:
+            data['filename'] = drop.filename
+            data['filesize'] = drop.filesize
+            data['download'] = f'/{drop.key}/download/'
+        return JsonResponse(data)
+
     can_edit = drop.can_edit(request.user)
     plan = _user_plan(request.user)
     max_expiry_days = Plan.get(plan, 'max_expiry_days')

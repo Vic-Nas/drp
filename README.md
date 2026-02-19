@@ -5,7 +5,6 @@ Drop files or paste text, get a link instantly. No account, no friction — just
 - `/your-key` — view, copy, download, or replace a drop
 - Anonymous text drops expire after **24h** (text) or **90 days** (files)
 - Paid accounts get locked drops, longer expiry, and renewable links
-- Built-in folder sync client — lightweight OneDrive alternative
 
 ## Features
 
@@ -14,7 +13,7 @@ Drop files or paste text, get a link instantly. No account, no friction — just
 - **Locking** — paid drops are locked to the owner's account; anon drops have a 24h edit window
 - **Expiry & renewal** — paid accounts set explicit expiry dates and can renew any time
 - **Dashboard** — logged-in users see all drops server-side; anon users get a local browser list with export/import
-- **Sync client** — watches a folder and syncs files to drp keys, with auth support
+- **CLI tool** — `drp up file.txt`, `drp up "some text"`, `drp get mykey`
 - **Self-hostable** — deploys to Railway in a few clicks, runs locally with SQLite
 
 ## Deploy on Railway
@@ -69,12 +68,9 @@ Password reset emails print to the terminal in dev — no mail server needed.
 
 ```
 make dev            # start Django dev server
-make test           # run all tests (core + sync)
+make test           # run all tests (core + cli)
 make migrate        # run migrations
-make sync-setup     # install deps & configure sync client
-make sync           # start syncing
-make sync-login     # (re)authenticate sync client
-make sync-status    # show tracked files
+make install        # pip install -e . (installs drp command)
 ```
 
 ## Gmail App Password (production email)
@@ -87,47 +83,28 @@ Self-service password reset requires an outbound mail account. Gmail works fine:
 
 500 emails/day free. For higher volume use [Brevo](https://brevo.com) (3,000/mo free).
 
-## Sync client
+## CLI
+
+Install the CLI tool:
 
 ```bash
-make sync-setup   # installs deps, configures host/folder, optional login
-make sync         # start watching
+pip install .         # or: make install
 ```
 
-Or manually: `python sync/client.py --setup` then `python sync/client.py`.
-
-Watches a local folder and syncs each file to its own drp key. Logged-in users get plan-based expiry and locked drops. On startup, stale keys are detected and re-uploaded.
-
-## Linux service (systemd)
-
-Run drp sync as a background service that starts on boot:
+Usage:
 
 ```bash
-sudo tee /etc/systemd/system/drp-sync.service > /dev/null <<EOF
-[Unit]
-Description=drp folder sync
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=$USER
-WorkingDirectory=$(pwd)
-ExecStart=$(which python3) $(pwd)/sync/client.py
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-sudo systemctl daemon-reload
-sudo systemctl enable --now drp-sync
+drp setup             # configure host & log in
+drp up notes.txt      # upload a file → prints URL
+drp up "hello world"  # upload text → prints URL
+drp up doc.pdf -k cv  # upload with custom key
+drp get mykey         # download a drop (text prints to stdout, files save to disk)
+drp get mykey -o a.txt  # save file with custom name
+drp rm mykey          # delete a drop
+drp status            # show config
 ```
 
-Check status with `systemctl status drp-sync` and logs with `journalctl -u drp-sync -f`.
-
-Run `make sync-setup` first so the config file exists at `~/.drp_sync.json`.
+Works anonymously or logged in. Logged-in users get plan-based expiry and locked drops.
 
 ## Plans
 

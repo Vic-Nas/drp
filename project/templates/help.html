@@ -45,15 +45,16 @@
   </section>
 
   <section>
-    <h2>sync client</h2>
-    <p>The sync client watches a local folder and automatically syncs files to drp — like a lightweight OneDrive. Each file gets a key based on its filename. Set up in one command:</p>
-    <pre><code>make sync-setup</code></pre>
-    <p>This installs dependencies, asks for your host URL and sync folder, and optionally logs you in. After setup:</p>
-    <pre><code>make sync          # start syncing
-make sync-login    # (re)authenticate
-make sync-status   # show config &amp; tracked files</code></pre>
-    <p>If logged in, your synced files are owned by your account — they get plan-based expiry and are locked to you. Anonymous sync works too, but files expire after 90 days.</p>
-    <p>On startup, the client checks which remote keys are still alive and re-uploads any that expired. Deleting a local file removes the remote drop too.</p>
+    <h2>cli</h2>
+    <p>Install the command-line tool with <code>pip install .</code> (from the repo root) and drop files straight from your terminal:</p>
+    <pre><code>drp setup              # configure host &amp; log in
+drp up notes.txt       # upload a file → prints URL
+drp up "hello world"   # upload text → prints URL
+drp up doc.pdf -k cv   # upload with a custom key
+drp get mykey          # text → stdout, file → saved to disk
+drp rm mykey           # delete a drop
+drp status             # show config</code></pre>
+    <p>Works anonymously or logged in. Logged-in users get plan-based expiry and locked drops.</p>
   </section>
 
   <section>

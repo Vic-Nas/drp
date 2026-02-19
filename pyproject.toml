@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "drp-cli"
+version = "0.1.0"
+description = "Command-line tool for drp — drop text and files, get a link."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.28"]
+
+[project.scripts]
+drp = "cli.drp:main"
+
+[tool.setuptools.packages.find]
+include = ["cli*"]
