@@ -189,6 +189,11 @@ def import_drops(request):
             skipped += 1
             continue
 
+        # If user owns this drop, no need to save it — already in my drops
+        if Drop.objects.filter(ns=ns, key=key, owner=request.user).exists():
+            skipped += 1
+            continue
+
         _, created = SavedDrop.objects.get_or_create(
             user=request.user,
             ns=ns,
