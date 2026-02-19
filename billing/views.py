@@ -109,9 +109,9 @@ def webhook(request):
     except json.JSONDecodeError:
         return HttpResponse('Bad JSON', status=400)
 
+    meta = payload.get('meta', {})
     event = request.headers.get('X-Event-Name', '') or meta.get('event_name', '')
     attrs = payload.get('data', {}).get('attributes', {})
-    meta = payload.get('meta', {})
 
     # user_id was embedded in the checkout URL custom data
     user_id = meta.get('custom_data', {}).get('user_id')
