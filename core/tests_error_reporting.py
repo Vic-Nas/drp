@@ -1,13 +1,36 @@
 """
 Unit tests for core/views/error_reporting.py
 No real GitHub token or network required — all HTTP calls are mocked.
+Django is mocked out so this runs without a Django install.
 """
 
-import json
+import sys
+import types
 from unittest.mock import patch, MagicMock
-import pytest
 
-from core.views.error_reporting import (
+# ── Stub out Django before anything imports it ────────────────────────────────
+# error_reporting.py uses django only for its decorators and JsonResponse.
+# We replace those with no-ops so we can test the pure logic functions.
+
+django_stub = types.ModuleType('django')
+django_http_stub = types.ModuleType('django.http')
+django_http_stub.JsonResponse = dict  # close enough for the functions we test
+django_views_stub = types.ModuleType('django.views')
+django_decorators_stub = types.ModuleType('django.views.decorators')
+django_csrf_stub = types.ModuleType('django.views.decorators.csrf')
+django_csrf_stub.csrf_exempt = lambda f: f
+django_http_dec_stub = types.ModuleType('django.views.decorators.http')
+django_http_dec_stub.require_POST = lambda f: f
+
+sys.modules.setdefault('django', django_stub)
+sys.modules.setdefault('django.http', django_http_stub)
+sys.modules.setdefault('django.views', django_views_stub)
+sys.modules.setdefault('django.views.decorators', django_decorators_stub)
+sys.modules.setdefault('django.views.decorators.csrf', django_csrf_stub)
+sys.modules.setdefault('django.views.decorators.http', django_http_dec_stub)
+
+# Now safe to import
+from core.views.error_reporting import (  # noqa: E402
     _scrub,
     _scrub_traceback,
     _issue_title,
@@ -16,16 +39,16 @@ from core.views.error_reporting import (
     _build_body,
 )
 
+import pytest  # noqa: E402
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _make_issue(title):
-    """Return a minimal GitHub issue dict."""
     return {'title': title, 'state': 'open'}
 
 
 def _mock_gh_response(issues):
-    """Return a mock requests.Response listing the given issues."""
     mock = MagicMock()
     mock.ok = True
     mock.json.return_value = issues
@@ -120,7 +143,6 @@ class TestIssueExists:
             _make_issue('[auto] TimeoutError in `drp up`'),
             _make_issue('[auto] ValueError in `drp up`'),
         ])
-        # Different exc_type so no exact match — but flood guard should trigger
         assert _issue_exists('KeyError', 'up') is True
 
     @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
@@ -135,7 +157,6 @@ class TestIssueExists:
     @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
     @patch('core.views.error_reporting.http.get')
     def test_flood_guard_is_per_command(self, mock_get):
-        """3 issues for 'up' should not block filing for 'get'."""
         mock_get.return_value = _mock_gh_response([
             _make_issue('[auto] ConnectionError in `drp up`'),
             _make_issue('[auto] TimeoutError in `drp up`'),
@@ -145,7 +166,7 @@ class TestIssueExists:
 
     @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
     @patch('core.views.error_reporting.http.get')
-    def test_returns_false_on_github_api_error(self, mock_get):
+    def test_returns_false_on_network_error(self, mock_get):
         mock_get.side_effect = Exception('network error')
         assert _issue_exists('ConnectionError', 'up') is False
 
@@ -217,15 +238,11 @@ class TestBuildBody:
         assert 'Linux' in body
 
     def test_traceback_newlines_are_intact(self):
-        """Fix 5 — lines without trailing newline should still render correctly."""
         data = self._data(traceback=[
-            '  File "cli/drp.py", line 42, in main',  # no trailing \n
+            '  File "cli/drp.py", line 42, in main',
             '  File "cli/api/text.py", line 10, in upload',
         ])
         body = _build_body(data)
-        # Each line should appear on its own line in the output
-        assert 'cli/drp.py' in body
-        assert 'cli/api/text.py' in body
         lines = body.split('\n')
         drp_lines = [l for l in lines if 'cli/drp.py' in l]
         api_lines = [l for l in lines if 'cli/api/text.py' in l]
@@ -233,8 +250,7 @@ class TestBuildBody:
         assert len(api_lines) == 1
 
     def test_empty_traceback_shows_none(self):
-        body = _build_body(self._data(traceback=[]))
-        assert '(none)' in body
+        assert '(none)' in _build_body(self._data(traceback=[]))
 
     def test_no_user_data_in_output(self):
         data = self._data(
