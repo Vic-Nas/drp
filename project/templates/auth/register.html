@@ -7,7 +7,7 @@
 
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
 
-  <form method="post" class="auth-form">
+  <form method="post" class="auth-form" id="registerForm">
     {% csrf_token %}
     <div class="field">
       <label for="email">Email</label>
@@ -21,40 +21,82 @@
       <label for="password2">Confirm Password</label>
       <input type="password" name="password2" id="password2" required/>
     </div>
-    <button type="submit" class="btn">create account</button>
+
+    <!-- Plan selection -->
+    <div class="field">
+      <label>Plan</label>
+      <div class="plan-picker">
+        <label class="plan-option plan-option--selected" id="opt-free">
+          <input type="radio" name="plan" value="free" checked hidden/>
+          <div class="plan-option-name">Free</div>
+          <div class="plan-option-price">$0</div>
+          <div class="plan-option-detail">200MB · 24h idle</div>
+        </label>
+        <label class="plan-option" id="opt-starter">
+          <input type="radio" name="plan" value="starter" hidden/>
+          <div class="plan-option-name">Starter</div>
+          <div class="plan-option-price">$3<span>/mo</span></div>
+          <div class="plan-option-detail">1GB · locked drops</div>
+        </label>
+        <label class="plan-option" id="opt-pro">
+          <input type="radio" name="plan" value="pro" hidden/>
+          <div class="plan-option-name">Pro</div>
+          <div class="plan-option-price">$8<span>/mo</span></div>
+          <div class="plan-option-detail">5GB · 3yr expiry</div>
+        </label>
+      </div>
+      <p class="muted" id="paidNote" style="font-size:.78rem;margin-top:.4rem;display:none">
+        You'll be redirected to checkout after creating your account.
+      </p>
+    </div>
+
+    <button type="submit" class="btn" id="submitBtn">create account</button>
   </form>
 
   <p class="auth-alt muted">already have an account? <a href="/auth/login/">log in</a></p>
-
-  <div class="plan-cards" style="margin-top:2rem">
-    <p class="muted" style="margin-bottom:.8rem;font-size:.85rem">upgrade anytime for paid features:</p>
-    <div class="plan-grid">
-      <div class="plan-card">
-        <div class="plan-name">Starter</div>
-        <div class="plan-price">$3<span>/mo</span></div>
-        <ul>
-          <li>1 GB per file</li>
-          <li>5 GB total storage</li>
-          <li>Up to 1 year expiry</li>
-          <li>Drops locked to your account</li>
-          <li>Renewable drops</li>
-        </ul>
-      </div>
-      <div class="plan-card plan-card--pro">
-        <div class="plan-name">Pro</div>
-        <div class="plan-price">$8<span>/mo</span></div>
-        <ul>
-          <li>5 GB per file</li>
-          <li>20 GB total storage</li>
-          <li>Up to 3 years expiry</li>
-          <li>Drops locked to your account</li>
-          <li>Renewable drops</li>
-        </ul>
-      </div>
-    </div>
-    <p class="muted" style="font-size:.78rem;margin-top:.6rem">
-      Upgrade anytime from your <a href="/auth/account/">account page</a> after signing up.
-    </p>
-  </div>
 </div>
+
+<style>
+.plan-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .5rem;
+  margin-top: .25rem;
+}
+.plan-option {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .6rem .8rem;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  text-align: center;
+}
+.plan-option:hover { border-color: var(--accent); }
+.plan-option--selected {
+  border-color: var(--accent);
+  background: rgba(91,141,238,.08);
+}
+.plan-option-name { font-weight: 700; font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.plan-option-price { font-size: 1.2rem; font-weight: 800; letter-spacing: -1px; }
+.plan-option-price span { font-size: .78rem; font-weight: 400; color: var(--muted); }
+.plan-option-detail { font-size: .72rem; color: var(--muted); margin-top: .15rem; }
+@media (max-width: 400px) { .plan-picker { grid-template-columns: 1fr; } }
+</style>
+
+<script>
+const options = document.querySelectorAll('.plan-option');
+const paidNote = document.getElementById('paidNote');
+const submitBtn = document.getElementById('submitBtn');
+
+options.forEach(opt => {
+  opt.addEventListener('click', () => {
+    options.forEach(o => o.classList.remove('plan-option--selected'));
+    opt.classList.add('plan-option--selected');
+    const val = opt.querySelector('input').value;
+    const isPaid = val !== 'free';
+    paidNote.style.display = isPaid ? '' : 'none';
+    submitBtn.textContent = isPaid ? 'create account & go to checkout' : 'create account';
+  });
+});
+</script>
 {% endblock %}

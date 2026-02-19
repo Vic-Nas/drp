@@ -3,7 +3,7 @@
 Drop text and files from the command line — get a link instantly.
 
 ```
-pip install drp-cli
+pipx install drp-cli
 ```
 
 ## Usage
@@ -30,6 +30,25 @@ drp ping                   # check server connectivity
 drp --version              # show version
 ```
 
+## Install
+
+```bash
+pipx install drp-cli
+```
+
+Don't have pipx?
+
+```bash
+pip install pipx
+pipx ensurepath
+```
+
+Or with pip (not recommended — pipx keeps CLI tools isolated):
+
+```bash
+pip install drp-cli
+```
+
 ## URLs
 
 | Type      | URL         | Example          |
@@ -45,7 +64,7 @@ The CLI uses `f/key` syntax when a file key is needed (e.g. `drp get f/report`).
 1. `drp setup` saves your host URL (default: `https://drp.vicnas.me`) and optionally logs you in
 2. `drp up` detects whether the target is a file or text and uploads accordingly
 3. `drp get key` tries clipboard first, then file — or use `f/key` to go straight to the file
-4. Anonymous drops have a 24h protection window after creation; after that anyone can rename them
+4. Anonymous drops have a 24h protection window after creation
 5. Paid drops are locked to your account permanently
 
 ## Expiry
