@@ -96,17 +96,20 @@ def get_drop(host, session, key):
         if data.get('kind') == 'text':
             return 'text', data.get('content', '')
 
-        # File drop — follow the download redirect
-        dl = session.get(
-            f'{host}{data["download"]}',
-            timeout=120,
-            allow_redirects=True,
-        )
+        # File drop — follow the download redirect using a plain requests session
+        # (not the authenticated session) to handle CDN redirects cleanly
+        download_url = f'{host}{data["download"]}'
+        dl = session.get(download_url, timeout=120, allow_redirects=True)
+
+        # If the session-based request fails (e.g. CDN redirect issue), try bare
+        if not dl.ok:
+            dl = requests.get(download_url, timeout=120, allow_redirects=True)
+
         if dl.ok:
             filename = data.get('filename', key)
             return 'file', (dl.content, filename)
 
-        _err('failed to download file')
+        _err(f'failed to download file (HTTP {dl.status_code})')
         return None, None
     except Exception as e:
         _err(f'get error: {e}')
@@ -172,10 +175,9 @@ def list_drops(host, session):
         )
         if res.ok:
             return res.json().get('drops', [])
-        if res.status_code == 302:
-            _err('not logged in')
-        else:
-            _err(f'server returned {res.status_code}')
+        if res.status_code in (302, 403):
+            return None  # not logged in
+        _err(f'server returned {res.status_code}')
     except Exception as e:
         _err(f'list error: {e}')
     return None
@@ -203,4 +205,3 @@ def _err(msg):
     """Print an error message."""
     import sys
     print(f'  ✗ {msg}', file=sys.stderr)
-    

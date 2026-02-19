@@ -12,7 +12,7 @@ Usage:
   drp rm <key>                  # delete a drop
   drp mv <key> <new-key>        # rename a drop
   drp renew <key>               # renew a drop's expiry
-  drp ls                        # list your drops (requires login)
+  drp ls                        # list your drops
   drp status                    # show config
 """
 
@@ -81,6 +81,7 @@ def cmd_up(args):
         if result_key:
             url = f'{host}/{result_key}/'
             print(f'{url}')
+            config.record_drop(result_key, 'file', filename=os.path.basename(target), host=host)
         else:
             sys.exit(1)
     else:
@@ -89,6 +90,7 @@ def cmd_up(args):
         if result_key:
             url = f'{host}/{result_key}/'
             print(f'{url}')
+            config.record_drop(result_key, 'text', host=host)
         else:
             sys.exit(1)
 
@@ -133,6 +135,7 @@ def cmd_rm(args):
 
     if api.delete(host, session, args.key):
         print(f'  ✓ deleted /{args.key}/')
+        config.remove_local_drop(args.key)
     else:
         print(f'  ✗ could not delete /{args.key}/')
         sys.exit(1)
@@ -152,6 +155,7 @@ def cmd_mv(args):
     new_key = api.rename(host, session, args.key, args.new_key)
     if new_key:
         print(f'  ✓ /{args.key}/ → /{new_key}/')
+        config.rename_local_drop(args.key, new_key)
     else:
         print(f'  ✗ could not rename /{args.key}/')
         sys.exit(1)
@@ -177,43 +181,65 @@ def cmd_renew(args):
 
 
 def cmd_ls(args):
-    """List your drops."""
+    """List drops — server list if logged in, local cache otherwise."""
     cfg = config.load()
     host = cfg.get('host')
     if not host:
         print('Not configured. Run: drp setup')
         sys.exit(1)
 
-    session = requests.Session()
-    _auto_login(cfg, host, session)
+    email = cfg.get('email')
 
-    drops = api.list_drops(host, session)
-    if drops is None:
-        print('  ✗ could not list drops (are you logged in?)')
-        sys.exit(1)
+    if email:
+        # Try to get server list
+        session = requests.Session()
+        _auto_login(cfg, host, session)
+        drops = api.list_drops(host, session)
+        if drops is not None:
+            _print_drops(drops, host, source='server')
+            return
+        # Fall through to local list on auth failure
 
+    # Local list (anonymous or login failed)
+    local = config.load_local_drops()
+    if not local:
+        print('  (no drops — drops you upload will appear here)')
+        return
+    _print_drops(local, host, source='local')
+
+
+def _print_drops(drops, host, source='server'):
     if not drops:
         print('  (no drops)')
         return
 
+    label = '(local cache)' if source == 'local' else ''
+    if label:
+        print(f'  {label}')
+
     for d in drops:
-        kind = d['kind']
-        key = d['key']
+        kind = d.get('kind', '?')
+        key = d.get('key', '?')
         name = d.get('filename') or ''
+        drop_host = d.get('host', host) or host
+        url = f'{drop_host}/{key}/'
         if kind == 'file' and name:
-            print(f'  {key:30s}  {kind:4s}  {name}')
+            print(f'  {key:30s}  {kind:4s}  {name:30s}  {url}')
         else:
-            print(f'  {key:30s}  {kind:4s}')
+            print(f'  {key:30s}  {kind:4s}  {url}')
 
 
 def cmd_status(args):
     """Show current config."""
     cfg = config.load()
+    local_count = len(config.load_local_drops())
     print('drp status')
     print('──────────')
-    print(f'  Host:    {cfg.get("host", "(not set)")}')
-    print(f'  Account: {cfg.get("email", "anonymous")}')
-    print(f'  Config:  {config.CONFIG_FILE}')
+    print(f'  Host:        {cfg.get("host", "(not set)")}')
+    print(f'  Account:     {cfg.get("email", "anonymous")}')
+    print(f'  Local drops: {local_count}')
+    print(f'  Config:      {config.CONFIG_FILE}')
+    print(f'  Drop cache:  {config.DROPS_FILE}')
 
 
 def _auto_login(cfg, host, session):
@@ -265,7 +291,7 @@ def main():
     p_renew.add_argument('key', help='Drop key to renew')
 
     # ls
-    sub.add_parser('ls', help='List your drops (requires login)')
+    sub.add_parser('ls', help='List your drops (server if logged in, local cache otherwise)')
 
     # status
     sub.add_parser('status', help='Show config')
