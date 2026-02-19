@@ -50,7 +50,7 @@ jobs:
       # ── Unit tests (no server needed) ────────────────────────────────────────
 
       - name: Run unit tests (config, slug, cache)
-        run: python -m pytest cli/tests.py::ConfigTests cli/tests.py::SlugTests cli/tests.py::LocalDropCacheTests cli/tests.py::VersionTests -v
+        run: python -m pytest cli/tests_unit.py -v
         # These must work offline and on all platforms
 
       # ── Smoke tests against live server ──────────────────────────────────────

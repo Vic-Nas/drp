@@ -9,7 +9,7 @@ dev: ## Start Django dev server
 	python manage.py runserver
 
 test: ## Run all tests
-	DB_URL="" python manage.py test core cli --verbosity=2
+	DB_URL="" python manage.py test core cli.tests_integration --verbosity=2
 
 migrate: ## Run migrations
 	python manage.py migrate
