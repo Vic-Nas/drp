@@ -10,6 +10,7 @@ from django.db import models as db_models
 from django.http import JsonResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from .models import Drop, UserProfile, Plan
@@ -73,6 +74,7 @@ def _storage_ok(user, extra_bytes):
 
 # ── Home ──────────────────────────────────────────────────────────────────────
 
+@ensure_csrf_cookie
 def home(request):
     server_drops = []
     if request.user.is_authenticated:

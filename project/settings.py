@@ -13,9 +13,6 @@ DOMAIN = os.environ.get('DOMAIN')
 if DOMAIN:
     ALLOWED_HOSTS = [DOMAIN]
     CSRF_TRUSTED_ORIGINS = [f'https://{DOMAIN}', f'http://{DOMAIN}']
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
 else:
     ALLOWED_HOSTS = ['localhost', '127.0.0.1']
     CSRF_TRUSTED_ORIGINS = ['http://localhost:8000']
