@@ -109,7 +109,7 @@ def webhook(request):
     except json.JSONDecodeError:
         return HttpResponse('Bad JSON', status=400)
 
-    event = request.headers.get('X-Event-Name', '')
+    event = request.headers.get('X-Event-Name', '') or meta.get('event_name', '')
     attrs = payload.get('data', {}).get('attributes', {})
     meta = payload.get('meta', {})
 
