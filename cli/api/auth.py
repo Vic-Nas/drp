@@ -6,12 +6,12 @@ from .helpers import err
 
 
 def get_csrf(host, session):
-    """Hit the home page to pick up the csrftoken cookie."""
-    # Clear any stale csrftoken first — duplicate cookies cause requests to error
-    session.cookies.clear(domain=None, path='/', name='csrftoken')
+    """Return csrftoken, fetching from server only if not already in session."""
+    token = session.cookies.get('csrftoken')
+    if token:
+        return token
     session.get(f'{host}/', timeout=10)
     return session.cookies.get('csrftoken', '')
-
 
 def login(host, session, email, password):
     """
