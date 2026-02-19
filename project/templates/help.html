@@ -15,11 +15,10 @@
     <p>Every drop belongs to one of two namespaces:</p>
     <table class="ns-table">
       <tr><th>URL</th><th>Type</th><th>Expiry</th></tr>
-      <tr><td><code>/c/key</code></td><td>clipboard (text)</td><td>activity-based — resets on each access</td></tr>
+      <tr><td><code>/key</code></td><td>clipboard (text)</td><td>activity-based — resets on each access</td></tr>
       <tr><td><code>/f/key</code></td><td>file</td><td>90 days from upload (anon)</td></tr>
-      <tr><td><code>/key</code></td><td>short alias</td><td>resolves to whichever exists</td></tr>
     </table>
-    <p>A clipboard at <code>/c/notes</code> and a file at <code>/f/notes</code> can coexist. Both are reachable at <code>/notes</code> — clipboard takes priority if both exist.</p>
+    <p>A clipboard and a file can share the same key name without conflict — <code>/notes</code> is a clipboard, <code>/f/notes</code> is a file. They live independently.</p>
   </section>
 
   <section>
@@ -66,11 +65,11 @@
 drp setup</code></pre>
 
     <h3>uploading</h3>
-    <pre><code>drp up "hello world"            # clipboard → /c/auto-key
-drp up "hello world" -k hello   # clipboard at /c/hello  →  share as /hello
-drp up config.yaml -k config    # file at /f/config      →  share as /config
-drp up report.pdf -k q3         # memorable key → /q3</code></pre>
-    <p>Text goes to <code>/c/</code>, files go to <code>/f/</code> — automatically. You never need to type the prefix; it's just routing.</p>
+    <pre><code>drp up "hello world"            # clipboard → /auto-key
+drp up "hello world" -k hello   # clipboard at /hello
+drp up config.yaml -k config    # file at /f/config
+drp up report.pdf -k q3         # file at /f/q3</code></pre>
+    <p>Text goes to <code>/key</code>, files go to <code>/f/key</code> — automatically.</p>
 
     <h3>getting</h3>
     <pre><code>drp get hello                   # print clipboard to stdout
@@ -102,7 +101,7 @@ drp ping                        # check server connectivity</code></pre>
 
     <h3>key tips</h3>
     <p>Always use <code>-k</code> when you want a memorable URL. Keys are locked for 24h after creation, so set them right on upload. If you forget, wait 24h and use <code>drp mv</code>.</p>
-    <p>Clipboards and files can share a key name without conflict — they live in separate namespaces. <code>/key</code> resolves to the clipboard by default.</p>
+    <p>Clipboards and files can share a key name without conflict — <code>/notes</code> is always the clipboard, <code>/f/notes</code> is always the file.</p>
   </section>
 
   <section>
