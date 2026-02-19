@@ -35,13 +35,21 @@ def _check_signup_rate(request):
     return True
 
 
-# ── Key helper ────────────────────────────────────────────────────────────────
+# ── Key helpers ───────────────────────────────────────────────────────────────
 
-def _gen_key():
+def _gen_key(ns):
     key = secrets.token_urlsafe(6)
-    while Drop.objects.filter(key=key).exists():
+    while Drop.objects.filter(ns=ns, key=key).exists():
         key = secrets.token_urlsafe(6)
     return key
+
+
+def _resolve_ns_key(ns, key):
+    """
+    Resolve a (ns, key) pair to a Drop, or None.
+    Used by the short-URL resolver.
+    """
+    return Drop.objects.filter(ns=ns, key=key).first()
 
 
 # ── Plan limit helpers ────────────────────────────────────────────────────────
@@ -83,6 +91,24 @@ def _upload_to_cloudinary(file_obj, public_id):
     return result['secure_url'], result['public_id']
 
 
+# ── Max lifetime helpers ──────────────────────────────────────────────────────
+
+def _max_lifetime_secs(user, ns):
+    """
+    Max total lifetime in seconds for activity-based expiry.
+    Only applies to clipboard (ns='c') anon/free drops.
+    File drops use time-since-creation, not activity.
+    """
+    if ns != Drop.NS_CLIPBOARD:
+        return None
+    plan = _user_plan(user)
+    if plan == Plan.ANON:
+        return 7 * 24 * 3600      # 7 days max regardless of activity
+    if plan == Plan.FREE:
+        return 30 * 24 * 3600     # 30 days max
+    return None  # paid: explicit expires_at, no activity cap
+
+
 # ── Home ──────────────────────────────────────────────────────────────────────
 
 @ensure_csrf_cookie
@@ -100,10 +126,35 @@ def home(request):
 # ── Check key ─────────────────────────────────────────────────────────────────
 
 def check_key(request):
+    """
+    Check if a key is available in a given namespace.
+    ?key=foo&ns=c  (ns defaults to 'c')
+    """
     key = request.GET.get('key', '').strip()
+    ns = request.GET.get('ns', Drop.NS_CLIPBOARD)
     if not key:
         return JsonResponse({'available': False})
-    return JsonResponse({'available': not Drop.objects.filter(key=key).exists()})
+    taken = Drop.objects.filter(ns=ns, key=key).exists()
+    return JsonResponse({'available': not taken, 'ns': ns, 'key': key})
+
+
+# ── Short URL resolver ────────────────────────────────────────────────────────
+
+def resolve_key(request, key):
+    """
+    /key/ → look up clipboard first, then file.
+    Redirect to the canonical namespaced URL.
+    This is the friendly short URL users share.
+    """
+    # Clipboard takes priority (most common case)
+    drop = Drop.objects.filter(key=key).order_by('ns').first()  # 'c' < 'f' alphabetically
+    if not drop:
+        raise Http404
+
+    if drop.ns == Drop.NS_CLIPBOARD:
+        return redirect(f'/c/{key}/')
+    else:
+        return redirect(f'/f/{key}/')
 
 
 # ── Save drop ─────────────────────────────────────────────────────────────────
@@ -112,9 +163,11 @@ def save_drop(request):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
 
-    key = request.POST.get('key', '').strip() or _gen_key()
+    f = request.FILES.get('file')
+    ns = Drop.NS_FILE if f else Drop.NS_CLIPBOARD
+    key = request.POST.get('key', '').strip() or _gen_key(ns)
 
-    existing = Drop.objects.filter(key=key).first()
+    existing = Drop.objects.filter(ns=ns, key=key).first()
     if existing and existing.is_expired():
         existing.hard_delete()
         existing = None
@@ -123,14 +176,14 @@ def save_drop(request):
         if existing.is_creation_locked():
             return JsonResponse({
                 'error': 'This drop was just created and is protected for 24 hours. '
-                         'To use this key, wait until the window expires or pick a different key.'
+                         'Wait until the window expires or pick a different key.'
             }, status=403)
         return JsonResponse({'error': 'This drop is locked to its owner.'}, status=403)
 
     is_paid_user = request.user.is_authenticated and _user_plan(request.user) in (Plan.STARTER, Plan.PRO)
 
-    f = request.FILES.get('file')
     if f:
+        # ── File drop ────────────────────────────────────────────────────────
         if f.size > _max_file_bytes(request.user):
             return JsonResponse(
                 {'error': f'File exceeds {Plan.get(_user_plan(request.user), "max_file_mb")}MB limit.'},
@@ -139,15 +192,13 @@ def save_drop(request):
         if not _storage_ok(request.user, f.size):
             return JsonResponse({'error': 'Storage quota exceeded.'}, status=400)
 
-        # Upload to Cloudinary directly
-        public_id = f'drops/{key}'
+        public_id = f'drops/f/{key}'
         try:
             file_url, file_public_id = _upload_to_cloudinary(f, public_id)
         except Exception as e:
             return JsonResponse({'error': f'File upload failed: {e}'}, status=500)
 
         if existing:
-            # Destroy old Cloudinary file if different public_id
             if existing.file_public_id and existing.file_public_id != file_public_id:
                 try:
                     cloudinary.uploader.destroy(existing.file_public_id, resource_type='raw')
@@ -158,7 +209,6 @@ def save_drop(request):
             existing.file_public_id = file_public_id
             existing.filename = f.name
             existing.filesize = f.size
-            existing.kind = Drop.FILE
             existing.save()
             drop = existing
             if drop.owner_id:
@@ -173,10 +223,8 @@ def save_drop(request):
 
             if is_paid_user and expiry_days:
                 try:
-                    expiry_days = int(expiry_days)
-                    max_days = Plan.get(_user_plan(request.user), 'max_expiry_days')
-                    expiry_days = min(expiry_days, max_days)
-                    expires_at = timezone.now() + timedelta(days=expiry_days)
+                    days = min(int(expiry_days), Plan.get(_user_plan(request.user), 'max_expiry_days'))
+                    expires_at = timezone.now() + timedelta(days=days)
                 except (ValueError, TypeError):
                     pass
             elif not request.user.is_authenticated:
@@ -184,31 +232,31 @@ def save_drop(request):
 
             owner = request.user if request.user.is_authenticated else None
             drop = Drop.objects.create(
-                key=key, kind=Drop.FILE,
-                file_url=file_url,
-                file_public_id=file_public_id,
-                filename=f.name,
-                filesize=f.size,
+                ns=ns, key=key, kind=Drop.FILE,
+                file_url=file_url, file_public_id=file_public_id,
+                filename=f.name, filesize=f.size,
                 owner=owner,
                 locked=is_paid_user,
                 locked_until=locked_until,
                 expires_at=expires_at,
+                max_lifetime_secs=_max_lifetime_secs(request.user, ns),
             )
             if owner and f.size:
                 UserProfile.objects.filter(user=owner).update(
                     storage_used_bytes=db_models.F('storage_used_bytes') + f.size
                 )
     else:
+        # ── Clipboard drop ───────────────────────────────────────────────────
         text = request.POST.get('content', '').strip()
         if len(text.encode()) > _max_text_bytes(request.user):
             return JsonResponse(
                 {'error': f'Text exceeds {Plan.get(_user_plan(request.user), "max_text_kb")}KB.'},
                 status=400,
             )
+
         if existing:
             existing.content = text
-            existing.kind = Drop.TEXT
-            existing.created_at = timezone.now()
+            existing.last_accessed_at = timezone.now()
             existing.save()
             drop = existing
         else:
@@ -218,10 +266,8 @@ def save_drop(request):
 
             if is_paid_user and expiry_days:
                 try:
-                    expiry_days = int(expiry_days)
-                    max_days = Plan.get(_user_plan(request.user), 'max_expiry_days')
-                    expiry_days = min(expiry_days, max_days)
-                    expires_at = timezone.now() + timedelta(days=expiry_days)
+                    days = min(int(expiry_days), Plan.get(_user_plan(request.user), 'max_expiry_days'))
+                    expires_at = timezone.now() + timedelta(days=days)
                 except (ValueError, TypeError):
                     pass
             elif not request.user.is_authenticated:
@@ -229,59 +275,85 @@ def save_drop(request):
 
             owner = request.user if request.user.is_authenticated else None
             drop = Drop.objects.create(
-                key=key, kind=Drop.TEXT, content=text,
+                ns=ns, key=key, kind=Drop.TEXT, content=text,
                 owner=owner,
                 locked=is_paid_user,
                 locked_until=locked_until,
                 expires_at=expires_at,
+                max_lifetime_secs=_max_lifetime_secs(request.user, ns),
             )
 
+    canonical_prefix = 'c' if ns == Drop.NS_CLIPBOARD else 'f'
     return JsonResponse({
         'key': drop.key,
+        'ns': drop.ns,
         'kind': drop.kind,
-        'redirect': f'/{drop.key}/',
+        'redirect': f'/{canonical_prefix}/{drop.key}/',
+        'short_url': f'/{drop.key}/',  # short alias that resolves
         'new': existing is None,
     })
 
 
-# ── View drop ─────────────────────────────────────────────────────────────────
+# ── View drop (namespaced) ────────────────────────────────────────────────────
 
-def drop_view(request, key):
-    drop = get_object_or_404(Drop, key=key)
+def _drop_response(request, drop):
+    """Common handler after drop is resolved."""
     if drop.is_expired():
         drop.hard_delete()
         if 'application/json' in request.headers.get('Accept', ''):
             return JsonResponse({'error': 'expired'}, status=410)
-        return render(request, 'expired.html', {'key': key})
+        return render(request, 'expired.html', {'key': drop.key})
+
+    # Activity tracking — update last_accessed_at for clipboards
     drop.touch()
 
     if 'application/json' in request.headers.get('Accept', ''):
-        data = {'key': drop.key, 'kind': drop.kind, 'created_at': drop.created_at.isoformat()}
+        data = {
+            'key': drop.key,
+            'ns': drop.ns,
+            'kind': drop.kind,
+            'created_at': drop.created_at.isoformat(),
+            'last_accessed_at': drop.last_accessed_at.isoformat() if drop.last_accessed_at else None,
+            'expires_at': drop.expires_at.isoformat() if drop.expires_at else None,
+        }
         if drop.kind == Drop.TEXT:
             data['content'] = drop.content
         else:
             data['filename'] = drop.filename
             data['filesize'] = drop.filesize
-            data['download'] = f'/{drop.key}/download/'
+            data['download'] = f'/f/{drop.key}/download/'
         return JsonResponse(data)
 
     can_edit = drop.can_edit(request.user)
     plan = _user_plan(request.user)
-    max_expiry_days = Plan.get(plan, 'max_expiry_days')
     return render(request, 'drop.html', {
         'drop': drop,
         'can_edit': can_edit,
         'is_owner': request.user.is_authenticated and drop.owner_id == request.user.pk,
-        'max_expiry_days': max_expiry_days,
+        'max_expiry_days': Plan.get(plan, 'max_expiry_days'),
     })
+
+
+def clipboard_view(request, key):
+    drop = get_object_or_404(Drop, ns=Drop.NS_CLIPBOARD, key=key)
+    return _drop_response(request, drop)
+
+
+def file_view(request, key):
+    drop = get_object_or_404(Drop, ns=Drop.NS_FILE, key=key)
+    return _drop_response(request, drop)
 
 
 # ── Renew drop ────────────────────────────────────────────────────────────────
 
-def renew_drop(request, key):
+def _get_drop_by_ns_key(ns, key):
+    return get_object_or_404(Drop, ns=ns, key=key)
+
+
+def renew_drop(request, ns, key):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
-    drop = get_object_or_404(Drop, key=key)
+    drop = _get_drop_by_ns_key(ns, key)
     if not (request.user.is_authenticated and drop.owner_id == request.user.pk):
         return JsonResponse({'error': 'Only the owner can renew this drop.'}, status=403)
     if not drop.expires_at:
@@ -292,10 +364,10 @@ def renew_drop(request, key):
 
 # ── Rename key ────────────────────────────────────────────────────────────────
 
-def rename_key(request, key):
+def rename_key(request, ns, key):
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
-    drop = get_object_or_404(Drop, key=key)
+    drop = _get_drop_by_ns_key(ns, key)
     if not drop.can_edit(request.user):
         if drop.is_creation_locked():
             return JsonResponse({
@@ -304,20 +376,21 @@ def rename_key(request, key):
         return JsonResponse({'error': 'This drop is locked to its owner.'}, status=403)
     new_key = request.POST.get('new_key', '').strip()
     if not new_key:
-        return JsonResponse({'error': 'Key required'}, status=400)
-    if Drop.objects.filter(key=new_key).exists():
-        return JsonResponse({'error': 'Key taken'}, status=400)
+        return JsonResponse({'error': 'Key required.'}, status=400)
+    if Drop.objects.filter(ns=ns, key=new_key).exists():
+        return JsonResponse({'error': 'Key already taken in this namespace.'}, status=400)
     drop.key = new_key
     drop.save()
-    return JsonResponse({'key': new_key, 'redirect': f'/{new_key}/'})
+    prefix = 'c' if ns == Drop.NS_CLIPBOARD else 'f'
+    return JsonResponse({'key': new_key, 'redirect': f'/{prefix}/{new_key}/'})
 
 
 # ── Delete drop ───────────────────────────────────────────────────────────────
 
-def delete_drop(request, key):
+def delete_drop(request, ns, key):
     if request.method != 'DELETE':
         return JsonResponse({'error': 'DELETE required'}, status=405)
-    drop = get_object_or_404(Drop, key=key)
+    drop = _get_drop_by_ns_key(ns, key)
     if not drop.can_edit(request.user):
         if drop.is_creation_locked():
             return JsonResponse({
@@ -331,7 +404,7 @@ def delete_drop(request, key):
 # ── Download ──────────────────────────────────────────────────────────────────
 
 def download_drop(request, key):
-    drop = get_object_or_404(Drop, key=key, kind=Drop.FILE)
+    drop = get_object_or_404(Drop, ns=Drop.NS_FILE, key=key)
     if drop.is_expired():
         drop.hard_delete()
         raise Http404
@@ -361,6 +434,7 @@ def register_view(request):
             email = request.POST.get('email', '').strip().lower()
             password = request.POST.get('password', '')
             password2 = request.POST.get('password2', '')
+            plan_choice = request.POST.get('plan', 'free').strip().lower()
 
             if not email or not password:
                 error = 'Email and password are required.'
@@ -371,9 +445,11 @@ def register_view(request):
             elif User.objects.filter(email=email).exists():
                 error = 'An account with that email already exists.'
             else:
-                username = email
-                user = User.objects.create_user(username=username, email=email, password=password)
+                user = User.objects.create_user(username=email, email=email, password=password)
                 login(request, user)
+                # Redirect to checkout if a paid plan was chosen
+                if plan_choice in ('starter', 'pro'):
+                    return redirect(f'/billing/checkout/{plan_choice}/')
                 return redirect('home')
 
     return render(request, 'auth/register.html', {
@@ -417,7 +493,6 @@ def account_view(request):
     profile = request.user.profile
     profile.recalc_storage()
 
-    # Prune expired drops on the fly
     all_drops = list(Drop.objects.filter(owner=request.user).order_by('-created_at'))
     for d in all_drops:
         if d.is_expired():
@@ -430,8 +505,10 @@ def account_view(request):
         return JsonResponse({'drops': [
             {
                 'key': d.key,
+                'ns': d.ns,
                 'kind': d.kind,
                 'created_at': d.created_at.isoformat(),
+                'last_accessed_at': d.last_accessed_at.isoformat() if d.last_accessed_at else None,
                 'expires_at': d.expires_at.isoformat() if d.expires_at else None,
                 'filename': d.filename or None,
                 'filesize': d.filesize,
@@ -455,12 +532,15 @@ def export_drops(request):
     drops = Drop.objects.filter(owner=request.user).order_by('-created_at')
     data = [{
         'key': d.key,
+        'ns': d.ns,
         'kind': d.kind,
         'created_at': d.created_at.isoformat(),
+        'last_accessed_at': d.last_accessed_at.isoformat() if d.last_accessed_at else None,
         'expires_at': d.expires_at.isoformat() if d.expires_at else None,
         'filename': d.filename or None,
         'filesize': d.filesize,
         'url': f'{settings.SITE_URL}/{d.key}/',
+        'canonical_url': f'{settings.SITE_URL}/{"c" if d.ns == "c" else "f"}/{d.key}/',
         'host': settings.SITE_URL,
     } for d in drops]
     import json

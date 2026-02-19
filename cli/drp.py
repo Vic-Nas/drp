@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 """
-drp — drop files and text from the command line, get a link instantly.
+drp — drop clipboards and files from the command line.
 
-Quick start:
-  drp setup                        configure host & log in
-  drp up report.pdf -k q3          upload with a memorable key → drp.vicnas.me/q3/
-  drp up "some text"               upload text → auto key
-  drp get q3                       download to disk (files) or print (text)
-  drp ls                           list your drops
-  drp rm q3                        delete a drop
-
-Keys are the address of your drop. Pick something memorable with -k,
-or get an auto-generated one. Keys can't be changed within 24h of creation.
+  drp up "text"          drop a clipboard  →  /c/key/
+  drp up file.pdf        drop a file       →  /f/key/
+  drp get key            print or download
+  drp ls -lh             list with sizes and times
+  drp rm key             delete
 """
 
 import sys
@@ -19,6 +14,10 @@ import os
 import json
 import getpass
 import argparse
+import math
+from datetime import datetime, timezone as tz
+from pathlib import Path
+
 import requests
 
 from cli import config, api
@@ -30,37 +29,29 @@ SESSION_FILE = config.CONFIG_DIR / 'session.json'
 
 
 def _load_session(session):
-    """Load saved cookies into a requests session."""
     if SESSION_FILE.exists():
         try:
-            cookies = json.loads(SESSION_FILE.read_text())
-            session.cookies.update(cookies)
+            session.cookies.update(json.loads(SESSION_FILE.read_text()))
         except Exception:
             pass
 
 
 def _save_session(session):
-    """Persist current cookies to disk."""
     config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     SESSION_FILE.write_text(json.dumps(dict(session.cookies)) + '\n')
 
 
 def _clear_session():
-    """Delete saved session cookies."""
     if SESSION_FILE.exists():
         SESSION_FILE.unlink()
 
 
 def _auto_login(cfg, host, session, required=False):
-    """
-    Try to reuse saved session first. If expired, prompt for password.
-    Returns True if authenticated, False if anonymous.
-    """
+    """Reuse saved session. Only re-prompt if expired or missing."""
     email = cfg.get('email')
     if not email:
         return False
 
-    # Try saved session first — no password prompt
     _load_session(session)
     try:
         res = session.get(
@@ -70,11 +61,10 @@ def _auto_login(cfg, host, session, required=False):
             allow_redirects=False,
         )
         if res.status_code == 200:
-            return True  # session still valid
+            return True
     except Exception:
         pass
 
-    # Session expired — re-authenticate
     password = getpass.getpass(f'  Session expired. Password for {email}: ')
     if api.login(host, session, email, password):
         _save_session(session)
@@ -86,6 +76,59 @@ def _auto_login(cfg, host, session, required=False):
     return False
 
 
+# ── Formatting helpers ────────────────────────────────────────────────────────
+
+def _human_size(n):
+    """1234567 → '1.2M'  (like ls -lh)"""
+    if n is None or n == 0:
+        return '-'
+    units = ['', 'K', 'M', 'G', 'T']
+    i = int(math.log(max(n, 1), 1024))
+    i = min(i, len(units) - 1)
+    val = n / (1024 ** i)
+    if i == 0:
+        return f'{n}B'
+    return f'{val:.1f}{units[i]}'
+
+
+def _human_time(iso_str):
+    """ISO datetime → human-friendly relative or absolute."""
+    if not iso_str:
+        return '-'
+    try:
+        dt = datetime.fromisoformat(iso_str.replace('Z', '+00:00'))
+        now = datetime.now(tz.utc)
+        delta = now - dt
+        secs = delta.total_seconds()
+        if secs < 60:
+            return 'just now'
+        if secs < 3600:
+            return f'{int(secs/60)}m ago'
+        if secs < 86400:
+            return f'{int(secs/3600)}h ago'
+        if secs < 86400 * 7:
+            return f'{int(secs/86400)}d ago'
+        return dt.strftime('%Y-%m-%d')
+    except Exception:
+        return iso_str[:10]
+
+
+def _expiry_str(drop):
+    """Return a human expiry string for a drop dict."""
+    expires_at = drop.get('expires_at')
+    if expires_at:
+        return _human_time(expires_at)
+    ns = drop.get('ns', 'c')
+    if ns == 'c':
+        last = drop.get('last_accessed_at') or drop.get('created_at')
+        return f'idle+24h (last: {_human_time(last)})'
+    return '90d from create'
+
+
+def _ns_label(ns):
+    return 'clip' if ns == 'c' else 'file'
+
+
 # ── PATH check (Windows) ──────────────────────────────────────────────────────
 
 def _check_scripts_in_path():
@@ -93,29 +136,23 @@ def _check_scripts_in_path():
     scripts_dir = sysconfig.get_path('scripts')
     if not scripts_dir:
         return
-    path_dirs = os.environ.get('PATH', '').split(os.pathsep)
-    if scripts_dir in path_dirs:
+    if scripts_dir in os.environ.get('PATH', '').split(os.pathsep):
         return
 
     print(f'\n  ⚠ {scripts_dir} is not in your PATH.')
-    print('    The `drp` command may not work in new terminals.\n')
-
     if sys.platform == 'win32':
         answer = input('  Add it to your user PATH now? (y/n) [y]: ').strip().lower()
         if answer != 'n':
             _add_to_user_path_windows(scripts_dir)
     else:
-        print('  Add this to your shell profile (~/.bashrc, ~/.zshrc, etc.):')
-        print(f'    export PATH="{scripts_dir}:$PATH"\n')
+        print(f'  Add to your shell profile:\n    export PATH="{scripts_dir}:$PATH"\n')
 
 
 def _add_to_user_path_windows(scripts_dir):
     try:
         import winreg
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER, r'Environment', 0,
-            winreg.KEY_READ | winreg.KEY_WRITE,
-        )
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Environment', 0,
+                             winreg.KEY_READ | winreg.KEY_WRITE)
         try:
             current, _ = winreg.QueryValueEx(key, 'PATH')
         except FileNotFoundError:
@@ -127,16 +164,12 @@ def _add_to_user_path_windows(scripts_dir):
             try:
                 import ctypes
                 ctypes.windll.user32.SendMessageTimeoutW(
-                    0xFFFF, 0x001A, 0, 'Environment', 2, 5000, None
-                )
+                    0xFFFF, 0x001A, 0, 'Environment', 2, 5000, None)
             except Exception:
                 pass
-            print('  ✓ Added to PATH. Restart your terminal for it to take effect.')
-        else:
-            print('  ✓ Already in PATH (may need a terminal restart).')
+            print('  ✓ Added. Restart your terminal for it to take effect.')
     except Exception as e:
-        print(f'  ✗ Could not update PATH automatically: {e}')
-        print(f'    Add manually: {scripts_dir}')
+        print(f'  ✗ Could not update PATH: {e}\n    Add manually: {scripts_dir}')
 
 
 # ── Commands ──────────────────────────────────────────────────────────────────
@@ -148,15 +181,11 @@ def cmd_setup(args):
     default = cfg.get('host', 'https://drp.vicnas.me')
     cfg['host'] = input(f'  Host [{default}]: ').strip() or default
     config.save(cfg)
-
     answer = input('  Log in now? (y/n) [y]: ').strip().lower()
     if answer != 'n':
         cmd_login(args)
-    else:
-        config.save(cfg)
-
     _check_scripts_in_path()
-    print(f'\n  ✓ Saved to {config.CONFIG_FILE}')
+    print(f'\n  ✓ Config saved to {config.CONFIG_FILE}')
 
 
 def cmd_login(args):
@@ -180,10 +209,7 @@ def cmd_logout(args):
     email = cfg.pop('email', None)
     config.save(cfg)
     _clear_session()
-    if email:
-        print(f'  ✓ Logged out ({email})')
-    else:
-        print('  (already anonymous)')
+    print(f'  ✓ Logged out ({email})' if email else '  (already anonymous)')
 
 
 def cmd_up(args):
@@ -202,17 +228,22 @@ def cmd_up(args):
     if os.path.isfile(target):
         if not key:
             key = api.slug(os.path.basename(target))
-        result_key = api.upload_file(host, session, target, key=key)
-        if result_key:
-            print(f'{host}/{result_key}/')
-            config.record_drop(result_key, 'file', filename=os.path.basename(target), host=host)
+        result = api.upload_file(host, session, target, key=key)
+        if result:
+            result_key, ns = result if isinstance(result, tuple) else (result, 'f')
+            url = f'{host}/{result_key}/'
+            print(url)
+            config.record_drop(result_key, 'file', ns=ns,
+                               filename=os.path.basename(target), host=host)
         else:
             sys.exit(1)
     else:
-        result_key = api.upload_text(host, session, target, key=key)
-        if result_key:
-            print(f'{host}/{result_key}/')
-            config.record_drop(result_key, 'text', host=host)
+        result = api.upload_text(host, session, target, key=key)
+        if result:
+            result_key, ns = result if isinstance(result, tuple) else (result, 'c')
+            url = f'{host}/{result_key}/'
+            print(url)
+            config.record_drop(result_key, 'text', ns=ns, host=host)
         else:
             sys.exit(1)
 
@@ -224,9 +255,8 @@ def cmd_get(args):
         print('Not configured. Run: drp setup')
         sys.exit(1)
 
-    # get never prompts for password — drops are public
     session = requests.Session()
-    _load_session(session)  # silently reuse session if available
+    _load_session(session)  # silent — never prompts
 
     key = args.key
     kind, content = api.get_drop(host, session, key)
@@ -238,8 +268,10 @@ def cmd_get(args):
         out = args.output or filename
         with open(out, 'wb') as f:
             f.write(data)
-        print(f'  ✓ {out} ({len(data):,} bytes)')
+        size = _human_size(len(data))
+        print(f'  ✓ {out} ({size})')
     else:
+        print(f'  ✗ /{key}/ not found')
         sys.exit(1)
 
 
@@ -253,11 +285,17 @@ def cmd_rm(args):
     session = requests.Session()
     _auto_login(cfg, host, session)
 
-    if api.delete(host, session, args.key):
-        print(f'  ✓ deleted /{args.key}/')
-        config.remove_local_drop(args.key)
+    # Support both bare key and ns-prefixed key (c/notes or f/report)
+    key = args.key
+    ns = None
+    if '/' in key:
+        ns, key = key.split('/', 1)
+
+    if api.delete(host, session, key, ns=ns):
+        print(f'  ✓ deleted /{key}/')
+        config.remove_local_drop(key)
     else:
-        print(f'  ✗ could not delete /{args.key}/')
+        print(f'  ✗ could not delete /{key}/')
         sys.exit(1)
 
 
@@ -271,12 +309,18 @@ def cmd_mv(args):
     session = requests.Session()
     _auto_login(cfg, host, session)
 
-    new_key = api.rename(host, session, args.key, args.new_key)
+    key = args.key
+    ns = None
+    if '/' in key:
+        ns, key = key.split('/', 1)
+
+    new_key = api.rename(host, session, key, args.new_key, ns=ns)
     if new_key:
-        print(f'  ✓ /{args.key}/ → /{new_key}/')
-        config.rename_local_drop(args.key, new_key)
+        prefix = f'{ns}/' if ns else ''
+        print(f'  ✓ /{prefix}{key}/ → /{prefix}{new_key}/')
+        config.rename_local_drop(key, new_key)
     else:
-        print(f'  ✗ could not rename /{args.key}/')
+        print(f'  ✗ could not rename /{key}/')
         sys.exit(1)
 
 
@@ -290,11 +334,16 @@ def cmd_renew(args):
     session = requests.Session()
     _auto_login(cfg, host, session)
 
-    expires_at, renewals = api.renew(host, session, args.key)
+    key = args.key
+    ns = None
+    if '/' in key:
+        ns, key = key.split('/', 1)
+
+    expires_at, renewals = api.renew(host, session, key, ns=ns)
     if expires_at:
-        print(f'  ✓ /{args.key}/ renewed (expires {expires_at}, #{renewals})')
+        print(f'  ✓ /{key}/ renewed → expires {_human_time(expires_at)} (renewal #{renewals})')
     else:
-        print(f'  ✗ could not renew /{args.key}/')
+        print(f'  ✗ could not renew /{key}/')
         sys.exit(1)
 
 
@@ -306,6 +355,11 @@ def cmd_ls(args):
         sys.exit(1)
 
     email = cfg.get('email')
+    long_fmt = getattr(args, 'long', False)
+    human = getattr(args, 'human', False)
+    sort_key = getattr(args, 'sort', None)
+    reverse = getattr(args, 'reverse', False)
+    ns_filter = getattr(args, 'type', None)  # 'c', 'f', or None
 
     if email:
         session = requests.Session()
@@ -325,46 +379,100 @@ def cmd_ls(args):
         if authed:
             drops = api.list_drops(host, session)
             if drops is not None:
-                _print_drops(drops, host, source='server')
+                _print_drops(drops, host, long_fmt=long_fmt, human=human,
+                             sort_key=sort_key, reverse=reverse, ns_filter=ns_filter,
+                             source='server')
                 return
 
-    # Local list (anonymous or login failed)
+    # Local list
     local = config.load_local_drops()
     if not local:
-        print('  (no drops — drops you upload will appear here)')
+        print('  (no drops)')
         return
 
-    # Reconcile: remove drops that no longer exist on the server
     anon_session = requests.Session()
-    alive = [d for d in local if api.key_exists(host, anon_session, d['key'])]
-    if len(alive) != len(local):
+    alive = []
+    stale = []
+    for d in local:
+        if api.key_exists(host, anon_session, d['key']):
+            alive.append(d)
+        else:
+            stale.append(d)
+
+    if stale:
         config.save_local_drops(alive)
-        local = alive
+        if long_fmt:
+            for d in stale:
+                print(f"  {d['key']:30s}  (gone — renamed or expired)")
 
-    if not local:
-        print('  (no drops — drops you upload will appear here)')
+    if not alive:
+        print('  (no drops)')
         return
-    _print_drops(local, host, source='local')
+
+    _print_drops(alive, host, long_fmt=long_fmt, human=human,
+                 sort_key=sort_key, reverse=reverse, ns_filter=ns_filter,
+                 source='local')
 
 
-def _print_drops(drops, host, source='server'):
+def _print_drops(drops, host, long_fmt=False, human=False, sort_key=None,
+                 reverse=False, ns_filter=None, source='server'):
+
+    if ns_filter:
+        drops = [d for d in drops if d.get('ns', 'c') == ns_filter]
+
     if not drops:
         print('  (no drops)')
         return
 
-    if source == 'local':
-        print('  (local cache)')
+    # Sorting
+    if sort_key == 'time':
+        drops = sorted(drops, key=lambda d: d.get('created_at', ''), reverse=not reverse)
+    elif sort_key == 'size':
+        drops = sorted(drops, key=lambda d: d.get('filesize') or 0, reverse=not reverse)
+    elif sort_key == 'name':
+        drops = sorted(drops, key=lambda d: d.get('key', ''), reverse=reverse)
+    elif reverse:
+        drops = list(reversed(drops))
 
-    for d in drops:
-        kind = d.get('kind', '?')
-        key = d.get('key', '?')
-        name = d.get('filename') or ''
-        drop_host = d.get('host', host) or host
-        url = f'{drop_host}/{key}/'
-        if kind == 'file' and name:
-            print(f'  {key:30s}  {kind:4s}  {name:30s}  {url}')
-        else:
-            print(f'  {key:30s}  {kind:4s}  {url}')
+    if source == 'local':
+        print('  (local cache)\n')
+
+    if long_fmt:
+        # ls -l style: type  size  modified  key  url  [expiry]
+        print(f"  {'TYPE':<6}  {'SIZE':>7}  {'MODIFIED':<12}  {'KEY':<25}  URL")
+        print(f"  {'─'*6}  {'─'*7}  {'─'*12}  {'─'*25}  {'─'*30}")
+        for d in drops:
+            ns = d.get('ns', 'c')
+            kind_label = _ns_label(ns)
+            key = d.get('key', '?')
+            drop_host = d.get('host', host) or host
+            url = f'{drop_host}/{key}/'
+
+            if human:
+                size = _human_size(d.get('filesize'))
+            else:
+                size_raw = d.get('filesize')
+                size = str(size_raw) if size_raw else '-'
+
+            modified = _human_time(d.get('last_accessed_at') or d.get('created_at'))
+            expiry = _expiry_str(d)
+            name = d.get('filename', '')
+            display_key = f'{key}' + (f'  ({name})' if name else '')
+
+            print(f"  {kind_label:<6}  {size:>7}  {modified:<12}  {display_key:<25}  {url}")
+            if long_fmt:
+                print(f"  {'':6}  {'':>7}  {'expires:':12}  {expiry}")
+    else:
+        # Short format: key  type  url
+        for d in drops:
+            ns = d.get('ns', 'c')
+            key = d.get('key', '?')
+            drop_host = d.get('host', host) or host
+            url = f'{drop_host}/{key}/'
+            kind_label = _ns_label(ns)
+            name = d.get('filename', '')
+            suffix = f'  {name}' if name else ''
+            print(f'  {key:<30}  {kind_label:<4}{suffix}  {url}')
 
 
 def cmd_status(args):
@@ -375,10 +483,25 @@ def cmd_status(args):
     print('──────────')
     print(f'  Host:        {cfg.get("host", "(not set)")}')
     print(f'  Account:     {cfg.get("email", "anonymous")}')
-    print(f'  Session:     {"active" if session_active else "none (will prompt on next command)"}')
+    print(f'  Session:     {"active" if session_active else "none (will prompt next command)"}')
     print(f'  Local drops: {local_count}')
     print(f'  Config:      {config.CONFIG_FILE}')
-    print(f'  Drop cache:  {config.DROPS_FILE}')
+    print(f'  Cache:       {config.DROPS_FILE}')
+
+
+def cmd_ping(args):
+    """Quick connectivity check."""
+    cfg = config.load()
+    host = cfg.get('host')
+    if not host:
+        print('Not configured. Run: drp setup')
+        sys.exit(1)
+    try:
+        res = requests.get(f'{host}/', timeout=5)
+        print(f'  ✓ {host} reachable ({res.status_code})')
+    except Exception as e:
+        print(f'  ✗ {host} unreachable: {e}')
+        sys.exit(1)
 
 
 def main():
@@ -386,72 +509,100 @@ def main():
 
     parser = argparse.ArgumentParser(
         prog='drp',
-        description='Drop files and text from the command line — get a link instantly.',
+        description='Drop clipboards and files — get a link instantly.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+namespaces:
+  /c/key   clipboard (text) — activity-based expiry: resets on each access
+  /f/key   file — expires 90 days after upload
+  /key     short alias → resolves to whichever exists (clipboard preferred)
+
 examples:
-  drp up report.pdf -k q3       upload with a memorable key → drp.vicnas.me/q3/
-  drp up "hello world"          upload text, get an auto key
-  drp get q3                    download to disk (files) or print (text)
-  drp get q3 -o my-report.pdf   download and save as a different name
-  drp rm q3                     delete a drop
-  drp mv q3 quarter3            rename a drop's key
-  drp ls                        list your drops
-  drp ls --export > backup.json export drops as JSON
+  drp up "hello world" -k hello    clipboard at /c/hello  →  share as /hello
+  drp up report.pdf -k q3          file at /f/q3          →  share as /q3
+  drp get hello                    print clipboard content
+  drp get q3 -o my-report.pdf      download and save as different name
+  drp rm c/hello                   delete by namespace (or just: drp rm hello)
+  drp mv q3 quarter3               rename key (blocked 24h after creation)
+  drp ls                           list drops
+  drp ls -lh                       list with sizes and times (like ls -lh)
+  drp ls -lh -t c                  list only clipboards
+  drp ls -lh --sort time           sort by modified time
+  drp ls --export > backup.json    export as JSON
+
+clipboard expiry (activity-based):
+  anonymous   24h idle timeout, 7 days max lifetime
+  free        48h idle timeout, 30 days max lifetime
+  paid        explicit date you choose, renewable
 
 keys:
-  Pick a memorable key with -k, or get a random one automatically.
-  Keys are locked for 24h after creation — use -k on upload to set it right.
-  Anonymous drops expire after 24h (text) or 90 days (files).
-  Paid accounts get longer expiry, locked drops, and renewals.
+  Set once with -k on upload — locked for 24h after creation.
+  After 24h, rename with: drp mv old new
 """,
     )
     parser.add_argument('--version', '-V', action='version', version=f'%(prog)s {__version__}')
+
     sub = parser.add_subparsers(dest='command')
 
     sub.add_parser('setup', help='Configure host & log in')
-    sub.add_parser('login', help='Log in to drp')
+    sub.add_parser('login', help='Log in (session saved — no repeated prompts)')
     sub.add_parser('logout', help='Log out and clear saved session')
+    sub.add_parser('ping', help='Check connectivity to the drp server')
+    sub.add_parser('status', help='Show config, account, and session info')
 
-    p_up = sub.add_parser('up', help='Upload a file or text')
-    p_up.add_argument('target', help='File path or text string to upload')
+    p_up = sub.add_parser('up', help='Upload clipboard text or file')
+    p_up.add_argument('target', help='File path or text to upload')
     p_up.add_argument('--key', '-k', default=None,
-                      help='Custom key (e.g. -k q3 → drp.vicnas.me/q3/). Default: auto from filename')
+                      help='Custom key (e.g. -k q3 → /q3/). Default: auto from filename')
 
-    p_get = sub.add_parser('get', help='Download or print a drop (no login needed)')
-    p_get.add_argument('key', help='Drop key')
+    p_get = sub.add_parser('get', help='Print clipboard or download file (no login needed)')
+    p_get.add_argument('key', help='Drop key (e.g. q3, c/notes, f/report)')
     p_get.add_argument('--output', '-o', default=None,
                        help='Save file as this name (default: original filename)')
 
     p_rm = sub.add_parser('rm', help='Delete a drop')
-    p_rm.add_argument('key', help='Drop key')
+    p_rm.add_argument('key', help='Drop key (e.g. q3 or c/notes)')
 
-    p_mv = sub.add_parser('mv', help="Rename a drop's key (blocked for 24h after creation)")
+    p_mv = sub.add_parser('mv', help="Rename a key (blocked 24h after creation)")
     p_mv.add_argument('key', help='Current key')
     p_mv.add_argument('new_key', help='New key')
 
-    p_renew = sub.add_parser('renew', help="Renew a drop's expiry (paid accounts only)")
+    p_renew = sub.add_parser('renew', help="Renew expiry (paid accounts only)")
     p_renew.add_argument('key', help='Drop key')
 
     p_ls = sub.add_parser('ls', help='List your drops')
+    p_ls.add_argument('-l', '--long', action='store_true',
+                      help='Long format with size, time, and expiry (like ls -l)')
+    p_ls.add_argument('-h', '--human', action='store_true',
+                      help='Human-readable sizes (1.2M instead of 1234567) — use with -l')
+    p_ls.add_argument('-t', '--type', choices=['c', 'f'], default=None,
+                      metavar='NS',
+                      help='Filter by type: c=clipboards, f=files')
+    p_ls.add_argument('--sort', choices=['time', 'size', 'name'], default=None,
+                      help='Sort by: time, size, or name')
+    p_ls.add_argument('-r', '--reverse', action='store_true',
+                      help='Reverse sort order')
     p_ls.add_argument('--export', action='store_true',
-                      help='Export as JSON (requires login). Pipe with: drp ls --export > backup.json')
-
-    sub.add_parser('status', help='Show config and session info')
+                      help='Export as JSON (requires login). Pipe: drp ls --export > drops.json')
 
     args = parser.parse_args()
+
+    # Allow combined flags: drp ls -lh
+    # argparse handles -l and -h separately, but -lh needs manual combination
+    # This is handled automatically since both are store_true with short flags
 
     commands = {
         'setup':  cmd_setup,
         'login':  cmd_login,
         'logout': cmd_logout,
+        'ping':   cmd_ping,
+        'status': cmd_status,
         'up':     cmd_up,
         'get':    cmd_get,
         'rm':     cmd_rm,
         'mv':     cmd_mv,
         'renew':  cmd_renew,
         'ls':     cmd_ls,
-        'status': cmd_status,
     }
 
     if args.command in commands:

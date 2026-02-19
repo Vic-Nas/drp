@@ -39,10 +39,22 @@ urlpatterns = [
          ),
          name='password_reset_complete'),
 
-    # Drop actions
-    path('<slug:key>/', views.drop_view, name='drop_view'),
-    path('<slug:key>/download/', views.download_drop, name='download_drop'),
-    path('<slug:key>/rename/', views.rename_key, name='rename_key'),
-    path('<slug:key>/delete/', views.delete_drop, name='delete_drop'),
-    path('<slug:key>/renew/', views.renew_drop, name='renew_drop'),
+    # ── Namespaced drop URLs ───────────────────────────────────────────────────
+    # Canonical: /c/<key>/ for clipboards, /f/<key>/ for files
+    path('c/<slug:key>/', views.clipboard_view, name='clipboard_view'),
+    path('f/<slug:key>/', views.file_view, name='file_view'),
+    path('f/<slug:key>/download/', views.download_drop, name='download_drop'),
+
+    # Drop actions — namespace included so server knows which drop
+    path('c/<slug:key>/rename/', views.rename_key, {'ns': 'c'}, name='rename_clipboard'),
+    path('f/<slug:key>/rename/', views.rename_key, {'ns': 'f'}, name='rename_file'),
+    path('c/<slug:key>/delete/', views.delete_drop, {'ns': 'c'}, name='delete_clipboard'),
+    path('f/<slug:key>/delete/', views.delete_drop, {'ns': 'f'}, name='delete_file'),
+    path('c/<slug:key>/renew/', views.renew_drop, {'ns': 'c'}, name='renew_clipboard'),
+    path('f/<slug:key>/renew/', views.renew_drop, {'ns': 'f'}, name='renew_file'),
+
+    # ── Short URL resolver ─────────────────────────────────────────────────────
+    # /key/ → resolves to /c/key/ or /f/key/ — for sharing
+    # Must be last to avoid shadowing everything above
+    path('<slug:key>/', views.resolve_key, name='resolve_key'),
 ]

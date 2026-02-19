@@ -137,12 +137,19 @@ def create_user_profile(sender, instance, created, **kwargs):
 
 # ── Drop ──────────────────────────────────────────────────────────────────────
 
+
+# Namespace constants
+NS_CLIPBOARD = 'c'
+NS_FILE = 'f'
+NS_CHOICES = [('c', 'Clipboard'), ('f', 'File')]
+
 class Drop(models.Model):
     TEXT = 'text'
     FILE = 'file'
     TYPE_CHOICES = [(TEXT, 'Text'), (FILE, 'File')]
 
-    key = models.SlugField(max_length=128, unique=True)
+    ns = models.CharField(max_length=1, choices=NS_CHOICES, default='c', db_index=True)
+    key = models.CharField(max_length=120, db_index=True)  # removed unique=True
     kind = models.CharField(max_length=4, choices=TYPE_CHOICES)
 
     owner = models.ForeignKey(
@@ -160,8 +167,10 @@ class Drop(models.Model):
     filename = models.CharField(max_length=255, blank=True, default='')
     filesize = models.PositiveBigIntegerField(default=0)
 
+
     created_at = models.DateTimeField(auto_now_add=True)
-    last_accessed = models.DateTimeField(auto_now_add=True)
+    last_accessed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    max_lifetime_secs = models.PositiveIntegerField(null=True, blank=True)
 
     locked = models.BooleanField(default=False)
     locked_until = models.DateTimeField(null=True, blank=True)
@@ -184,12 +193,34 @@ class Drop(models.Model):
 
     # ── Expiry ────────────────────────────────────────────────────────────────
 
+
     def is_expired(self):
+        """
+        Expiry rules:
+        - Paid drops: use explicit expires_at date
+        - Clipboard (anon/free): activity-based — expire if idle for 24h (anon) or 48h (free)
+                                 plus a hard max_lifetime_secs cap from creation
+        - File (anon/free): time-since-creation — 90 days
+        """
+        now = timezone.now()
+
+        # Explicit expiry date (paid drops)
         if self.expires_at:
-            return timezone.now() > self.expires_at
-        if self.kind == self.TEXT:
-            return timezone.now() > self.created_at + timedelta(hours=24)
-        return timezone.now() > self.created_at + timedelta(days=90)
+            return now > self.expires_at
+
+        # Hard max lifetime cap (activity-based clipboards)
+        if self.max_lifetime_secs:
+            if (now - self.created_at).total_seconds() > self.max_lifetime_secs:
+                return True
+
+        # Clipboard: activity-based idle timeout
+        if self.ns == 'c':
+            idle_hours = 24 if not self.owner_id else 48
+            ref = self.last_accessed_at or self.created_at
+            return (now - ref) > timedelta(hours=idle_hours)
+
+        # File: time-since-creation
+        return (now - self.created_at) > timedelta(days=90)
 
     def renew(self):
         """Reset expiry clock from now, keeping same duration."""
@@ -223,22 +254,28 @@ class Drop(models.Model):
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
+
     def touch(self):
-        Drop.objects.filter(pk=self.pk).update(last_accessed=timezone.now())
+        """Update last_accessed_at. For clipboards this resets the idle timer."""
+        Drop.objects.filter(pk=self.pk).update(last_accessed_at=timezone.now())
+        self.last_accessed_at = timezone.now()
+
 
     def hard_delete(self):
-        """Delete from Cloudinary then from DB."""
-        if self.file_public_id:
+        if self.ns == 'f' and self.file_public_id:
             try:
                 import cloudinary.uploader
                 cloudinary.uploader.destroy(self.file_public_id, resource_type='raw')
             except Exception:
-                pass  # don't block deletion if Cloudinary call fails
+                pass
         if self.owner_id and self.filesize:
             UserProfile.objects.filter(user_id=self.owner_id).update(
-                storage_used_bytes=models.F('storage_used_bytes') - self.filesize
+                storage_used_bytes=db_models.F('storage_used_bytes') - self.filesize
             )
         self.delete()
+
+    class Meta:
+        unique_together = [('ns', 'key')]
 
     def __str__(self):
         return f'{self.key} ({self.kind})'

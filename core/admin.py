@@ -38,7 +38,7 @@ class DropAdmin(admin.ModelAdmin):
     list_display = ('key', 'kind', 'owner', 'locked', 'filesize', 'created_at', 'expires_at')
     list_filter = ('kind', 'locked')
     search_fields = ('key', 'owner__email', 'filename')
-    readonly_fields = ('created_at', 'last_accessed', 'renewal_count')
+    readonly_fields = ('created_at', 'last_accessed_at', 'renewal_count')
     raw_id_fields = ('owner',)
 
 
