@@ -9,7 +9,6 @@ from django.conf import settings
 from django.http import JsonResponse, Http404
 from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
-from django.views.decorators.csrf import ensure_csrf_cookie
 
 from core.models import Drop, Plan, SavedDrop
 from .helpers import (
@@ -23,7 +22,6 @@ ANON_COOKIE = 'drp_anon'
 
 # ── Home ──────────────────────────────────────────────────────────────────────
 
-@ensure_csrf_cookie
 def home(request):
     claimed = request.session.pop('claimed_drops', 0)
     server_drops = []
