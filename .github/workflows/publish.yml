@@ -78,6 +78,31 @@ jobs:
           git tag "v${{ steps.bump.outputs.version }}"
           git push --follow-tags
 
+      - name: Collect commits since last release
+        id: changelog
+        run: |
+          # Find previous tag (skip the one we just created)
+          prev_tag=$(git tag --sort=-v:refname | sed -n '2p')
+          if [ -z "$prev_tag" ]; then
+            # First release — use all commits
+            log=$(git log --oneline --no-decorate HEAD)
+          else
+            log=$(git log --oneline --no-decorate "$prev_tag"..HEAD~1)
+          fi
+          # Write to file (multi-line output)
+          echo "$log" > /tmp/release_notes.txt
+          echo "Install / upgrade:"  >> /tmp/release_notes.txt
+          echo '```' >> /tmp/release_notes.txt
+          echo 'pip install --upgrade drp-cli' >> /tmp/release_notes.txt
+          echo '```' >> /tmp/release_notes.txt
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.bump.outputs.version }}
+          name: v${{ steps.bump.outputs.version }}
+          body_path: /tmp/release_notes.txt
+
       - name: Build package
         run: |
           pip install build
