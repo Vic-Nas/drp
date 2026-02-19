@@ -1,6 +1,7 @@
 import secrets
 from datetime import timedelta
 
+import cloudinary.uploader
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -60,16 +61,26 @@ def _max_text_bytes(user):
 
 
 def _storage_ok(user, extra_bytes):
-    """Returns True if the user has quota room for extra_bytes."""
     if not user.is_authenticated:
-        return True  # anon has no quota
+        return True
     profile = getattr(user, 'profile', None)
     if not profile:
         return True
     quota = profile.storage_quota_bytes
     if quota is None:
-        return True  # free users have no quota (ephemeral drops)
+        return True
     return (profile.storage_used_bytes + extra_bytes) <= quota
+
+
+def _upload_to_cloudinary(file_obj, public_id):
+    """Upload a file to Cloudinary. Returns (secure_url, public_id) or raises."""
+    result = cloudinary.uploader.upload(
+        file_obj,
+        resource_type='raw',
+        public_id=public_id,
+        overwrite=True,
+    )
+    return result['secure_url'], result['public_id']
 
 
 # ── Home ──────────────────────────────────────────────────────────────────────
@@ -128,17 +139,28 @@ def save_drop(request):
         if not _storage_ok(request.user, f.size):
             return JsonResponse({'error': 'Storage quota exceeded.'}, status=400)
 
+        # Upload to Cloudinary directly
+        public_id = f'drops/{key}'
+        try:
+            file_url, file_public_id = _upload_to_cloudinary(f, public_id)
+        except Exception as e:
+            return JsonResponse({'error': f'File upload failed: {e}'}, status=500)
+
         if existing:
+            # Destroy old Cloudinary file if different public_id
+            if existing.file_public_id and existing.file_public_id != file_public_id:
+                try:
+                    cloudinary.uploader.destroy(existing.file_public_id, resource_type='raw')
+                except Exception:
+                    pass
             old_size = existing.filesize
-            if existing.file:
-                existing.file.delete(save=False)
-            existing.file = f
+            existing.file_url = file_url
+            existing.file_public_id = file_public_id
             existing.filename = f.name
             existing.filesize = f.size
             existing.kind = Drop.FILE
             existing.save()
             drop = existing
-            # Update storage delta
             if drop.owner_id:
                 delta = f.size - old_size
                 UserProfile.objects.filter(user_id=drop.owner_id).update(
@@ -158,13 +180,15 @@ def save_drop(request):
                 except (ValueError, TypeError):
                     pass
             elif not request.user.is_authenticated:
-                # Anon drops: locked for 24h after creation so creator can still edit
                 locked_until = timezone.now() + timedelta(hours=24)
 
             owner = request.user if request.user.is_authenticated else None
             drop = Drop.objects.create(
                 key=key, kind=Drop.FILE,
-                file=f, filename=f.name, filesize=f.size,
+                file_url=file_url,
+                file_public_id=file_public_id,
+                filename=f.name,
+                filesize=f.size,
                 owner=owner,
                 locked=is_paid_user,
                 locked_until=locked_until,
@@ -231,7 +255,6 @@ def drop_view(request, key):
         return render(request, 'expired.html', {'key': key})
     drop.touch()
 
-    # JSON API for CLI clients
     if 'application/json' in request.headers.get('Accept', ''):
         data = {'key': drop.key, 'kind': drop.kind, 'created_at': drop.created_at.isoformat()}
         if drop.kind == Drop.TEXT:
@@ -312,8 +335,10 @@ def download_drop(request, key):
     if drop.is_expired():
         drop.hard_delete()
         raise Http404
+    if not drop.file_url:
+        raise Http404
     drop.touch()
-    return redirect(drop.file.url)
+    return redirect(drop.file_url)
 
 
 # ── Help ──────────────────────────────────────────────────────────────────────
@@ -391,10 +416,16 @@ def logout_view(request):
 def account_view(request):
     profile = request.user.profile
     profile.recalc_storage()
+
+    # Prune expired drops on the fly
+    all_drops = list(Drop.objects.filter(owner=request.user).order_by('-created_at'))
+    for d in all_drops:
+        if d.is_expired():
+            d.hard_delete()
     drops = Drop.objects.filter(owner=request.user).order_by('-created_at')
+
     plan_limits = Plan.LIMITS.get(profile.plan, Plan.LIMITS[Plan.FREE])
 
-    # JSON API for CLI clients
     if 'application/json' in request.headers.get('Accept', ''):
         return JsonResponse({'drops': [
             {

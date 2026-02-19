@@ -72,14 +72,11 @@ class UserProfile(models.Model):
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     plan = models.CharField(max_length=16, choices=PLAN_CHOICES, default=Plan.FREE)
-    plan_since = models.DateTimeField(null=True, blank=True)   # when they last upgraded
+    plan_since = models.DateTimeField(null=True, blank=True)
     email_verified = models.BooleanField(default=False)
 
-
-    # Computed storage usage (updated on save/delete of drops)
     storage_used_bytes = models.PositiveBigIntegerField(default=0)
 
-    # Lemon Squeezy billing
     ls_customer_id = models.CharField(max_length=64, blank=True, default='',
                                       help_text='Lemon Squeezy customer ID')
     ls_subscription_id = models.CharField(max_length=64, blank=True, default='',
@@ -157,18 +154,18 @@ class Drop(models.Model):
     # Text
     content = models.TextField(blank=True, default='')
 
-    # File
-    file = models.FileField(upload_to='drops/', blank=True, null=True)
+    # File — stored on Cloudinary, URL and public_id kept here
+    file_url = models.URLField(blank=True, default='')
+    file_public_id = models.CharField(max_length=512, blank=True, default='')
     filename = models.CharField(max_length=255, blank=True, default='')
     filesize = models.PositiveBigIntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     last_accessed = models.DateTimeField(auto_now_add=True)
 
-    # Paid-drop fields
-    locked = models.BooleanField(default=False)          # only owner can edit/delete
-    locked_until = models.DateTimeField(null=True, blank=True)  # 24h creation window (anon)
-    expires_at = models.DateTimeField(null=True, blank=True)    # explicit expiry for paid drops
+    locked = models.BooleanField(default=False)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
     renewal_count = models.PositiveIntegerField(default=0)
 
     # ── Ownership ─────────────────────────────────────────────────────────────
@@ -190,7 +187,6 @@ class Drop(models.Model):
     def is_expired(self):
         if self.expires_at:
             return timezone.now() > self.expires_at
-        # Anon / free fallback: access-based
         if self.kind == self.TEXT:
             return timezone.now() > self.created_at + timedelta(hours=24)
         return timezone.now() > self.created_at + timedelta(days=90)
@@ -205,10 +201,6 @@ class Drop(models.Model):
         self.save(update_fields=['expires_at', 'renewal_count'])
 
     def recalculate_expiry_for_plan(self, plan):
-        """
-        Called when owner upgrades. Sets expires_at to
-        created_at + new plan max (bounded to plan limit).
-        """
         max_days = Plan.get(plan, 'max_expiry_days')
         if max_days and self.expires_at:
             new_expiry = self.created_at + timedelta(days=max_days)
@@ -222,7 +214,7 @@ class Drop(models.Model):
         if self.locked:
             return user.is_authenticated and self.owner_id == user.pk
         if self.is_creation_locked():
-            return False  # 24h window: no edits from anyone
+            return False
         return True
 
     def is_creation_locked(self):
@@ -235,9 +227,13 @@ class Drop(models.Model):
         Drop.objects.filter(pk=self.pk).update(last_accessed=timezone.now())
 
     def hard_delete(self):
-        if self.file:
-            self.file.delete(save=False)
-        # Update owner storage
+        """Delete from Cloudinary then from DB."""
+        if self.file_public_id:
+            try:
+                import cloudinary.uploader
+                cloudinary.uploader.destroy(self.file_public_id, resource_type='raw')
+            except Exception:
+                pass  # don't block deletion if Cloudinary call fails
         if self.owner_id and self.filesize:
             UserProfile.objects.filter(user_id=self.owner_id).update(
                 storage_used_bytes=models.F('storage_used_bytes') - self.filesize
