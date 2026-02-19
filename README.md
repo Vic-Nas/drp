@@ -1,4 +1,4 @@
-# drp
+# [drp live](https://drp.vicnas.me)
 
 Drop files or paste text, get a link instantly. No account, no friction — just a key.
 
