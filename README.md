@@ -85,7 +85,7 @@ Self-service password reset requires an outbound mail account. Gmail works fine:
 
 ## CLI
 
-Install from PyPI:
+The CLI is MIT-licensed and available on PyPI — install it freely, use it with any host:
 
 ```bash
 pip install drp-cli
@@ -131,4 +131,13 @@ Upgrade from your account page after signing up — billing is handled via Lemon
 
 ## License
 
-MIT
+The **server** (this repo, everything except `cli/`) is source-available under a
+custom license. You can read it, run it locally, and self-host it for personal
+or internal use within your organization. You may **not** use it to run a
+publicly accessible hosted service for third parties without a commercial license.
+
+The **CLI** (`cli/` and the `drp-cli` PyPI package) is MIT-licensed — use it
+freely with any host.
+
+See [LICENSE](LICENSE) for the full server license and
+[COMMERCIAL.md](COMMERCIAL.md) for commercial licensing inquiries.

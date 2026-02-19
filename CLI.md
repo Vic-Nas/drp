@@ -100,4 +100,6 @@ See the [server repo](https://github.com/vicnasdev/drp) for deployment instructi
 
 ## License
 
-MIT
+MIT — this CLI is free to use with any host, including self-hosted instances.
+The server has a separate license; see the
+[server repo](https://github.com/vicnasdev/drp) for details.
