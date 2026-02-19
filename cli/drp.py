@@ -10,7 +10,9 @@ Usage:
   drp up "some text"            # upload text
   drp get <key>                 # download a drop
   drp rm <key>                  # delete a drop
-  drp ls                        # list your drops (if logged in)
+  drp mv <key> <new-key>        # rename a drop
+  drp renew <key>               # renew a drop's expiry
+  drp ls                        # list your drops (requires login)
   drp status                    # show config
 """
 
@@ -136,6 +138,74 @@ def cmd_rm(args):
         sys.exit(1)
 
 
+def cmd_mv(args):
+    """Rename a drop's key."""
+    cfg = config.load()
+    host = cfg.get('host')
+    if not host:
+        print('Not configured. Run: drp setup')
+        sys.exit(1)
+
+    session = requests.Session()
+    _auto_login(cfg, host, session)
+
+    new_key = api.rename(host, session, args.key, args.new_key)
+    if new_key:
+        print(f'  ✓ /{args.key}/ → /{new_key}/')
+    else:
+        print(f'  ✗ could not rename /{args.key}/')
+        sys.exit(1)
+
+
+def cmd_renew(args):
+    """Renew a drop's expiry."""
+    cfg = config.load()
+    host = cfg.get('host')
+    if not host:
+        print('Not configured. Run: drp setup')
+        sys.exit(1)
+
+    session = requests.Session()
+    _auto_login(cfg, host, session)
+
+    expires_at, renewals = api.renew(host, session, args.key)
+    if expires_at:
+        print(f'  ✓ /{args.key}/ renewed (expires {expires_at}, #{renewals})')
+    else:
+        print(f'  ✗ could not renew /{args.key}/')
+        sys.exit(1)
+
+
+def cmd_ls(args):
+    """List your drops."""
+    cfg = config.load()
+    host = cfg.get('host')
+    if not host:
+        print('Not configured. Run: drp setup')
+        sys.exit(1)
+
+    session = requests.Session()
+    _auto_login(cfg, host, session)
+
+    drops = api.list_drops(host, session)
+    if drops is None:
+        print('  ✗ could not list drops (are you logged in?)')
+        sys.exit(1)
+
+    if not drops:
+        print('  (no drops)')
+        return
+
+    for d in drops:
+        kind = d['kind']
+        key = d['key']
+        name = d.get('filename') or ''
+        if kind == 'file' and name:
+            print(f'  {key:30s}  {kind:4s}  {name}')
+        else:
+            print(f'  {key:30s}  {kind:4s}')
+
+
 def cmd_status(args):
     """Show current config."""
     cfg = config.load()
@@ -156,10 +226,13 @@ def _auto_login(cfg, host, session):
 
 
 def main():
+    from cli import __version__
+
     parser = argparse.ArgumentParser(
         prog='drp',
         description='Drop text and files from the command line.',
     )
+    parser.add_argument('--version', '-V', action='version', version=f'%(prog)s {__version__}')
     sub = parser.add_subparsers(dest='command')
 
     # setup
@@ -182,6 +255,18 @@ def main():
     p_rm = sub.add_parser('rm', help='Delete a drop')
     p_rm.add_argument('key', help='Drop key to delete')
 
+    # mv (rename)
+    p_mv = sub.add_parser('mv', help='Rename a drop key')
+    p_mv.add_argument('key', help='Current drop key')
+    p_mv.add_argument('new_key', help='New key')
+
+    # renew
+    p_renew = sub.add_parser('renew', help='Renew a drop expiry')
+    p_renew.add_argument('key', help='Drop key to renew')
+
+    # ls
+    sub.add_parser('ls', help='List your drops (requires login)')
+
     # status
     sub.add_parser('status', help='Show config')
 
@@ -193,6 +278,9 @@ def main():
         'up': cmd_up,
         'get': cmd_get,
         'rm': cmd_rm,
+        'mv': cmd_mv,
+        'renew': cmd_renew,
+        'ls': cmd_ls,
         'status': cmd_status,
     }
 

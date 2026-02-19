@@ -260,3 +260,75 @@ class AuthDropApiTests(LiveServerTestCase):
         anon = requests.Session()
         ok = api.delete(self.host, anon, 'locktest')
         self.assertFalse(ok)
+
+    def test_rename_drop(self):
+        api.upload_text(self.host, self.session, 'rename me', key='oldname')
+        new_key = api.rename(self.host, self.session, 'oldname', 'newname')
+        self.assertEqual(new_key, 'newname')
+        # old key gone, new key exists
+        self.assertFalse(api.key_exists(self.host, self.session, 'oldname'))
+        self.assertTrue(api.key_exists(self.host, self.session, 'newname'))
+
+    def test_rename_to_taken_key_fails(self):
+        api.upload_text(self.host, self.session, 'first', key='existing')
+        api.upload_text(self.host, self.session, 'second', key='movethis')
+        result = api.rename(self.host, self.session, 'movethis', 'existing')
+        self.assertIsNone(result)
+
+    def test_renew_drop(self):
+        """Paid drops can be renewed."""
+        from core.models import Drop, Plan
+        from django.utils import timezone
+        from datetime import timedelta
+        self.user.profile.plan = Plan.STARTER
+        self.user.profile.save()
+        api.upload_text(self.host, self.session, 'renew me', key='renewtest')
+        # Manually set expires_at to something in the near future
+        drop = Drop.objects.get(key='renewtest')
+        drop.expires_at = timezone.now() + timedelta(days=1)
+        drop.save()
+        expires_at, renewals = api.renew(self.host, self.session, 'renewtest')
+        self.assertIsNotNone(expires_at)
+        self.assertEqual(renewals, 1)
+
+    def test_renew_anon_drop_fails(self):
+        """Anon drops (no expires_at) cannot be renewed."""
+        anon = requests.Session()
+        api.upload_text(self.host, anon, 'no renew', key='anonrenew')
+        expires_at, _ = api.renew(self.host, self.session, 'anonrenew')
+        self.assertIsNone(expires_at)
+
+    def test_list_drops(self):
+        api.upload_text(self.host, self.session, 'list item 1', key='list1')
+        api.upload_text(self.host, self.session, 'list item 2', key='list2')
+        drops = api.list_drops(self.host, self.session)
+        self.assertIsNotNone(drops)
+        keys = [d['key'] for d in drops]
+        self.assertIn('list1', keys)
+        self.assertIn('list2', keys)
+
+    def test_list_drops_anon_fails(self):
+        """Anonymous session can't list drops (requires login)."""
+        anon = requests.Session()
+        drops = api.list_drops(self.host, anon)
+        self.assertIsNone(drops)
+
+    def test_list_drops_empty(self):
+        drops = api.list_drops(self.host, self.session)
+        self.assertIsNotNone(drops)
+        self.assertEqual(len(drops), 0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Version
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class VersionTests(LiveServerTestCase):
+    """__version__ is importable and looks like semver."""
+
+    def test_version_format(self):
+        from cli import __version__
+        parts = __version__.split('.')
+        self.assertEqual(len(parts), 3)
+        for p in parts:
+            self.assertTrue(p.isdigit())

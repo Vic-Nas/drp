@@ -380,6 +380,22 @@ def account_view(request):
     profile.recalc_storage()
     drops = Drop.objects.filter(owner=request.user).order_by('-created_at')
     plan_limits = Plan.LIMITS.get(profile.plan, Plan.LIMITS[Plan.FREE])
+
+    # JSON API for CLI clients
+    if 'application/json' in request.headers.get('Accept', ''):
+        return JsonResponse({'drops': [
+            {
+                'key': d.key,
+                'kind': d.kind,
+                'created_at': d.created_at.isoformat(),
+                'expires_at': d.expires_at.isoformat() if d.expires_at else None,
+                'filename': d.filename or None,
+                'filesize': d.filesize,
+                'locked': d.locked,
+            }
+            for d in drops
+        ]})
+
     return render(request, 'auth/account.html', {
         'profile': profile,
         'drops': drops,

@@ -127,6 +127,60 @@ def delete(host, session, key):
         return False
 
 
+def rename(host, session, key, new_key):
+    """Rename a drop's key. Returns the new key on success, None on failure."""
+    csrf = get_csrf(host, session)
+    try:
+        res = session.post(
+            f'{host}/{key}/rename/',
+            data={'new_key': new_key, 'csrfmiddlewaretoken': csrf},
+            timeout=10,
+        )
+        if res.ok:
+            return res.json().get('key')
+        _err(res.json().get('error', 'rename failed'))
+    except Exception as e:
+        _err(f'rename error: {e}')
+    return None
+
+
+def renew(host, session, key):
+    """Renew a drop's expiry. Returns (expires_at, renewals) on success."""
+    csrf = get_csrf(host, session)
+    try:
+        res = session.post(
+            f'{host}/{key}/renew/',
+            data={'csrfmiddlewaretoken': csrf},
+            timeout=10,
+        )
+        if res.ok:
+            data = res.json()
+            return data.get('expires_at'), data.get('renewals')
+        _err(res.json().get('error', 'renew failed'))
+    except Exception as e:
+        _err(f'renew error: {e}')
+    return None, None
+
+
+def list_drops(host, session):
+    """List the logged-in user's drops. Returns list of dicts or None."""
+    try:
+        res = session.get(
+            f'{host}/auth/account/',
+            headers={'Accept': 'application/json'},
+            timeout=15,
+        )
+        if res.ok:
+            return res.json().get('drops', [])
+        if res.status_code == 302:
+            _err('not logged in')
+        else:
+            _err(f'server returned {res.status_code}')
+    except Exception as e:
+        _err(f'list error: {e}')
+    return None
+
+
 def key_exists(host, session, key):
     """Return True if the key exists on the server."""
     try:

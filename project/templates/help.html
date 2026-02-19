@@ -46,15 +46,20 @@
 
   <section>
     <h2>cli</h2>
-    <p>Install the command-line tool with <code>pip install .</code> (from the repo root) and drop files straight from your terminal:</p>
+    <p>Install the command-line tool from <a href="https://pypi.org/project/drp-cli/">PyPI</a>:</p>
+    <pre><code>pip install drp-cli</code></pre>
+    <p>Usage:</p>
     <pre><code>drp setup              # configure host &amp; log in
 drp up notes.txt       # upload a file → prints URL
 drp up "hello world"   # upload text → prints URL
 drp up doc.pdf -k cv   # upload with a custom key
 drp get mykey          # text → stdout, file → saved to disk
 drp rm mykey           # delete a drop
+drp mv mykey newkey    # rename a drop
+drp renew mykey        # renew expiry (paid accounts)
+drp ls                 # list your drops (requires login)
 drp status             # show config</code></pre>
-    <p>Works anonymously or logged in. Logged-in users get plan-based expiry and locked drops.</p>
+    <p>Works anonymously or logged in. Logged-in users get plan-based expiry, locked drops, and <code>drp ls</code>.</p>
   </section>
 
   <section>

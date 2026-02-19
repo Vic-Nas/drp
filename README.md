@@ -85,7 +85,13 @@ Self-service password reset requires an outbound mail account. Gmail works fine:
 
 ## CLI
 
-Install the CLI tool:
+Install from PyPI:
+
+```bash
+pip install drp-cli
+```
+
+Or from source:
 
 ```bash
 pip install .         # or: make install
@@ -98,13 +104,19 @@ drp setup             # configure host & log in
 drp up notes.txt      # upload a file → prints URL
 drp up "hello world"  # upload text → prints URL
 drp up doc.pdf -k cv  # upload with custom key
-drp get mykey         # download a drop (text prints to stdout, files save to disk)
+drp get mykey         # text → stdout, file → saved to disk
 drp get mykey -o a.txt  # save file with custom name
 drp rm mykey          # delete a drop
+drp mv mykey newkey   # rename a drop
+drp renew mykey       # renew expiry (paid)
+drp ls                # list your drops (requires login)
 drp status            # show config
+drp --version         # show version
 ```
 
-Works anonymously or logged in. Logged-in users get plan-based expiry and locked drops.
+Works anonymously or logged in. Logged-in users get locked drops, longer expiry, and `drp ls`.
+
+Full reference: [docs/cli-reference.md](docs/cli-reference.md)
 
 ## Plans
 

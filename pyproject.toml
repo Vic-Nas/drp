@@ -4,14 +4,37 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "drp-cli"
-version = "0.1.0"
-description = "Command-line tool for drp — drop text and files, get a link."
-readme = "README.md"
+dynamic = ["version"]
+description = "Drop text and files from the command line — get a link instantly."
+readme = "CLI.md"
+license = "MIT"
 requires-python = ">=3.10"
 dependencies = ["requests>=2.28"]
+authors = [{name = "Vic Nas"}]
+keywords = ["cli", "file-sharing", "pastebin", "drops"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://drp.vic.so"
+Repository = "https://github.com/vicnasdev/drp"
+Issues = "https://github.com/vicnasdev/drp/issues"
 
 [project.scripts]
 drp = "cli.drp:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "cli.__version__"}
 
 [tool.setuptools.packages.find]
 include = ["cli*"]
