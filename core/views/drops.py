@@ -4,11 +4,11 @@ Drop creation, retrieval, and download views.
 
 import secrets
 from datetime import timedelta
+from functools import cache
 
 from django.conf import settings
 from django.http import JsonResponse, Http404
 from django.shortcuts import render, redirect
-from django.urls import get_resolver
 from django.utils import timezone
 
 from core.models import Drop, Plan, SavedDrop
@@ -23,11 +23,14 @@ ANON_COOKIE = 'drp_anon'
 
 # ── Reserved keys ─────────────────────────────────────────────────────────────
 
+@cache
 def _get_reserved_keys():
     """
     Derive reserved top-level path segments from the root URL conf.
-    Runs once at startup — automatically covers any app added in future.
+    Deferred until first call to avoid circular import at startup.
+    Cached so the resolver is only inspected once.
     """
+    from django.urls import get_resolver
     resolver = get_resolver()
     reserved = set()
     for pattern in resolver.url_patterns:
@@ -36,8 +39,6 @@ def _get_reserved_keys():
         if segment and not segment.startswith(('(', '?', '<')):
             reserved.add(segment)
     return reserved
-
-RESERVED_KEYS = _get_reserved_keys()
 
 
 # ── Home ──────────────────────────────────────────────────────────────────────
@@ -71,7 +72,7 @@ def check_key(request):
     ns = request.GET.get('ns', Drop.NS_CLIPBOARD)
     if not key:
         return JsonResponse({'error': 'Key required.'}, status=400)
-    if key in RESERVED_KEYS:
+    if key in _get_reserved_keys():
         return JsonResponse({'available': False, 'reserved': True, 'ns': ns, 'key': key})
     taken = Drop.objects.filter(ns=ns, key=key).exists()
     return JsonResponse({'available': not taken, 'ns': ns, 'key': key})
@@ -87,7 +88,7 @@ def save_drop(request):
     ns = Drop.NS_FILE if f else Drop.NS_CLIPBOARD
     key = request.POST.get('key', '').strip() or gen_key(ns)
 
-    if key in RESERVED_KEYS:
+    if key in _get_reserved_keys():
         return JsonResponse({'error': f'"{key}" is a reserved key.'}, status=400)
 
     existing = Drop.objects.filter(ns=ns, key=key).first()
