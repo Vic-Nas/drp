@@ -585,3 +585,137 @@ class DropLifecycleTests(TestCase):
         self.assertEqual(drop.renewal_count, 1)
         # New expiry should be in the future beyond the old one
         self.assertGreater(drop.expires_at, timezone.now() + timedelta(days=9))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Cleanup command
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@_STATIC_OVERRIDE
+class CleanupCommandTests(TestCase):
+    """Tests for the `cleanup` management command."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('clean@test.com', 'clean@test.com', 'testpass123')
+        self.profile = self.user.profile
+
+    # ── Anonymous text drops ──────────────────────────────────────────────────
+
+    def test_anon_text_under_24h_survives(self):
+        """Fresh anonymous text drop should NOT be deleted."""
+        Drop.objects.create(key='fresh-txt', kind=Drop.TEXT, content='hi')
+        from django.core.management import call_command
+        call_command('cleanup')
+        self.assertTrue(Drop.objects.filter(key='fresh-txt').exists())
+
+    def test_anon_text_over_24h_deleted(self):
+        """Anonymous text drop older than 24h should be deleted."""
+        drop = Drop.objects.create(key='old-txt', kind=Drop.TEXT, content='hi')
+        Drop.objects.filter(pk=drop.pk).update(
+            created_at=timezone.now() - timedelta(hours=25)
+        )
+        from django.core.management import call_command
+        call_command('cleanup')
+        self.assertFalse(Drop.objects.filter(key='old-txt').exists())
+
+    # ── Anonymous file drops ──────────────────────────────────────────────────
+
+    def test_anon_file_under_90d_survives(self):
+        """Fresh anonymous file drop should NOT be deleted."""
+        Drop.objects.create(key='fresh-file', kind=Drop.FILE, filename='f.txt')
+        from django.core.management import call_command
+        call_command('cleanup')
+        self.assertTrue(Drop.objects.filter(key='fresh-file').exists())
+
+    def test_anon_file_over_90d_deleted(self):
+        """Anonymous file drop older than 90 days should be deleted."""
+        drop = Drop.objects.create(key='old-file', kind=Drop.FILE, filename='f.txt')
+        Drop.objects.filter(pk=drop.pk).update(
+            created_at=timezone.now() - timedelta(days=91)
+        )
+        from django.core.management import call_command
+        call_command('cleanup')
+        self.assertFalse(Drop.objects.filter(key='old-file').exists())
+
+    # ── Paid drops safe until expiry ──────────────────────────────────────────
+
+    def test_paid_drop_before_expiry_survives(self):
+        """Paid drop with future expires_at should NOT be deleted."""
+        self.profile.plan = Plan.STARTER
+        self.profile.save()
+        Drop.objects.create(
+            key='paid-safe', kind=Drop.FILE, filename='p.txt',
+            owner=self.user, locked=True,
+            expires_at=timezone.now() + timedelta(days=180),
+        )
+        from django.core.management import call_command
+        call_command('cleanup')
+        self.assertTrue(Drop.objects.filter(key='paid-safe').exists())
+
+    def test_paid_drop_after_expiry_deleted(self):
+        """Paid drop past its expires_at should be deleted."""
+        self.profile.plan = Plan.STARTER
+        self.profile.save()
+        Drop.objects.create(
+            key='paid-exp', kind=Drop.FILE, filename='p.txt',
+            owner=self.user, locked=True,
+            expires_at=timezone.now() - timedelta(days=1),
+        )
+        from django.core.management import call_command
+        call_command('cleanup')
+        self.assertFalse(Drop.objects.filter(key='paid-exp').exists())
+
+    # ── Mixed batch ───────────────────────────────────────────────────────────
+
+    def test_cleanup_mixed_batch(self):
+        """Only expired drops are removed; everything else stays."""
+        # Should survive
+        Drop.objects.create(key='alive-txt', kind=Drop.TEXT, content='ok')
+        Drop.objects.create(key='alive-file', kind=Drop.FILE, filename='a.txt')
+        Drop.objects.create(
+            key='alive-paid', kind=Drop.TEXT, content='paid',
+            owner=self.user,
+            expires_at=timezone.now() + timedelta(days=365),
+        )
+
+        # Should be deleted
+        old_txt = Drop.objects.create(key='dead-txt', kind=Drop.TEXT, content='x')
+        Drop.objects.filter(pk=old_txt.pk).update(
+            created_at=timezone.now() - timedelta(hours=25)
+        )
+        old_file = Drop.objects.create(key='dead-file', kind=Drop.FILE, filename='d.txt')
+        Drop.objects.filter(pk=old_file.pk).update(
+            created_at=timezone.now() - timedelta(days=91)
+        )
+        Drop.objects.create(
+            key='dead-paid', kind=Drop.TEXT, content='y',
+            owner=self.user,
+            expires_at=timezone.now() - timedelta(days=1),
+        )
+
+        from django.core.management import call_command
+        call_command('cleanup')
+
+        # Survivors
+        self.assertTrue(Drop.objects.filter(key='alive-txt').exists())
+        self.assertTrue(Drop.objects.filter(key='alive-file').exists())
+        self.assertTrue(Drop.objects.filter(key='alive-paid').exists())
+        # Deleted
+        self.assertFalse(Drop.objects.filter(key='dead-txt').exists())
+        self.assertFalse(Drop.objects.filter(key='dead-file').exists())
+        self.assertFalse(Drop.objects.filter(key='dead-paid').exists())
+
+    def test_cleanup_updates_owner_storage(self):
+        """When cleanup deletes a paid file drop, owner storage is updated."""
+        self.profile.plan = Plan.STARTER
+        self.profile.storage_used_bytes = 10000
+        self.profile.save()
+        Drop.objects.create(
+            key='storage-drop', kind=Drop.FILE, filename='s.txt',
+            owner=self.user, filesize=10000,
+            expires_at=timezone.now() - timedelta(days=1),
+        )
+        from django.core.management import call_command
+        call_command('cleanup')
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.storage_used_bytes, 0)
