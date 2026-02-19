@@ -13,7 +13,40 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ['3.10', '3.12', '3.13']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Check drp command is available
+        run: drp --version
+
+      - name: Smoke test (upload text, get, delete)
+        env:
+          DRP_HOST: ${{ secrets.DRP_SMOKE_HOST }}
+        if: env.DRP_HOST != ''
+        shell: bash
+        run: |
+          key="ci-smoke-$RANDOM"
+          drp setup <<< $'${{ secrets.DRP_SMOKE_HOST }}\nn\n' || true
+          url=$(drp up "hello from ci" --key "$key")
+          echo "Uploaded: $url"
+          drp get "$key"
+          drp rm "$key"
+
   publish:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -28,16 +61,11 @@ jobs:
       - name: Bump patch version
         id: bump
         run: |
-          # Read current version
           current=$(grep -oP "(?<=__version__ = ').*(?=')" cli/__init__.py)
           echo "Current version: $current"
-
-          # Bump patch
           IFS='.' read -r major minor patch <<< "$current"
           new_version="$major.$minor.$((patch + 1))"
           echo "New version: $new_version"
-
-          # Write back
           sed -i "s/__version__ = '$current'/__version__ = '$new_version'/" cli/__init__.py
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
@@ -54,17 +82,14 @@ jobs:
       - name: Collect commits since last release
         id: changelog
         run: |
-          # Find previous tag (skip the one we just created)
           prev_tag=$(git tag --sort=-v:refname | sed -n '2p')
           if [ -z "$prev_tag" ]; then
-            # First release — use all commits
             log=$(git log --oneline --no-decorate HEAD)
           else
             log=$(git log --oneline --no-decorate "$prev_tag"..HEAD~1)
           fi
-          # Write to file (multi-line output)
           echo "$log" > /tmp/release_notes.txt
-          echo "Install / upgrade:"  >> /tmp/release_notes.txt
+          echo "Install / upgrade:" >> /tmp/release_notes.txt
           echo '```' >> /tmp/release_notes.txt
           echo 'pip install --upgrade drp-cli' >> /tmp/release_notes.txt
           echo '```' >> /tmp/release_notes.txt

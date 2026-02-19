@@ -25,6 +25,68 @@ import requests
 from cli import config, api
 
 
+def _check_scripts_in_path():
+    """
+    Warn if Python's Scripts/bin directory isn't in PATH.
+    On Windows this is a common gotcha after pip install.
+    """
+    import sysconfig
+    scripts_dir = sysconfig.get_path('scripts')
+    if not scripts_dir:
+        return
+    path_dirs = os.environ.get('PATH', '').split(os.pathsep)
+    if scripts_dir in path_dirs:
+        return
+
+    print(f'\n  ⚠ {scripts_dir} is not in your PATH.')
+    print('    The `drp` command may not work in new terminals.\n')
+
+    if sys.platform == 'win32':
+        answer = input('  Add it to your user PATH now? (y/n) [y]: ').strip().lower()
+        if answer != 'n':
+            _add_to_user_path_windows(scripts_dir)
+    else:
+        print('  Add this to your shell profile (~/.bashrc, ~/.zshrc, etc.):')
+        print(f'    export PATH="{scripts_dir}:$PATH"\n')
+
+
+def _add_to_user_path_windows(scripts_dir):
+    """Append scripts_dir to the user PATH in the Windows registry."""
+    try:
+        import winreg
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r'Environment',
+            0,
+            winreg.KEY_READ | winreg.KEY_WRITE,
+        )
+        try:
+            current, _ = winreg.QueryValueEx(key, 'PATH')
+        except FileNotFoundError:
+            current = ''
+
+        if scripts_dir.lower() not in current.lower():
+            new_path = f'{current};{scripts_dir}' if current else scripts_dir
+            winreg.SetValueEx(key, 'PATH', 0, winreg.REG_EXPAND_SZ, new_path)
+            winreg.CloseKey(key)
+            # Broadcast WM_SETTINGCHANGE so open terminals can pick it up
+            try:
+                import ctypes
+                HWND_BROADCAST = 0xFFFF
+                WM_SETTINGCHANGE = 0x001A
+                ctypes.windll.user32.SendMessageTimeoutW(
+                    HWND_BROADCAST, WM_SETTINGCHANGE, 0, 'Environment', 2, 5000, None
+                )
+            except Exception:
+                pass
+            print('  ✓ Added to PATH. Restart your terminal for it to take effect.')
+        else:
+            print('  ✓ Already in PATH (may need a terminal restart).')
+    except Exception as e:
+        print(f'  ✗ Could not update PATH automatically: {e}')
+        print(f'    Add manually: {scripts_dir}')
+
+
 def cmd_setup(args):
     """Interactive first-time setup."""
     cfg = config.load()
@@ -40,6 +102,7 @@ def cmd_setup(args):
     else:
         config.save(cfg)
 
+    _check_scripts_in_path()
     print(f'\n  ✓ Saved to {config.CONFIG_FILE}')
 
 
