@@ -13,8 +13,9 @@ urlpatterns = [
     path('auth/login/', views.login_view, name='login'),
     path('auth/logout/', views.logout_view, name='logout'),
     path('auth/account/', views.account_view, name='account'),
+    path('auth/account/export/', views.export_drops, name='export_drops'),
 
-    # Password reset — Django's built-in views, our templates
+    # Password reset
     path('auth/forgot-password/',
          auth_views.PasswordResetView.as_view(
              template_name='registration/password_reset_form.html',

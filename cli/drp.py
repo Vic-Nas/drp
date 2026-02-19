@@ -254,9 +254,22 @@ def cmd_ls(args):
     email = cfg.get('email')
 
     if email:
-        # Try to get server list
         session = requests.Session()
         _auto_login(cfg, host, session)
+
+        if getattr(args, 'export', False):
+            import json as _json
+            try:
+                res = session.get(f'{host}/auth/account/export/', timeout=15)
+                if res.ok:
+                    print(res.text)
+                    return
+                print('  ✗ Export failed — not logged in or server error.')
+            except Exception as e:
+                print(f'  ✗ Export error: {e}')
+            sys.exit(1)
+
+        # Try to get server list
         drops = api.list_drops(host, session)
         if drops is not None:
             _print_drops(drops, host, source='server')
@@ -365,7 +378,8 @@ def main():
     p_renew.add_argument('key', help='Drop key to renew')
 
     # ls
-    sub.add_parser('ls', help='List your drops (server if logged in, local cache otherwise)')
+    p_ls = sub.add_parser('ls', help='List your drops (server if logged in, local cache otherwise)')
+    p_ls.add_argument('--export', action='store_true', help='Export drops as JSON (requires login)')
 
     # status
     sub.add_parser('status', help='Show config')

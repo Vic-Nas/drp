@@ -446,3 +446,24 @@ def account_view(request):
         'plan_limits': plan_limits,
         'Plan': Plan,
     })
+
+
+# ── Export drops ──────────────────────────────────────────────────────────────
+
+@login_required
+def export_drops(request):
+    drops = Drop.objects.filter(owner=request.user).order_by('-created_at')
+    data = [{
+        'key': d.key,
+        'kind': d.kind,
+        'created_at': d.created_at.isoformat(),
+        'expires_at': d.expires_at.isoformat() if d.expires_at else None,
+        'filename': d.filename or None,
+        'filesize': d.filesize,
+        'url': f'{settings.SITE_URL}/{d.key}/',
+        'host': settings.SITE_URL,
+    } for d in drops]
+    import json
+    response = JsonResponse({'drops': data}, json_dumps_params={'indent': 2})
+    response['Content-Disposition'] = 'attachment; filename="drp-export.json"'
+    return response
