@@ -11,7 +11,6 @@ urlpatterns = [
     path('api/report-error/', report_error, name='report_error'),
     path('save/', views.save_drop, name='save_drop'),
     path('check-key/', views.check_key, name='check_key'),
-    path('help/', views.help_view, name='help'),
 
     # ── Auth ──────────────────────────────────────────────────────────────────
     path('auth/register/', views.register_view, name='register'),

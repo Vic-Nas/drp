@@ -1,0 +1,93 @@
+{% extends 'help/base.html' %}
+{% block title %}drp — CLI reference{% endblock %}
+
+{% block help_content %}
+<h1>CLI reference</h1>
+<p class="lead">Upload text and files, manage drops, and handle sessions from your terminal.</p>
+
+<h2>install</h2>
+<pre><code>pipx install drp-cli
+drp setup          # set host, log in</code></pre>
+<p>Requires Python 3.10+. <code>pipx</code> is recommended to keep the CLI isolated. You can also use <code>pip install drp-cli</code>.</p>
+
+<h2>setup & auth</h2>
+
+<h3>drp setup</h3>
+<p>Interactive first-time configuration. Sets your host and optionally logs you in.</p>
+<pre><code>drp setup</code></pre>
+
+<h3>drp login / logout</h3>
+<p>Session cookies are saved to <code>~/.config/drp/session.json</code> — no password prompt on every command.</p>
+<pre><code>drp login          # prompts for email + password, saves session
+drp logout         # clears saved session</code></pre>
+
+<h3>drp status / ping</h3>
+<pre><code>drp status         # show host, account, session info, local cache
+drp ping           # check server connectivity</code></pre>
+
+<h2>uploading</h2>
+
+<h3>drp up</h3>
+<p>Text goes to the clipboard namespace (<code>/key/</code>). Files go to the file namespace (<code>/f/key/</code>). Use <code>-k</code> to set a memorable key at upload time — do it then, because keys are locked for 24h after creation.</p>
+<pre><code>drp up "hello world"             # clipboard → /auto-key/
+drp up "hello world" -k hello    # clipboard at /hello/
+drp up notes.txt                 # file → /f/notes/
+drp up report.pdf -k q3          # file at /f/q3/</code></pre>
+
+<h2>getting</h2>
+
+<h3>drp get</h3>
+<p>Bare key tries clipboard first, then file. Prefix with <code>f/</code> to force the file namespace.</p>
+<pre><code>drp get hello                    # print clipboard to stdout
+drp get q3                       # auto-detect: clipboard first, then file
+drp get f/q3                     # force file namespace
+drp get f/q3 -o my-report.pdf    # download and save with a custom filename</code></pre>
+
+<h2>listing</h2>
+
+<h3>drp ls</h3>
+<pre><code>drp ls                           # keys only
+drp ls -l                        # long: kind, size, age, expiry
+drp ls -l --bytes                # long with raw byte counts instead of human-readable
+drp ls -l -t c                   # only clipboards
+drp ls -l -t f                   # only files
+drp ls -l -t s                   # only saved (bookmarked) drops
+drp ls -l --sort time            # sort by age
+drp ls -l --sort size -r         # sort by size, reversed
+drp ls --export > backup.json    # dump as JSON (requires login)</code></pre>
+
+<h2>managing</h2>
+
+<h3>drp rm</h3>
+<pre><code>drp rm hello                     # delete clipboard
+drp rm f/q3                      # delete file</code></pre>
+
+<h3>drp mv</h3>
+<p>Rename a key. Blocked for 24h after creation on anonymous drops. Paid drops can always be renamed by their owner.</p>
+<pre><code>drp mv q3 quarter3               # rename clipboard key
+drp mv f/q3 f/quarter3           # rename file key</code></pre>
+
+<h3>drp renew</h3>
+<p>Extend a drop's expiry forward by the same duration as the original. Paid accounts only. No renewal limit.</p>
+<pre><code>drp renew q3                     # renew clipboard
+drp renew f/q3                   # renew file</code></pre>
+
+<h2>export & import</h2>
+
+<h3>drp ls --export</h3>
+<p>Dumps your drops and saved bookmarks as JSON. Useful for backups or sharing a collection.</p>
+<pre><code>drp ls --export > backup.json</code></pre>
+
+<h3>drp load</h3>
+<p>Imports a JSON export as saved drops (bookmarks) on your account. No content is transferred and no ownership is granted — you can view drops but not edit or delete them.</p>
+<pre><code>drp load backup.json</code></pre>
+
+<h2>key format</h2>
+<p>All management commands accept keys in the same format:</p>
+<table>
+  <tr><th>format</th><th>namespace</th></tr>
+  <tr><td><code>key</code></td><td>clipboard (default)</td></tr>
+  <tr><td><code>f/key</code></td><td>file</td></tr>
+</table>
+<p>Keys can contain letters, numbers, hyphens, underscores, and dots. No slashes.</p>
+{% endblock %}

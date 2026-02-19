@@ -7,35 +7,24 @@ pipx install drp-cli
 drp setup && drp up "hello world"
 ```
 
+## Docs
+
+**CLI** → [reference](https://drp.vicnas.me/help/cli/)
+**Expiry** → [how drops expire](https://drp.vicnas.me/help/expiry/)
+**Plans** → [free vs paid](https://drp.vicnas.me/help/plans/)
+**Self-hosting** → [deploy your own](https://drp.vicnas.me/help/privacy/)
+
 ## Deploy
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.com?referralCode=ZIdvo-)
 
 1. Fork → Railway → connect repo → add PostgreSQL
-2. Set env vars (see `.env.example`)
+2. Set env vars (see [self-hosting docs](https://drp.vicnas.me/help/privacy/))
 3. Start command:
    ```
    python manage.py createcachetable && python manage.py collectstatic --noinput && python manage.py migrate && gunicorn project.wsgi --bind 0.0.0.0:$PORT
    ```
 4. Create superuser via Railway shell: `python manage.py createsuperuser`
-
-### Required vars
-| Variable | Description |
-|---|---|
-| `SECRET_KEY` | Random secret |
-| `DOMAIN` | Your domain, no `https://` |
-| `DB_URL` | PostgreSQL URL |
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary credentials |
-| `CLOUDINARY_API_KEY` | |
-| `CLOUDINARY_API_SECRET` | |
-
-### Optional vars
-| Variable | Description |
-|---|---|
-| `RESEND_API_KEY` | Enables email (password resets, broadcasts). Without it, emails print to console. |
-| `DEFAULT_FROM_EMAIL` | Defaults to `noreply@<DOMAIN>` |
-| `ADMIN_EMAIL` | Your email |
-| `LEMONSQUEEZY_*` | Billing — leave blank to disable paid plans |
 
 ## Run locally
 
@@ -52,10 +41,10 @@ python manage.py runserver
 |---|---|---|---|
 | Max file | 200 MB | 1 GB | 5 GB |
 | Storage | — | 5 GB | 20 GB |
-| Expiry | 24h idle / 90d | Up to 1 year | Up to 3 years |
 | Locked drops | ✗ | ✓ | ✓ |
+| Renewable | ✗ | ✓ | ✓ |
 
 ## License
 
-Server: source-available, personal/internal use only. See [LICENSE](LICENSE) and [COMMERCIAL.md](COMMERCIAL.md).
+Server: source-available, personal/internal use only. See [LICENSE](LICENSE).
 CLI (`cli/`): MIT.

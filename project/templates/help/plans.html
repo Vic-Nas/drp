@@ -1,0 +1,48 @@
+{% extends 'help/base.html' %}
+{% block title %}drp — plans{% endblock %}
+
+{% block help_content %}
+<h1>plans</h1>
+<p class="lead">drp is free to use anonymously. Signing up for a free account unlocks more. Paid plans add storage, larger files, and locked drops.</p>
+
+<h2>comparison</h2>
+<table>
+  <tr>
+    <th></th>
+    <th>Anonymous</th>
+    <th>Free</th>
+    <th>Starter ($3/mo)</th>
+    <th>Pro ($8/mo)</th>
+  </tr>
+  <tr><td>Max file size</td><td>200 MB</td><td>200 MB</td><td>1 GB</td><td>5 GB</td></tr>
+  <tr><td>Max clipboard</td><td>500 KB</td><td>500 KB</td><td>2 MB</td><td>10 MB</td></tr>
+  <tr><td>Storage quota</td><td>—</td><td>—</td><td>5 GB</td><td>20 GB</td></tr>
+  <tr><td>Clipboard idle</td><td>24h</td><td>48h</td><td>explicit</td><td>explicit</td></tr>
+  <tr><td>Clipboard max lifetime</td><td>7 days</td><td>30 days</td><td>up to 1 year</td><td>up to 3 years</td></tr>
+  <tr><td>File expiry</td><td>90 days</td><td>90 days</td><td>up to 1 year</td><td>up to 3 years</td></tr>
+  <tr><td>Locked drops</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td></tr>
+  <tr><td>Renewable drops</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td></tr>
+  <tr><td>Saved drops</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td></tr>
+  <tr><td>Export / import</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td></tr>
+</table>
+
+<h2>what "locked" means</h2>
+<p>Anonymous and free drops are unlocked — after the 24h creation window, anyone who knows the key can replace the content. This is intentional for quick sharing, but means your drop isn't private.</p>
+<p>Paid drops are permanently locked to your account. Only you can edit, rename, delete, or renew them. Nobody else can overwrite a key you own.</p>
+
+<h2>storage quota</h2>
+<p>Storage applies to files only — text clipboards don't count toward it. Your usage is shown on your account page and in the dashboard on the home page. Dropping a file that would exceed your quota is rejected at upload time.</p>
+<p>When a file drop is deleted (by you or by expiry), its storage is freed immediately.</p>
+
+<h2>free accounts</h2>
+<p>Creating a free account requires only an email and password. No credit card. Free accounts get longer expiry, saved drops, export/import, and cross-device sync (your drops are attached to your account, not just your browser).</p>
+
+<h2>upgrading & billing</h2>
+<p>Paid plans are billed monthly through Lemon Squeezy. You can upgrade from your <a href="/auth/account/">account page</a>. Downgrading or cancelling returns you to the free plan at the end of the billing period — your drops aren't immediately deleted, but the paid limits no longer apply to new drops.</p>
+<p>To manage or cancel your subscription, visit the <a href="/billing/portal/">billing portal</a>.</p>
+
+<h2>getting started</h2>
+<p>
+  <a href="/auth/register/" class="btn" style="display:inline-block;margin-top:.4rem">create a free account</a>
+</p>
+{% endblock %}

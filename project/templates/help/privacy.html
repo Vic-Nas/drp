@@ -1,0 +1,68 @@
+{% extends 'help/base.html' %}
+{% block title %}drp — privacy & self-hosting{% endblock %}
+
+{% block help_content %}
+<h1>privacy & self-hosting</h1>
+<p class="lead">Where your data lives, what isn't encrypted, and how to run your own instance.</p>
+
+<h2>data storage</h2>
+<p><strong>Text</strong> is stored in PostgreSQL. <strong>Files</strong> are stored on Cloudinary and served via their CDN. Both are on third-party infrastructure when using the hosted instance at <a href="https://drp.vicnas.me">drp.vicnas.me</a>.</p>
+<p>There is <strong>no encryption at rest</strong>. Don't store secrets, credentials, or sensitive personal data. A hard-to-guess key is your only access control for anonymous drops — anyone with the URL can read the content.</p>
+
+<h2>anonymous drops</h2>
+<p>Anonymous drops are not associated with any account. They're tracked by a short-lived browser cookie (<code>drp_anon</code>) solely to enable drop claiming at sign-up. The cookie is deleted after claiming or after 7 days. No IP address or device fingerprint is stored against your drops.</p>
+
+<h2>accounts</h2>
+<p>We store your email, a hashed password (Django's default PBKDF2), and your drops. We don't sell data or serve ads. Email is used only for password resets and, if you opt in, product updates.</p>
+
+<h2>crash reporting</h2>
+<p>The CLI sends sanitized crash reports to the server when an unexpected error occurs. Reports include the exception type, a scrubbed traceback (file paths and line numbers only, no variable values), CLI version, Python version, and OS. Command arguments, drop content, keys, filenames, and auth data are never included. The server files GitHub issues from these reports to track bugs.</p>
+
+<h2>self-hosting</h2>
+<p>drp is open source. The server is source-available for personal and internal use. The CLI is MIT-licensed.</p>
+
+<h3>requirements</h3>
+<ul>
+  <li>Python 3.10+</li>
+  <li>PostgreSQL (SQLite works locally but isn't recommended for production)</li>
+  <li>Cloudinary account (free tier covers most personal use)</li>
+  <li>Any host that can run a gunicorn process — Railway, Fly.io, Render, VPS</li>
+</ul>
+
+<h3>deploy on Railway</h3>
+<pre><code>1. Fork the repo
+2. New project → deploy from GitHub repo → add PostgreSQL plugin
+3. Set environment variables (see below)
+4. Start command:
+   python manage.py createcachetable && \
+   python manage.py collectstatic --noinput && \
+   python manage.py migrate && \
+   gunicorn project.wsgi --bind 0.0.0.0:$PORT</code></pre>
+
+<h3>environment variables</h3>
+<table>
+  <tr><th>variable</th><th>required</th><th>description</th></tr>
+  <tr><td><code>SECRET_KEY</code></td><td>yes</td><td>Random Django secret key</td></tr>
+  <tr><td><code>DOMAIN</code></td><td>yes</td><td>Your domain, no <code>https://</code></td></tr>
+  <tr><td><code>DB_URL</code></td><td>yes</td><td>PostgreSQL connection URL</td></tr>
+  <tr><td><code>CLOUDINARY_CLOUD_NAME</code></td><td>yes</td><td>Cloudinary credentials</td></tr>
+  <tr><td><code>CLOUDINARY_API_KEY</code></td><td>yes</td><td></td></tr>
+  <tr><td><code>CLOUDINARY_API_SECRET</code></td><td>yes</td><td></td></tr>
+  <tr><td><code>RESEND_API_KEY</code></td><td>no</td><td>Enables email. Without it, emails print to console.</td></tr>
+  <tr><td><code>DEFAULT_FROM_EMAIL</code></td><td>no</td><td>Defaults to <code>noreply@&lt;DOMAIN&gt;</code></td></tr>
+  <tr><td><code>ADMIN_EMAIL</code></td><td>no</td><td>Your email, shown on register page</td></tr>
+  <tr><td><code>LEMONSQUEEZY_*</code></td><td>no</td><td>Billing — leave blank to disable paid plans</td></tr>
+</table>
+
+<h3>create a superuser</h3>
+<pre><code>python manage.py createsuperuser</code></pre>
+<p>On Railway, run this via the shell tab in your service dashboard.</p>
+
+<h3>expired drop cleanup</h3>
+<p>Expired drops are deleted lazily on access, but you should also run the cleanup command periodically to sweep drops nobody is accessing:</p>
+<pre><code>python manage.py cleanup</code></pre>
+<p>Set this up as a cron job or a Railway cron service — once or twice a day is enough.</p>
+
+<h2>questions & bugs</h2>
+<p><a href="https://github.com/vicnasdev/drp/issues">Open an issue on GitHub</a>.</p>
+{% endblock %}

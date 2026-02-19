@@ -1,0 +1,47 @@
+{% extends 'help/base.html' %}
+{% block title %}drp — docs{% endblock %}
+
+{% block help_content %}
+<h1>docs</h1>
+<p class="lead">drp is a drop point for text and files. Pick a key, drop something, share the link.</p>
+
+<div class="help-cards">
+  <a href="{% url 'help_cli' %}" class="help-card">
+    <div class="help-card-title">CLI reference</div>
+    <div class="help-card-desc">Install the CLI, upload text and files, manage drops from your terminal.</div>
+  </a>
+  <a href="{% url 'help_expiry' %}" class="help-card">
+    <div class="help-card-title">Expiry</div>
+    <div class="help-card-desc">How drops expire — idle timeouts, fixed dates, max lifetimes, and renewing.</div>
+  </a>
+  <a href="{% url 'help_plans' %}" class="help-card">
+    <div class="help-card-title">Plans</div>
+    <div class="help-card-desc">What free, Starter, and Pro unlock — storage, file limits, locked drops.</div>
+  </a>
+  <a href="{% url 'help_privacy' %}" class="help-card">
+    <div class="help-card-title">Privacy & self-hosting</div>
+    <div class="help-card-desc">Where your data lives, what's encrypted, and how to run your own instance.</div>
+  </a>
+</div>
+
+<h2>concepts</h2>
+
+<h3>namespaces</h3>
+<p>Text and files live in separate namespaces so their keys never collide:</p>
+<table>
+  <tr><th>URL</th><th>type</th></tr>
+  <tr><td><code>/key/</code></td><td>clipboard (text)</td></tr>
+  <tr><td><code>/f/key/</code></td><td>file</td></tr>
+</table>
+<p><code>/notes/</code> is a clipboard. <code>/f/notes/</code> is a file. They're completely independent — same key name, different namespaces.</p>
+
+<h3>locking</h3>
+<p><strong>Anonymous drops</strong> get a 24-hour creation lock. Nobody can overwrite or rename the key during that window. After 24h, anyone with the key can replace the content.</p>
+<p><strong>Paid drops</strong> are permanently locked to your account. Only you can edit, rename, delete, or renew them.</p>
+
+<h3>saved drops</h3>
+<p>You can bookmark any drop you didn't create — useful for drops shared with you. Saved drops appear in your account dashboard and are included in exports. Saving grants no edit or delete rights.</p>
+
+<h3>anonymous drop claiming</h3>
+<p>Drops you create before signing up are tracked by a browser cookie. When you register or log in, those drops are automatically claimed and transferred to your account, with their lifetime extended to free-tier limits.</p>
+{% endblock %}

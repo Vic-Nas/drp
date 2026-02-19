@@ -80,7 +80,6 @@ def save_drop(request):
 
     paid = is_paid_user(request.user)
 
-    # Resolve anon token — reuse existing cookie or mint a new one
     anon_token = None
     if not request.user.is_authenticated:
         anon_token = request.COOKIES.get(ANON_COOKIE) or secrets.token_urlsafe(32)
@@ -90,7 +89,6 @@ def save_drop(request):
     else:
         response = _save_text(request, ns, key, existing, paid, anon_token)
 
-    # Set or refresh the anon cookie on new drops
     if anon_token and not existing:
         response.set_cookie(
             ANON_COOKIE,
@@ -280,9 +278,3 @@ def download_drop(request, key):
         raise Http404
     drop.touch()
     return redirect(drop.file_url)
-
-
-# ── Help ──────────────────────────────────────────────────────────────────────
-
-def help_view(request):
-    return render(request, 'help.html')

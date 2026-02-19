@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     'cloudinary_storage',
     'core',
     'billing',
+    'help',
 ]
 
 MIDDLEWARE = [
@@ -112,11 +113,7 @@ else:
     SITE_URL = 'http://localhost:8000'
 
 # ── Email ─────────────────────────────────────────────────────────────────────
-# Set RESEND_API_KEY to enable sending. Without it, emails print to the console
-# (useful for local dev — password resets appear in the terminal).
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-
-# Default sender — set this to noreply@your-verified-resend-domain.com
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', f'noreply@{DOMAIN}' if DOMAIN else 'noreply@localhost')
 
 if RESEND_API_KEY:
@@ -125,11 +122,11 @@ else:
     EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 
 # ── Lemon Squeezy ─────────────────────────────────────────────────────────────
-LEMONSQUEEZY_API_KEY = os.environ.get('LEMONSQUEEZY_API_KEY', '')
-LEMONSQUEEZY_SIGNING_SECRET = os.environ.get('LEMONSQUEEZY_SIGNING_SECRET', '')
-LEMONSQUEEZY_STORE_ID = os.environ.get('LEMONSQUEEZY_STORE_ID', '')
+LEMONSQUEEZY_API_KEY          = os.environ.get('LEMONSQUEEZY_API_KEY', '')
+LEMONSQUEEZY_SIGNING_SECRET   = os.environ.get('LEMONSQUEEZY_SIGNING_SECRET', '')
+LEMONSQUEEZY_STORE_ID         = os.environ.get('LEMONSQUEEZY_STORE_ID', '')
 LEMONSQUEEZY_STARTER_VARIANT_ID = os.environ.get('LEMONSQUEEZY_STARTER_VARIANT_ID', '')
-LEMONSQUEEZY_PRO_VARIANT_ID = os.environ.get('LEMONSQUEEZY_PRO_VARIANT_ID', '')
+LEMONSQUEEZY_PRO_VARIANT_ID   = os.environ.get('LEMONSQUEEZY_PRO_VARIANT_ID', '')
 
 # ── Cache ─────────────────────────────────────────────────────────────────────
 CACHES = {

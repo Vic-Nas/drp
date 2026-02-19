@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="help-wrap">
+
+  <nav class="help-sidenav">
+    <a href="{% url 'help_index' %}" class="help-sidenav-title">docs</a>
+    <a href="{% url 'help_index' %}"   {% if request.resolver_match.url_name == 'help_index'   %}class="active"{% endif %}>overview</a>
+    <a href="{% url 'help_cli' %}"     {% if request.resolver_match.url_name == 'help_cli'     %}class="active"{% endif %}>CLI reference</a>
+    <a href="{% url 'help_expiry' %}"  {% if request.resolver_match.url_name == 'help_expiry'  %}class="active"{% endif %}>expiry</a>
+    <a href="{% url 'help_plans' %}"   {% if request.resolver_match.url_name == 'help_plans'   %}class="active"{% endif %}>plans</a>
+    <a href="{% url 'help_privacy' %}" {% if request.resolver_match.url_name == 'help_privacy' %}class="active"{% endif %}>privacy & self-hosting</a>
+  </nav>
+
+  <article class="help-content">
+    {% block help_content %}{% endblock %}
+  </article>
+
+</div>
+
+<style>
+.help-wrap {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 3rem;
+  align-items: start;
+  max-width: 960px;
+}
+
+/* ── Side nav ── */
+.help-sidenav {
+  position: sticky;
+  top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+.help-sidenav-title {
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text) !important;
+  letter-spacing: -.5px;
+  margin-bottom: .6rem;
+  text-decoration: none !important;
+}
+.help-sidenav a {
+  color: var(--muted);
+  font-size: .88rem;
+  padding: .3rem .6rem;
+  border-radius: 4px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.help-sidenav a:hover { background: var(--surface); color: var(--text); text-decoration: none; }
+.help-sidenav a.active { color: var(--accent); background: var(--surface); }
+
+/* ── Content typography ── */
+.help-content h1 {
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin-bottom: .35rem;
+}
+.help-content .lead {
+  color: var(--muted);
+  margin-bottom: 2rem;
+  font-size: .95rem;
+}
+.help-content h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 2rem 0 .8rem;
+  padding-bottom: .35rem;
+  border-bottom: 1px solid var(--border);
+}
+.help-content h3 {
+  font-size: .82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  margin: 1.3rem 0 .4rem;
+}
+.help-content p {
+  line-height: 1.75;
+  margin-bottom: .6rem;
+  color: var(--text);
+}
+.help-content code {
+  background: var(--surface);
+  padding: .1em .4em;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: .88em;
+}
+.help-content pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .9rem 1.1rem;
+  margin: .5rem 0 1rem;
+  overflow-x: auto;
+}
+.help-content pre code {
+  background: none;
+  padding: 0;
+  font-size: .85rem;
+  line-height: 1.6;
+}
+.help-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+  margin: .5rem 0 1rem;
+}
+.help-content table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--border);
+}
+.help-content table td {
+  padding: .45rem .6rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.help-content table tr:last-child td { border-bottom: none; }
+.help-content ul, .help-content ol {
+  padding-left: 1.4rem;
+  margin-bottom: .8rem;
+  line-height: 1.75;
+}
+.help-content li { margin-bottom: .2rem; }
+
+/* ── Overview cards ── */
+.help-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.help-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem;
+  text-decoration: none;
+  transition: border-color .15s;
+  display: block;
+}
+.help-card:hover { border-color: var(--accent); text-decoration: none; }
+.help-card-title { font-weight: 700; color: var(--text); margin-bottom: .25rem; }
+.help-card-desc { font-size: .82rem; color: var(--muted); line-height: 1.5; }
+
+@media (max-width: 700px) {
+  .help-wrap { grid-template-columns: 1fr; }
+  .help-sidenav {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: .3rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: .8rem;
+    margin-bottom: 1.5rem;
+  }
+  .help-sidenav-title { display: none; }
+  .help-cards { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
