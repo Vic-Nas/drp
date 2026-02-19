@@ -35,15 +35,12 @@ def upload_text(host, session, text, key=None):
     data = {'content': text, 'csrfmiddlewaretoken': csrf}
     if key:
         data['key'] = key
+    try:
         res = session.post(f'{host}/save/', data=data, timeout=30)
         if res.ok:
             return res.json().get('key')
         else:
-            try:
-                msg = res.json().get('error', res.text[:200])
-            except Exception:
-                msg = res.text[:200]
-            _err(msg)
+            _err(f'upload failed: {res.text[:200]}')
     except Exception as e:
         _err(f'upload error: {e}')
     return None
@@ -63,14 +60,10 @@ def upload_file(host, session, filepath, key=None):
                 data=data,
                 timeout=120,
             )
-            if res.ok:
-                return res.json().get('key')
-            else:
-                try:
-                    msg = res.json().get('error', res.text[:200])
-                except Exception:
-                    msg = res.text[:200]
-                _err(msg)
+        if res.ok:
+            return res.json().get('key')
+        else:
+            _err(f'upload failed: {res.text[:200]}')
     except Exception as e:
         _err(f'upload error: {e}')
     return None
@@ -146,13 +139,9 @@ def rename(host, session, key, new_key):
             data={'new_key': new_key, 'csrfmiddlewaretoken': csrf},
             timeout=10,
         )
-            if res.ok:
-                return res.json().get('key')
-            try:
-                msg = res.json().get('error', res.text[:200])
-            except Exception:
-                msg = res.text[:200]
-            _err(msg)
+        if res.ok:
+            return res.json().get('key')
+        _err(res.json().get('error', 'rename failed'))
     except Exception as e:
         _err(f'rename error: {e}')
     return None
@@ -167,14 +156,10 @@ def renew(host, session, key):
             data={'csrfmiddlewaretoken': csrf},
             timeout=10,
         )
-            if res.ok:
-                data = res.json()
-                return data.get('expires_at'), data.get('renewals')
-            try:
-                msg = res.json().get('error', res.text[:200])
-            except Exception:
-                msg = res.text[:200]
-            _err(msg)
+        if res.ok:
+            data = res.json()
+            return data.get('expires_at'), data.get('renewals')
+        _err(res.json().get('error', 'renew failed'))
     except Exception as e:
         _err(f'renew error: {e}')
     return None, None
