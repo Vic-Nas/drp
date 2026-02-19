@@ -1,0 +1,24 @@
+"""
+Small utilities shared across CLI API modules.
+"""
+
+import sys
+from pathlib import Path
+
+
+def slug(name):
+    """Turn a filename into a url-safe slug (max 40 chars)."""
+    import secrets
+    stem = Path(name).stem
+    safe = ''.join(c if c.isalnum() or c in '-_' else '-' for c in stem).strip('-')
+    return safe[:40] or secrets.token_urlsafe(6)
+
+
+def err(msg):
+    """Print a formatted error to stderr."""
+    print(f'  ✗ {msg}', file=sys.stderr)
+
+
+def ok(msg):
+    """Print a formatted success message."""
+    print(f'  ✓ {msg}')

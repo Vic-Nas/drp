@@ -7,24 +7,25 @@
   <!-- Key + URL header -->
   <div class="drop-header">
     <div class="key-row">
-      <span class="prefix">drp /</span>
+      <span class="prefix">drp /{% if drop.ns == 'f' %}f/{% endif %}</span>
       <input type="text" id="keyInput" value="{{ drop.key }}"
              autocomplete="off" spellcheck="false"
              {% if not can_edit %}disabled{% endif %}/>
-      {% if can_edit %}<span id="keyStatus"></span>
-      <button class="btn-sm" id="renameBtn">rename</button>{% endif %}
+      {% if can_edit %}
+        <span id="keyStatus"></span>
+        <button class="btn-sm" id="renameBtn">rename</button>
+      {% endif %}
     </div>
     <div class="share-url">
       <span id="urlDisplay">{{ request.build_absolute_uri }}</span>
       <button class="btn-sm" onclick="copyUrl()">copy link</button>
     </div>
 
-    <!-- Lock / expiry status -->
     <p class="lock-hint {% if not drop.locked %}unlocked{% endif %}">
       {% if drop.locked %}
         🔒 locked — only the owner can edit or delete
       {% elif drop.is_creation_locked %}
-        🔒 locked for 24h after creation
+        🔒 protected for 24h after creation
       {% else %}
         🔓 anyone with the key can replace this content
       {% endif %}
@@ -40,8 +41,8 @@
     </p>
     {% else %}
     <p class="share-hint">
-      {% if drop.kind == 'text' %}clipboard — expires 24h after creation
-      {% else %}file — expires 90 days after last access{% endif %}
+      {% if drop.kind == 'text' %}clipboard — expires 24h after last access
+      {% else %}file — expires 90 days after upload{% endif %}
     </p>
     {% endif %}
   </div>
@@ -77,7 +78,7 @@
         <div class="fname">{{ drop.filename }}</div>
         <div class="fsize muted">{{ drop.filesize|filesizeformat }}</div>
       </div>
-      <a href="/{{ drop.key }}/download/" class="btn">↓ download</a>
+      <a href="/f/{{ drop.key }}/download/" class="btn">↓ download</a>
     </div>
     {% if can_edit %}
     <p class="muted" style="margin-top:.8rem;font-size:.85rem">replace file:</p>
@@ -101,10 +102,19 @@
 
 {% block scripts %}
 <script>
-const KEY = '{{ drop.key }}';
+const KEY  = '{{ drop.key }}';
+const NS   = '{{ drop.ns }}';   // 'c' or 'f'
 const BASE = window.location.origin;
 const CAN_EDIT = {{ can_edit|yesno:"true,false" }};
 const IS_OWNER = {{ is_owner|yesno:"true,false" }};
+
+// Build action URLs based on namespace
+function actionUrl(action) {
+  return NS === 'f' ? `/f/${KEY}/${action}/` : `/${KEY}/${action}/`;
+}
+function checkKeyUrl(key) {
+  return `/check-key/?key=${encodeURIComponent(key)}&ns=${NS}`;
+}
 
 function copyUrl() {
   navigator.clipboard.writeText(document.getElementById('urlDisplay').textContent);
@@ -120,27 +130,28 @@ function copyContent() {
 function downloadText() {
   const text = document.getElementById('clipContent').innerText;
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], {type:'text/plain'}));
+  a.href = URL.createObjectURL(new Blob([text], {type: 'text/plain'}));
   a.download = `drp-${KEY}.txt`;
   a.click();
 }
 
 // ── Rename ────────────────────────────────────────────────────────────────────
 if (CAN_EDIT) {
-  const keyInput = document.getElementById('keyInput');
+  const keyInput  = document.getElementById('keyInput');
   const keyStatus = document.getElementById('keyStatus');
   let keyTimer = null;
 
   keyInput.addEventListener('input', () => {
     clearTimeout(keyTimer);
     const val = keyInput.value.trim();
-    document.getElementById('urlDisplay').textContent = `${BASE}/${val}/`;
+    const prefix = NS === 'f' ? `/f/` : `/`;
+    document.getElementById('urlDisplay').textContent = `${BASE}${prefix}${val}/`;
     keyTimer = setTimeout(async () => {
       if (!val || val === KEY) { keyStatus.textContent = ''; return; }
-      const res = await fetch(`/check-key/?key=${encodeURIComponent(val)}`);
+      const res = await fetch(checkKeyUrl(val));
       const data = await res.json();
       keyStatus.textContent = data.available ? '✓' : '✗ taken';
-      keyStatus.className = data.available ? 'ok' : 'taken';
+      keyStatus.className   = data.available ? 'ok' : 'taken';
     }, 400);
   });
 
@@ -150,10 +161,10 @@ if (CAN_EDIT) {
     const fd = new FormData();
     fd.append('new_key', newKey);
     fd.append('csrfmiddlewaretoken', getCookie('csrftoken'));
-    const res = await fetch(`/${KEY}/rename/`, { method: 'POST', body: fd });
+    const res  = await fetch(actionUrl('rename'), { method: 'POST', body: fd });
     const data = await res.json();
     if (res.ok) {
-      window.location.href = data.redirect;
+      window.location.href = data.url;
     } else {
       showToast(data.error || 'Rename failed.');
     }
@@ -171,17 +182,20 @@ if (editForm) {
     fd.append('csrfmiddlewaretoken', getCookie('csrftoken'));
     const res = await fetch('/save/', { method: 'POST', body: fd });
     if (res.ok) {
-      showToast('saved!');
       document.getElementById('clipContent').innerText = document.getElementById('editArea').value;
       toggleEdit();
-    } else showToast('Failed to save.');
+      showToast('saved!');
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'Save failed.');
+    }
   });
 }
 
 // ── Replace file ──────────────────────────────────────────────────────────────
 let newFile = null;
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
+const dropZone   = document.getElementById('dropZone');
+const fileInput  = document.getElementById('fileInput');
 const replaceBtn = document.getElementById('replaceBtn');
 
 if (dropZone) {
@@ -203,10 +217,17 @@ if (replaceBtn) {
     fd.append('key', KEY);
     fd.append('file', newFile);
     fd.append('csrfmiddlewaretoken', getCookie('csrftoken'));
-    replaceBtn.disabled = true; replaceBtn.textContent = 'replacing…';
+    replaceBtn.disabled = true;
+    replaceBtn.textContent = 'replacing…';
     const res = await fetch('/save/', { method: 'POST', body: fd });
-    if (res.ok) window.location.reload();
-    else { showToast('Replace failed.'); replaceBtn.disabled = false; replaceBtn.textContent = 'replace'; }
+    if (res.ok) {
+      window.location.reload();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || 'Replace failed.');
+      replaceBtn.disabled = false;
+      replaceBtn.textContent = 'replace';
+    }
   });
 }
 
@@ -215,7 +236,7 @@ const renewBtn = document.getElementById('renewBtn');
 if (renewBtn) {
   renewBtn.addEventListener('click', async () => {
     renewBtn.disabled = true;
-    const res = await fetch(`/${KEY}/renew/`, {
+    const res  = await fetch(actionUrl('renew'), {
       method: 'POST',
       headers: { 'X-CSRFToken': getCookie('csrftoken') },
     });
@@ -235,17 +256,15 @@ if (renewBtn) {
 // ── Delete ────────────────────────────────────────────────────────────────────
 async function deleteDrop() {
   if (!confirm('Delete this drop? This cannot be undone.')) return;
-  const res = await fetch(`/${KEY}/delete/`, {
+  const res = await fetch(actionUrl('delete'), {
     method: 'DELETE',
     headers: { 'X-CSRFToken': getCookie('csrftoken') },
   });
   if (res.ok) {
-    // Clean up localStorage too (for anon drops they may have saved)
-    try {
-      const drops = JSON.parse(localStorage.getItem('drp_drops') || '[]');
-      localStorage.setItem('drp_drops', JSON.stringify(drops.filter(d => d.key !== KEY)));
-    } catch {}
     window.location.href = '/';
+  } else {
+    const data = await res.json().catch(() => ({}));
+    showToast(data.error || 'Delete failed.');
   }
 }
 </script>

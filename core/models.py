@@ -9,13 +9,10 @@ from datetime import timedelta
 # ── Plans ─────────────────────────────────────────────────────────────────────
 
 class Plan:
-    """
-    Central place for all plan limits. Change here → enforced everywhere.
-    """
-    ANON = 'anon'
-    FREE = 'free'
+    ANON    = 'anon'
+    FREE    = 'free'
     STARTER = 'starter'
-    PRO = 'pro'
+    PRO     = 'pro'
 
     LIMITS = {
         ANON: {
@@ -23,8 +20,8 @@ class Plan:
             'price_monthly': 0,
             'max_file_mb': 200,
             'max_text_kb': 500,
-            'max_expiry_days': None,       # access-based, 90d
-            'storage_gb': None,            # no quota
+            'max_expiry_days': None,
+            'storage_gb': None,
             'renewals': 0,
         },
         FREE: {
@@ -32,27 +29,27 @@ class Plan:
             'price_monthly': 0,
             'max_file_mb': 200,
             'max_text_kb': 500,
-            'max_expiry_days': None,       # access-based, 90d
+            'max_expiry_days': None,
             'storage_gb': None,
             'renewals': 0,
         },
         STARTER: {
             'label': 'Starter',
             'price_monthly': 3,
-            'max_file_mb': 1024,           # 1 GB per file
-            'max_text_kb': 2048,           # 2 MB
-            'max_expiry_days': 365,        # up to 1 year from creation
+            'max_file_mb': 1024,
+            'max_text_kb': 2048,
+            'max_expiry_days': 365,
             'storage_gb': 5,
-            'renewals': None,              # unlimited
+            'renewals': None,
         },
         PRO: {
             'label': 'Pro',
             'price_monthly': 8,
-            'max_file_mb': 5120,           # 5 GB per file
-            'max_text_kb': 10240,          # 10 MB
-            'max_expiry_days': 365 * 3,    # up to 3 years from creation
+            'max_file_mb': 5120,
+            'max_text_kb': 10240,
+            'max_expiry_days': 365 * 3,
             'storage_gb': 20,
-            'renewals': None,              # unlimited
+            'renewals': None,
         },
     }
 
@@ -70,17 +67,16 @@ class UserProfile(models.Model):
         (Plan.PRO, 'Pro ($8/mo)'),
     ]
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    plan = models.CharField(max_length=16, choices=PLAN_CHOICES, default=Plan.FREE)
-    plan_since = models.DateTimeField(null=True, blank=True)
-    email_verified = models.BooleanField(default=False)
-
+    user               = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    plan               = models.CharField(max_length=16, choices=PLAN_CHOICES, default=Plan.FREE)
+    plan_since         = models.DateTimeField(null=True, blank=True)
+    email_verified     = models.BooleanField(default=False)
     storage_used_bytes = models.PositiveBigIntegerField(default=0)
 
-    ls_customer_id = models.CharField(max_length=64, blank=True, default='',
-                                      help_text='Lemon Squeezy customer ID')
-    ls_subscription_id = models.CharField(max_length=64, blank=True, default='',
-                                          help_text='Lemon Squeezy subscription ID')
+    ls_customer_id        = models.CharField(max_length=64, blank=True, default='',
+                                             help_text='Lemon Squeezy customer ID')
+    ls_subscription_id    = models.CharField(max_length=64, blank=True, default='',
+                                             help_text='Lemon Squeezy subscription ID')
     ls_subscription_status = models.CharField(max_length=32, blank=True, default='',
                                               help_text='active, cancelled, expired, etc.')
 
@@ -94,9 +90,7 @@ class UserProfile(models.Model):
     @property
     def storage_quota_bytes(self):
         gb = Plan.get(self.plan, 'storage_gb')
-        if gb is None:
-            return None
-        return gb * 1024 ** 3
+        return gb * 1024 ** 3 if gb else None
 
     @property
     def storage_used_gb(self):
@@ -108,14 +102,10 @@ class UserProfile(models.Model):
 
     def storage_available_bytes(self):
         quota = self.storage_quota_bytes
-        if quota is None:
-            return None
-        return max(0, quota - self.storage_used_bytes)
+        return max(0, quota - self.storage_used_bytes) if quota is not None else None
 
     def recalc_storage(self):
-        total = self.user.drops.aggregate(
-            total=models.Sum('filesize')
-        )['total'] or 0
+        total = self.user.drops.aggregate(total=models.Sum('filesize'))['total'] or 0
         UserProfile.objects.filter(pk=self.pk).update(storage_used_bytes=total)
         self.storage_used_bytes = total
 
@@ -137,19 +127,19 @@ def create_user_profile(sender, instance, created, **kwargs):
 
 # ── Drop ──────────────────────────────────────────────────────────────────────
 
-
-# Namespace constants
-NS_CLIPBOARD = 'c'
-NS_FILE = 'f'
-NS_CHOICES = [('c', 'Clipboard'), ('f', 'File')]
-
 class Drop(models.Model):
+    # Namespace constants — used throughout views and CLI
+    NS_CLIPBOARD = 'c'
+    NS_FILE      = 'f'
+    NS_CHOICES   = [('c', 'Clipboard'), ('f', 'File')]
+
+    # Kind constants
     TEXT = 'text'
     FILE = 'file'
     TYPE_CHOICES = [(TEXT, 'Text'), (FILE, 'File')]
 
-    ns = models.CharField(max_length=1, choices=NS_CHOICES, default='c', db_index=True)
-    key = models.CharField(max_length=120, db_index=True)  # removed unique=True
+    ns   = models.CharField(max_length=1, choices=NS_CHOICES, default=NS_CLIPBOARD, db_index=True)
+    key  = models.CharField(max_length=120, db_index=True)
     kind = models.CharField(max_length=4, choices=TYPE_CHOICES)
 
     owner = models.ForeignKey(
@@ -158,24 +148,30 @@ class Drop(models.Model):
         related_name='drops',
     )
 
-    # Text
+    # Text content
     content = models.TextField(blank=True, default='')
 
-    # File — stored on Cloudinary, URL and public_id kept here
-    file_url = models.URLField(blank=True, default='')
+    # File — stored on Cloudinary
+    file_url       = models.URLField(blank=True, default='')
     file_public_id = models.CharField(max_length=512, blank=True, default='')
-    filename = models.CharField(max_length=255, blank=True, default='')
-    filesize = models.PositiveBigIntegerField(default=0)
+    filename       = models.CharField(max_length=255, blank=True, default='')
+    filesize       = models.PositiveBigIntegerField(default=0)
 
-
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at      = models.DateTimeField(auto_now_add=True)
     last_accessed_at = models.DateTimeField(null=True, blank=True, db_index=True)
     max_lifetime_secs = models.PositiveIntegerField(null=True, blank=True)
 
-    locked = models.BooleanField(default=False)
+    locked       = models.BooleanField(default=False)
     locked_until = models.DateTimeField(null=True, blank=True)
-    expires_at = models.DateTimeField(null=True, blank=True)
+    expires_at   = models.DateTimeField(null=True, blank=True)
     renewal_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = [('ns', 'key')]
+
+    def __str__(self):
+        prefix = 'f/' if self.ns == self.NS_FILE else ''
+        return f'/{prefix}{self.key}/ ({self.kind})'
 
     # ── Ownership ─────────────────────────────────────────────────────────────
 
@@ -193,34 +189,30 @@ class Drop(models.Model):
 
     # ── Expiry ────────────────────────────────────────────────────────────────
 
-
     def is_expired(self):
-        """
-        Expiry rules:
-        - Paid drops: use explicit expires_at date
-        - Clipboard (anon/free): activity-based — expire if idle for 24h (anon) or 48h (free)
-                                 plus a hard max_lifetime_secs cap from creation
-        - File (anon/free): time-since-creation — 90 days
-        """
         now = timezone.now()
 
-        # Explicit expiry date (paid drops)
         if self.expires_at:
             return now > self.expires_at
 
-        # Hard max lifetime cap (activity-based clipboards)
         if self.max_lifetime_secs:
             if (now - self.created_at).total_seconds() > self.max_lifetime_secs:
                 return True
 
-        # Clipboard: activity-based idle timeout
-        if self.ns == 'c':
+        if self.ns == self.NS_CLIPBOARD:
             idle_hours = 24 if not self.owner_id else 48
             ref = self.last_accessed_at or self.created_at
             return (now - ref) > timedelta(hours=idle_hours)
 
         # File: time-since-creation
         return (now - self.created_at) > timedelta(days=90)
+
+    # ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    def touch(self):
+        """Update last_accessed_at — resets idle timer for clipboards."""
+        Drop.objects.filter(pk=self.pk).update(last_accessed_at=timezone.now())
+        self.last_accessed_at = timezone.now()
 
     def renew(self):
         """Reset expiry clock from now, keeping same duration."""
@@ -239,43 +231,31 @@ class Drop(models.Model):
                 self.expires_at = new_expiry
                 self.save(update_fields=['expires_at'])
 
-    # ── Permissions ───────────────────────────────────────────────────────────
-
-    def can_edit(self, user):
-        if self.locked:
-            return user.is_authenticated and self.owner_id == user.pk
-        if self.is_creation_locked():
-            return False
-        return True
-
-    def is_creation_locked(self):
-        """24h window after creation (anon drops only)."""
-        return self.locked_until and timezone.now() < self.locked_until
-
-    # ── Lifecycle ─────────────────────────────────────────────────────────────
-
-
-    def touch(self):
-        """Update last_accessed_at. For clipboards this resets the idle timer."""
-        Drop.objects.filter(pk=self.pk).update(last_accessed_at=timezone.now())
-        self.last_accessed_at = timezone.now()
-
-
     def hard_delete(self):
-        if self.ns == 'f' and self.file_public_id:
+        """Delete drop and clean up Cloudinary + storage accounting."""
+        if self.ns == self.NS_FILE and self.file_public_id:
             try:
                 import cloudinary.uploader
                 cloudinary.uploader.destroy(self.file_public_id, resource_type='raw')
             except Exception:
                 pass
         if self.owner_id and self.filesize:
+            from django.db import models as db_models
             UserProfile.objects.filter(user_id=self.owner_id).update(
                 storage_used_bytes=db_models.F('storage_used_bytes') - self.filesize
             )
         self.delete()
 
-    class Meta:
-        unique_together = [('ns', 'key')]
+    # ── Permissions ───────────────────────────────────────────────────────────
 
-    def __str__(self):
-        return f'{self.key} ({self.kind})'
+    def can_edit(self, user):
+        """True if the given user may edit/delete/rename this drop."""
+        if self.locked:
+            return getattr(user, 'is_authenticated', False) and self.owner_id == user.pk
+        if self.is_creation_locked():
+            return False
+        return True
+
+    def is_creation_locked(self):
+        """True within the 24h window after creation (anon drops)."""
+        return bool(self.locked_until and timezone.now() < self.locked_until)
