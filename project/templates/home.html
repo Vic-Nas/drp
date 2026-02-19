@@ -71,7 +71,14 @@
   <!-- Right: Dashboard -->
   <div class="dashboard">
     {% if user.is_authenticated %}
-      <h3>my drops</h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
+        <h3 style="margin-bottom:0">my drops</h3>
+        <div style="display:flex;gap:.4rem">
+          <a href="/auth/account/export/" class="btn-sm">↓ export</a>
+          <label for="importInput" class="btn-sm" style="cursor:pointer">↑ import</label>
+          <input type="file" id="importInput" accept=".json" hidden/>
+        </div>
+      </div>
       <div class="drop-list" id="myDrops">
         {% if server_drops %}
           {% for drop in server_drops %}
@@ -90,6 +97,20 @@
           <p class="empty muted">nothing yet.</p>
         {% endif %}
       </div>
+
+      {% if saved_drops %}
+      <h3 style="margin-top:1.2rem;margin-bottom:.4rem">saved</h3>
+      <div class="drop-list">
+        {% for s in saved_drops %}
+        <div class="drop-item">
+          <span class="drop-icon">🔖</span>
+          <a href="{{ s.url_path }}" class="drop-key">{% if s.ns == 'f' %}f/{% endif %}{{ s.key }}</a>
+          <span class="drop-label muted">{{ s.saved_at|date:"M j" }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
       {% if user.profile.is_paid %}
       <div class="storage-bar-wrap" style="margin-top:.8rem">
         <div class="storage-label muted">
@@ -137,6 +158,32 @@
 const IS_AUTHED = {{ user.is_authenticated|yesno:"true,false" }};
 const IS_PAID   = {{ user.is_authenticated|yesno:"true,false" }}
                   && {{ user.profile.is_paid|default:"false"|yesno:"true,false" }};
+
+// ── Import (logged-in) ────────────────────────────────────────────────────────
+if (IS_AUTHED) {
+  const importInput = document.getElementById('importInput');
+  if (importInput) {
+    importInput.addEventListener('change', async function (e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      let data;
+      try { data = JSON.parse(await file.text()); } catch { showToast('Invalid JSON file.'); return; }
+      const res = await fetch('/auth/account/import/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+        body: JSON.stringify(data),
+      });
+      const result = await res.json();
+      if (res.ok) {
+        showToast(`Imported ${result.imported} drop(s).${result.skipped ? ' ' + result.skipped + ' already saved.' : ''}`);
+        if (result.imported > 0) setTimeout(() => location.reload(), 1200);
+      } else {
+        showToast(result.error || 'Import failed.');
+      }
+      e.target.value = '';
+    });
+  }
+}
 
 function getMyDrops() {
   try { return JSON.parse(localStorage.getItem('drp_drops') || '[]'); } catch { return []; }

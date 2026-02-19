@@ -11,7 +11,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 
-from core.models import Drop, Plan
+from core.models import Drop, Plan, SavedDrop
 from .helpers import (
     user_plan, max_file_bytes, max_text_bytes, storage_ok,
     is_paid_user, max_lifetime_secs, gen_key,
@@ -27,14 +27,21 @@ ANON_COOKIE = 'drp_anon'
 def home(request):
     claimed = request.session.pop('claimed_drops', 0)
     server_drops = []
+    saved_drops = []
     if request.user.is_authenticated:
         server_drops = (
             Drop.objects
             .filter(owner=request.user)
             .order_by('-created_at')[:50]
         )
+        saved_drops = (
+            SavedDrop.objects
+            .filter(user=request.user)
+            .order_by('-saved_at')[:50]
+        )
     return render(request, 'home.html', {
         'server_drops': server_drops,
+        'saved_drops': saved_drops,
         'claimed': claimed,
     })
 

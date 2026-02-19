@@ -8,90 +8,16 @@
     <p class="muted">{{ user.email }}</p>
   </div>
 
-  <!-- Plan -->
+  <!-- Your drops (paid only — for expiry management) -->
+  {% if profile.is_paid %}
   <div class="account-section">
-    <h2>plan</h2>
-    <div class="plan-status">
-      <span class="plan-badge plan-badge--{{ profile.plan }}">{{ profile.plan|capfirst }}</span>
-
-      {% if profile.is_paid %}
-        <span class="muted" style="font-size:.85rem">
-          ${{ plan_limits.price_monthly }}/mo ·
-          {{ plan_limits.max_file_mb }}MB per file ·
-          up to {{ plan_limits.max_expiry_days }} day expiry
-        </span>
-        {% if profile.ls_subscription_status == 'cancelled' %}
-          <span class="muted" style="font-size:.82rem;color:var(--danger)">
-            · cancels at period end
-          </span>
-        {% endif %}
-      {% endif %}
-    </div>
-
-    {% if profile.is_paid %}
-      <div class="storage-bar-wrap" style="margin-top:1rem">
-        <div class="storage-label">
-          {{ profile.storage_used_gb|floatformat:2 }} GB
-          / {{ profile.storage_quota_gb }} GB used
-        </div>
-        <div class="storage-bar">
-          <div class="storage-bar-fill"
-               style="width:{% widthratio profile.storage_used_bytes profile.storage_quota_bytes 100 %}%">
-          </div>
-        </div>
-      </div>
-      <div style="margin-top:1rem">
-        <a href="/billing/portal/" class="btn-sm">manage subscription →</a>
-      </div>
-
-    {% else %}
-      <div class="plan-grid" style="margin-top:1rem">
-        <div class="plan-card">
-          <div class="plan-name">Starter</div>
-          <div class="plan-price">$3<span>/mo</span></div>
-          <ul>
-            <li>1 GB per file</li>
-            <li>5 GB total storage</li>
-            <li>Up to 1 year expiry</li>
-            <li>Drops locked to your account</li>
-            <li>Renewable drops</li>
-          </ul>
-          <a href="/billing/checkout/starter/" class="btn" style="margin-top:1rem;display:inline-block;width:100%;text-align:center">
-            upgrade →
-          </a>
-        </div>
-        <div class="plan-card plan-card--pro">
-          <div class="plan-name">Pro</div>
-          <div class="plan-price">$8<span>/mo</span></div>
-          <ul>
-            <li>5 GB per file</li>
-            <li>20 GB total storage</li>
-            <li>Up to 3 years expiry</li>
-            <li>Drops locked to your account</li>
-            <li>Renewable drops</li>
-          </ul>
-          <a href="/billing/checkout/pro/" class="btn" style="margin-top:1rem;display:inline-block;width:100%;text-align:center">
-            upgrade →
-          </a>
-        </div>
-      </div>
-    {% endif %}
-  </div>
-
-  <!-- Your drops -->
-  <div class="account-section">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
-      <h2 style="margin-bottom:0">your drops</h2>
-      <a href="/auth/account/export/" class="btn-sm">↓ export</a>
-    </div>
+    <h2>your drops</h2>
     {% if drops %}
     <table class="drops-table">
       <thead>
         <tr>
           <th>key</th>
           <th>type</th>
-          <th>size</th>
-          <th>created</th>
           <th>expires</th>
           <th></th>
         </tr>
@@ -104,20 +30,14 @@
               {% if drop.ns == 'f' %}f/{% endif %}{{ drop.key }}
             </a>
           </td>
-          <td>
-            {% if drop.kind == 'file' %}📎 {{ drop.filename|truncatechars:24 }}
-            {% else %}📋 {{ drop.content|truncatechars:24 }}{% endif %}
+          <td class="muted">
+            {% if drop.kind == 'file' %}📎 {{ drop.filename|truncatechars:20 }}
+            {% else %}📋 {{ drop.content|truncatechars:20 }}{% endif %}
           </td>
           <td class="muted">
-            {% if drop.kind == 'file' %}{{ drop.filesize|filesizeformat }}{% else %}—{% endif %}
+            {% if drop.expires_at %}{{ drop.expires_at|date:"M j, Y" }}{% else %}—{% endif %}
           </td>
-          <td class="muted">{{ drop.created_at|date:"M j, Y" }}</td>
-          <td class="muted">
-            {% if drop.expires_at %}{{ drop.expires_at|date:"M j, Y" }}
-            {% elif drop.kind == 'text' %}24h idle
-            {% else %}90d{% endif %}
-          </td>
-          <td><a href="{% if drop.ns == 'f' %}/f/{{ drop.key }}/{% else %}/{{ drop.key }}/{% endif %}" class="btn-sm">view</a></td>
+          <td><a href="{% if drop.ns == 'f' %}/f/{{ drop.key }}/{% else %}/{{ drop.key }}/{% endif %}" class="btn-sm">view →</a></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -126,18 +46,12 @@
       <p class="muted empty">no drops yet.</p>
     {% endif %}
   </div>
+  {% endif %}
 
   <!-- Saved drops -->
+  {% if saved %}
   <div class="account-section">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
-      <h2 style="margin-bottom:0">saved drops</h2>
-      <label for="importInput" class="btn-sm" style="cursor:pointer">↑ import</label>
-      <input type="file" id="importInput" accept=".json" hidden/>
-    </div>
-    <p class="muted" style="font-size:.82rem;margin-bottom:.8rem">
-      Drops saved from others' exports — you can view them but not edit or delete them.
-    </p>
-    {% if saved %}
+    <h2>saved drops</h2>
     <table class="drops-table">
       <thead>
         <tr>
@@ -165,8 +79,69 @@
         {% endfor %}
       </tbody>
     </table>
+  </div>
+  {% endif %}
+
+  <!-- Plan -->
+  <div class="account-section">
+    <h2>plan</h2>
+    <div class="plan-status">
+      <span class="plan-badge plan-badge--{{ profile.plan }}">{{ profile.plan|capfirst }}</span>
+
+      {% if profile.is_paid %}
+        <span class="muted" style="font-size:.85rem">
+          ${{ plan_limits.price_monthly }}/mo ·
+          {{ plan_limits.max_file_mb }}MB per file ·
+          up to {{ plan_limits.max_expiry_days }} day expiry
+        </span>
+        {% if profile.ls_subscription_status == 'cancelled' %}
+          <span style="font-size:.82rem;color:var(--danger)">· cancels at period end</span>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    {% if profile.is_paid %}
+      <div class="storage-bar-wrap" style="margin-top:1rem">
+        <div class="storage-label">
+          {{ profile.storage_used_gb|floatformat:2 }} GB / {{ profile.storage_quota_gb }} GB used
+        </div>
+        <div class="storage-bar">
+          <div class="storage-bar-fill"
+               style="width:{% widthratio profile.storage_used_bytes profile.storage_quota_bytes 100 %}%">
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:1rem">
+        <a href="/billing/portal/" class="btn-sm">manage subscription →</a>
+      </div>
+
     {% else %}
-      <p class="muted empty" id="savedEmpty">no saved drops yet. import an export file to add some.</p>
+      <div class="plan-grid" style="margin-top:1rem">
+        <div class="plan-card">
+          <div class="plan-name">Starter</div>
+          <div class="plan-price">$3<span>/mo</span></div>
+          <ul>
+            <li>1 GB per file</li>
+            <li>5 GB total storage</li>
+            <li>Up to 1 year expiry</li>
+            <li>Drops locked to your account</li>
+            <li>Renewable drops</li>
+          </ul>
+          <a href="/billing/checkout/starter/" class="btn" style="margin-top:1rem;display:inline-block;width:100%;text-align:center">upgrade →</a>
+        </div>
+        <div class="plan-card plan-card--pro">
+          <div class="plan-name">Pro</div>
+          <div class="plan-price">$8<span>/mo</span></div>
+          <ul>
+            <li>5 GB per file</li>
+            <li>20 GB total storage</li>
+            <li>Up to 3 years expiry</li>
+            <li>Drops locked to your account</li>
+            <li>Renewable drops</li>
+          </ul>
+          <a href="/billing/checkout/pro/" class="btn" style="margin-top:1rem;display:inline-block;width:100%;text-align:center">upgrade →</a>
+        </div>
+      </div>
     {% endif %}
   </div>
 
@@ -177,33 +152,6 @@
 </div>
 
 <script>
-// ── Import ────────────────────────────────────────────────────────────────────
-document.getElementById('importInput').addEventListener('change', async function (e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const text = await file.text();
-  let data;
-  try { data = JSON.parse(text); } catch { alert('Invalid JSON file.'); return; }
-
-  const res = await fetch('/auth/account/import/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRFToken': getCookie('csrftoken'),
-    },
-    body: JSON.stringify(data),
-  });
-  const result = await res.json();
-  if (res.ok) {
-    showToast(`Imported ${result.imported} drop(s). ${result.skipped ? result.skipped + ' already saved.' : ''}`);
-    if (result.imported > 0) setTimeout(() => location.reload(), 1500);
-  } else {
-    alert(result.error || 'Import failed.');
-  }
-  e.target.value = '';
-});
-
-// ── Unsave ────────────────────────────────────────────────────────────────────
 async function unsave(ns, key, rowId) {
   const action = ns === 'f' ? `/f/${key}/unsave/` : `/${key}/unsave/`;
   const res = await fetch(action, {
@@ -211,13 +159,7 @@ async function unsave(ns, key, rowId) {
     headers: { 'X-CSRFToken': getCookie('csrftoken') },
   });
   if (res.ok) {
-    const row = document.getElementById(rowId);
-    if (row) row.remove();
-    // Show empty message if no rows left
-    const tbody = document.querySelector('.drops-table tbody');
-    if (tbody && !tbody.querySelector('tr')) {
-      document.getElementById('savedEmpty') && (document.getElementById('savedEmpty').style.display = '');
-    }
+    document.getElementById(rowId)?.remove();
     showToast('Removed from saved.');
   }
 }
