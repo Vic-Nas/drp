@@ -12,6 +12,7 @@ drp — drop clipboards and files from the command line.
 """
 
 import argparse
+import sys
 
 from cli import __version__
 from cli.commands.setup import cmd_setup, cmd_login, cmd_logout
@@ -111,7 +112,18 @@ examples:
     args = parser.parse_args()
 
     if args.command in commands:
-        commands[args.command](args)
+        try:
+            commands[args.command](args)
+        except KeyboardInterrupt:
+            pass
+        except SystemExit:
+            raise
+        except Exception as exc:
+            from cli.crash_reporter import report
+            report(args.command, exc)
+            print(f'\n  ✗ Unexpected error: {type(exc).__name__}: {exc}')
+            print('    This has been reported automatically.')
+            sys.exit(1)
     else:
         parser.print_help()
 

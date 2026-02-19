@@ -1,9 +1,11 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from core import views
+from core.views.error_reporting import report_error
 
 urlpatterns = [
     # ── Utilities ─────────────────────────────────────────────────────────────
+    path('api/report-error/', report_error, name='report_error'),
     path('save/', views.save_drop, name='save_drop'),
     path('check-key/', views.check_key, name='check_key'),
     path('help/', views.help_view, name='help'),
