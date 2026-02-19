@@ -6,4 +6,8 @@ __pycache__/
 *.py[cod]
 *.$py.class
 
-.history/
+.history
+*.db
+*.sqlite
+staticfiles/
+!statifiles/.gitkeep
