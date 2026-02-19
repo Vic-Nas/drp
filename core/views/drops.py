@@ -7,7 +7,8 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.http import JsonResponse, Http404
-from django.shortcuts import render, get_object_or_404, redirect
+from django.shortcuts import render, redirect
+from django.urls import get_resolver
 from django.utils import timezone
 
 from core.models import Drop, Plan, SavedDrop
@@ -18,6 +19,25 @@ from .helpers import (
 )
 
 ANON_COOKIE = 'drp_anon'
+
+
+# ── Reserved keys ─────────────────────────────────────────────────────────────
+
+def _get_reserved_keys():
+    """
+    Derive reserved top-level path segments from the root URL conf.
+    Runs once at startup — automatically covers any app added in future.
+    """
+    resolver = get_resolver()
+    reserved = set()
+    for pattern in resolver.url_patterns:
+        segment = str(pattern.pattern).strip('^').split('/')[0]
+        # skip empty segments and regex group openers
+        if segment and not segment.startswith(('(', '?', '<')):
+            reserved.add(segment)
+    return reserved
+
+RESERVED_KEYS = _get_reserved_keys()
 
 
 # ── Home ──────────────────────────────────────────────────────────────────────
@@ -51,6 +71,8 @@ def check_key(request):
     ns = request.GET.get('ns', Drop.NS_CLIPBOARD)
     if not key:
         return JsonResponse({'error': 'Key required.'}, status=400)
+    if key in RESERVED_KEYS:
+        return JsonResponse({'available': False, 'reserved': True, 'ns': ns, 'key': key})
     taken = Drop.objects.filter(ns=ns, key=key).exists()
     return JsonResponse({'available': not taken, 'ns': ns, 'key': key})
 
@@ -64,6 +86,9 @@ def save_drop(request):
     f = request.FILES.get('file')
     ns = Drop.NS_FILE if f else Drop.NS_CLIPBOARD
     key = request.POST.get('key', '').strip() or gen_key(ns)
+
+    if key in RESERVED_KEYS:
+        return JsonResponse({'error': f'"{key}" is a reserved key.'}, status=400)
 
     existing = Drop.objects.filter(ns=ns, key=key).first()
     if existing and existing.is_expired():
