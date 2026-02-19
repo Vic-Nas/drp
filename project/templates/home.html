@@ -77,7 +77,7 @@
           {% for drop in server_drops %}
           <div class="drop-item">
             <span class="drop-icon">{% if drop.kind == 'file' %}📎{% else %}📋{% endif %}</span>
-            <a href="{% if drop.ns == 'f' %}/f/{{ drop.key }}/{% else %}/{{ drop.key }}/{% endif %}" class="drop-key">{{ drop.key }}</a>
+            <a href="{% if drop.ns == 'f' %}/f/{{ drop.key }}/{% else %}/{{ drop.key }}/{% endif %}" class="drop-key">{% if drop.ns == 'f' %}f/{% endif %}{{ drop.key }}</a>
             <span class="drop-label muted">
               {% if drop.kind == 'file' %}{{ drop.filename|truncatechars:20 }}{% else %}{{ drop.content|truncatechars:20 }}{% endif %}
             </span>
