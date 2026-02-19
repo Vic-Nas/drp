@@ -10,15 +10,15 @@
   <form method="post" class="auth-form">
     {% csrf_token %}
     <div class="field">
-      <label for="email">email</label>
-      <input type="email" name="email" id="email" required autofocus/>
+      <label for="email">Email</label>
+      <input type="email" name="email" id="email" required autofocus placeholder="you@example.com"/>
     </div>
     <div class="field">
-      <label for="password">password</label>
+      <label for="password">Password</label>
       <input type="password" name="password" id="password" required minlength="8"/>
     </div>
     <div class="field">
-      <label for="password2">confirm password</label>
+      <label for="password2">Confirm Password</label>
       <input type="password" name="password2" id="password2" required/>
     </div>
     <button type="submit" class="btn">create account</button>
@@ -53,7 +53,7 @@
       </div>
     </div>
     <p class="muted" style="font-size:.78rem;margin-top:.6rem">
-      To upgrade, <a href="mailto:{{ admin_email }}">email us</a> after creating your account.
+      Upgrade anytime from your <a href="/auth/account/">account page</a> after signing up.
     </p>
   </div>
 </div>

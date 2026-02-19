@@ -38,6 +38,11 @@ EMAIL_HOST_USER=you@gmail.com
 EMAIL_HOST_PASSWORD=xxxx xxxx xxxx xxxx
 DEFAULT_FROM_EMAIL=you@gmail.com
 ADMIN_EMAIL=you@gmail.com
+LEMONSQUEEZY_API_KEY=
+LEMONSQUEEZY_SIGNING_SECRET=
+LEMONSQUEEZY_STORE_ID=
+LEMONSQUEEZY_STARTER_VARIANT_ID=
+LEMONSQUEEZY_PRO_VARIANT_ID=
 ```
 
 5. Start command:
@@ -91,7 +96,7 @@ Watches a local folder and syncs each file to its own drp key. Edits and deletes
 | Locked drops | ✗ | ✓ | ✓ |
 | Renewable | ✗ | ✓ | ✓ |
 
-To upgrade, email the admin after creating your account. Plan changes are applied via the Django admin panel.
+Upgrade from your account page after signing up — billing is handled via Lemon Squeezy.
 
 ## License
 

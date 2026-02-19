@@ -9,11 +9,11 @@
   <form method="post" class="auth-form">
     {% csrf_token %}
     <div class="field">
-      <label for="email">email</label>
-      <input type="email" name="email" id="email" required autofocus/>
+      <label for="email">Email</label>
+      <input type="email" name="email" id="email" required autofocus placeholder="you@example.com"/>
     </div>
     <div class="field">
-      <label for="password">password</label>
+      <label for="password">Password</label>
       <input type="password" name="password" id="password" required/>
     </div>
     <button type="submit" class="btn">log in</button>
