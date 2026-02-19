@@ -219,19 +219,28 @@ def cmd_setup(cfg):
     print('\n  Run `make sync` or `python sync/client.py` to start syncing.')
 
 
-def cmd_login(cfg):
-    """Authenticate and store session cookies."""
-    host = cfg.get('host', 'https://drp.vic.so')
-    email = input('  Email: ').strip()
-    password = getpass.getpass('  Password: ')
-    session = requests.Session()
+def do_login(host, session, email=None, password=None):
+    """Interactive login. Returns (success, email) tuple."""
+    if not email:
+        email = input('  Email: ').strip()
+    if not password:
+        password = getpass.getpass('  Password: ')
     if api_login(host, session, email, password):
-        cfg['cookies'] = dict(session.cookies)
-        cfg['email'] = email
-        save_config(cfg)
         print('  ✓ Logged in — drops will be owned by your account.')
+        return True, email
     else:
         print('  ✗ Login failed. Drops will be anonymous (24h/90d expiry).')
+        return False, None
+
+
+def cmd_login(cfg):
+    """Authenticate and save email for future sessions."""
+    host = cfg.get('host', 'https://drp.vic.so')
+    session = requests.Session()
+    ok, email = do_login(host, session)
+    if ok:
+        cfg['email'] = email
+        save_config(cfg)
 
 
 def cmd_status(cfg):
@@ -264,15 +273,21 @@ def cmd_sync(cfg, args):
     key_map = cfg.get('key_map', {})
     session = requests.Session()
 
-    # Restore auth cookies if available
-    cookies = cfg.get('cookies', {})
-    for name, value in cookies.items():
-        session.cookies.set(name, value)
-
     print(f'drp sync')
     print(f'  host:    {host}')
     print(f'  folder:  {folder}')
-    print(f'  account: {cfg.get("email", "anonymous")}')
+
+    # Authenticate if email is configured
+    email = cfg.get('email')
+    if email:
+        print(f'  account: {email}')
+        print(f'\nlogging in…')
+        ok, _ = do_login(host, session, email=email)
+        if not ok:
+            print('  continuing as anonymous')
+    else:
+        print(f'  account: anonymous')
+
     print(f'  tracked: {len(key_map)} file(s)')
 
     # ── Staleness check ───────────────────────────────────────────────────
