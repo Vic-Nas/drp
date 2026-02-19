@@ -4,84 +4,90 @@
 <div class="help-page">
   <h1>how it works</h1>
 
-  <!-- ── Basics ─────────────────────────────────────────────────────────── -->
-
   <section>
     <h2>the idea</h2>
-    <p>drp is a lightweight drop point for text and files. Pick a key, drop something, share the link. No forms, no friction. A <strong>key</strong> is your address — whoever has it can reach the content.</p>
+    <p>drp is a lightweight drop point for text and files. Pick a key, drop something, share the link. A <strong>key</strong> is your address — whoever has it can reach the content. Keys are short, memorable, and yours to choose.</p>
   </section>
 
   <section>
     <h2>dropping something</h2>
-    <p>From the home page, paste text or drop a file. Pick a key or leave it blank for an auto-generated one. Hit <em>save & get link</em> — you'll land on <code>/your-key</code> with a shareable URL ready to copy.</p>
-    <p>If a key is already taken you'll see a ✗ indicator as you type. Keys can be renamed at any time from the drop page — the old URL stops working immediately.</p>
+    <p>From the home page, paste text or drop a file. Type a key or leave it blank for an auto-generated one. Hit <em>save & get link</em> — you'll land on <code>/your-key</code> with a shareable URL ready to copy.</p>
+    <p>If a key is already taken you'll see a ✗ indicator as you type.</p>
   </section>
 
   <section>
     <h2>accessing a drop</h2>
-    <p>Go to <code>/your-key</code>. Text drops can be read, copied, edited, or downloaded as <code>.txt</code>. File drops can be downloaded. You can replace either directly on the page if you have edit access.</p>
+    <p>Go to <code>/your-key</code>. Text drops can be read, copied, edited, or downloaded as <code>.txt</code>. File drops can be downloaded. You can replace content directly on the page if you have edit access.</p>
   </section>
-
-  <!-- ── Expiry & security ──────────────────────────────────────────────── -->
 
   <section>
     <h2>expiry</h2>
-    <p>Anonymous text drops expire <strong>24 hours</strong> after creation. Anonymous file drops expire <strong>90 days</strong> after creation. When a drop expires everything is permanently deleted: content, file, and key.</p>
-    <p>Anonymous drops have a <strong>24-hour safety window</strong> after creation during which the key is reserved — no one else can overwrite it.</p>
-    <p>Paid accounts get explicit expiry dates (up to 1 or 3 years depending on plan), set at creation and renewable any time from the drop page.</p>
+    <p>Anonymous text drops expire <strong>24 hours</strong> after creation. Anonymous file drops expire <strong>90 days</strong> after last access. When a drop expires everything is permanently deleted.</p>
+    <p>Paid accounts get explicit expiry dates (up to 1 or 3 years depending on plan), renewable any time.</p>
   </section>
 
   <section>
     <h2>locking</h2>
-    <p>By default, anyone with the key can replace an anonymous drop's content — the key is the only protection, so treat it like a password for sensitive content.</p>
-    <p>Drops created by paid accounts are <strong>locked to the owner</strong>: only the logged-in account holder can edit, rename, or delete them. Anonymous drops get a 24-hour creation window where the original creator (by session) can still make changes.</p>
+    <p>Anonymous drops have a <strong>24-hour protection window</strong> after creation — nobody can overwrite or rename them during that time, including you. Plan your key before uploading, or use the CLI's <code>-k</code> flag.</p>
+    <p>Paid drops are locked to the owner's account — only you can edit, rename, or delete them.</p>
   </section>
-
-  <!-- ── Accounts ───────────────────────────────────────────────────────── -->
 
   <section>
     <h2>accounts</h2>
-    <p>Free accounts let you track your drops across devices — your drops show up in the dashboard on any machine you log into. Paid plans (Starter $3/mo, Pro $8/mo) add larger file limits, storage quota, longer expiry, and locked drops.</p>
-    <p>To reset your password, use the <a href="/auth/forgot-password/">forgot password</a> link on the login page — a reset link will be emailed to you directly.</p>
-  </section>
-
-  <section>
-    <h2>dashboard</h2>
-    <p>Logged-in users see their drops pulled from the server. Anonymous users get a local dashboard stored in the browser's <code>localStorage</code> — it's never sent to the server. You can export it as a JSON file and import it on any other device or browser to restore your list.</p>
+    <p>Free accounts let you track drops across devices via the dashboard. Paid plans (Starter $3/mo, Pro $8/mo) add larger file limits, longer expiry, locked drops, and storage quota.</p>
   </section>
 
   <!-- ── CLI ────────────────────────────────────────────────────────────── -->
 
   <section>
     <h2>cli</h2>
-    <p>Install the command-line tool from <a href="https://pypi.org/project/drp-cli/">PyPI</a>:</p>
-    <pre><code>pip install drp-cli</code></pre>
-    <p>Then drop files straight from your terminal:</p>
-    <pre><code>drp setup              # configure host &amp; log in
-drp up notes.txt       # upload a file → prints URL
-drp up "hello world"   # upload text → prints URL
-drp up doc.pdf -k cv   # upload with a custom key
-drp get mykey          # text → stdout, file → saved to disk
-drp rm mykey           # delete a drop
-drp mv mykey newkey    # rename a drop
-drp renew mykey        # renew expiry (paid accounts)
-drp ls                 # list your drops (requires login)
-drp status             # show config</code></pre>
-    <p>Works anonymously or logged in. Logged-in users get plan-based expiry, locked drops, and <code>drp ls</code>. Run <code>drp --help</code> or <code>drp &lt;command&gt; --help</code> for details.</p>
+    <p>Install from <a href="https://pypi.org/project/drp-cli/">PyPI</a>:</p>
+    <pre><code>pip install drp-cli
+drp setup</code></pre>
+
+    <h3>uploading</h3>
+    <pre><code>drp up notes.txt              # upload a file — key auto-generated from filename
+drp up notes.txt -k notes     # upload with a custom key → drp.vicnas.me/notes/
+drp up report.pdf -k q3       # memorable key for sharing → drp.vicnas.me/q3/
+drp up "hello world"          # upload text directly
+drp up "hello world" -k hello # text with a custom key</code></pre>
+    <p>The <code>-k</code> flag sets your key. Without it, a slug is derived from the filename (e.g. <code>report.pdf</code> → <code>/report/</code>). Keys are locked for 24h after creation — set them right on upload.</p>
+
+    <h3>downloading</h3>
+    <pre><code>drp get q3                    # text → printed to stdout, file → saved to disk
+drp get q3 -o my-report.pdf   # save file under a different name</code></pre>
+
+    <h3>managing drops</h3>
+    <pre><code>drp rm q3                     # delete a drop
+drp mv q3 quarter3            # rename a key (blocked for 24h after creation)
+drp renew q3                  # extend expiry — paid accounts only
+drp ls                        # list your drops
+drp ls --export > backup.json # export drop list as JSON</code></pre>
+
+    <h3>account</h3>
+    <pre><code>drp setup                     # first-time configuration
+drp login                     # log in (session saved — no repeated prompts)
+drp logout                    # clear saved session
+drp status                    # show config and session info</code></pre>
+
+    <p>Once logged in, your session is saved locally — you won't be prompted for a password on every command. Run <code>drp logout</code> to clear it.</p>
+    <p>Works anonymously too — just skip login. Anonymous drops follow the 24h/90d expiry rules above.</p>
+
+    <h3>tips</h3>
+    <p>Always use <code>-k</code> when you want a shareable, memorable URL. The auto-generated key from a filename works fine locally, but <code>drp up contract.pdf -k contract</code> gives you <code>/contract/</code> which is easy to remember and share. If you forget, you can rename with <code>drp mv</code> after the 24h window.</p>
   </section>
 
-  <!-- ── Privacy & links ────────────────────────────────────────────────── -->
+  <!-- ── Privacy ────────────────────────────────────────────────────────── -->
 
   <section>
     <h2>privacy</h2>
-    <p>drp is <a href="https://github.com/vicnasdev/drp">open source</a>. Files are stored on Cloudinary. Text is stored in a Postgres database. There is no encryption at rest — don't store secrets or sensitive personal data. Security is through obscurity only: a hard-to-guess key is your only protection.</p>
+    <p>drp is <a href="https://github.com/vicnasdev/drp">open source</a>. Files are stored on Cloudinary. Text is stored in a Postgres database. There is no encryption at rest — don't store secrets or sensitive personal data. A hard-to-guess key is your only protection for anonymous drops.</p>
   </section>
 
   <section>
     <h2>issues & feedback</h2>
     <p>Found a bug or have a feature request? <a href="https://github.com/vicnasdev/drp/issues">Open an issue on GitHub</a>.</p>
-    <p>Source code: <a href="https://github.com/vicnasdev/drp">github.com/vicnasdev/drp</a></p>
-    <p>CLI on PyPI: <a href="https://pypi.org/project/drp-cli/">pypi.org/project/drp-cli</a></p>
+    <p>Source: <a href="https://github.com/vicnasdev/drp">github.com/vicnasdev/drp</a> · CLI: <a href="https://pypi.org/project/drp-cli/">pypi.org/project/drp-cli</a></p>
   </section>
 
 </div>
