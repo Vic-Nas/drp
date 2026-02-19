@@ -56,6 +56,8 @@
         <button class="btn-sm" onclick="copyContent()">copy text</button>
         <button class="btn-sm" onclick="downloadText()">download .txt</button>
         {% if can_edit %}<button class="btn-sm" onclick="toggleEdit()">edit</button>{% endif %}
+        {% load drop_tags %}
+        {% include "partials/bookmark_btn.html" with drop=drop ns=drop.ns key=drop.key %}
       </div>
     </div>
     {% if can_edit %}
@@ -79,6 +81,10 @@
         <div class="fsize muted">{{ drop.filesize|filesizeformat }}</div>
       </div>
       <a href="/f/{{ drop.key }}/download/" class="btn">↓ download</a>
+    </div>
+    <div class="clip-actions">
+      {% load drop_tags %}
+      {% include "partials/bookmark_btn.html" with drop=drop ns=drop.ns key=drop.key %}
     </div>
     {% if can_edit %}
     <p class="muted" style="margin-top:.8rem;font-size:.85rem">replace file:</p>

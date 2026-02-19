@@ -7,6 +7,7 @@ drp — drop clipboards and files from the command line.
   drp get key            clipboard → stdout
   drp get f/key          file → saved to disk
   drp ls -lh             list with sizes and times
+  drp load backup.json   import a shared export as saved drops
   drp rm key             delete clipboard
   drp rm f/key           delete file
 """
@@ -20,6 +21,7 @@ from cli.commands.upload import cmd_up
 from cli.commands.get import cmd_get
 from cli.commands.manage import cmd_rm, cmd_mv, cmd_renew
 from cli.commands.ls import cmd_ls
+from cli.commands.load import cmd_load
 from cli.commands.status import cmd_status, cmd_ping
 
 
@@ -49,6 +51,7 @@ examples:
   drp ls -lh                       list with sizes and times
   drp ls -lh -t f                  list only files
   drp ls --export > backup.json    export as JSON (requires login)
+  drp load backup.json             import shared export as saved drops
 """,
     )
     parser.add_argument('--version', '-V', action='version', version=f'%(prog)s {__version__}')
@@ -87,13 +90,16 @@ examples:
                       help='Long format with size, time, and expiry (like ls -l)')
     p_ls.add_argument('-H', '--human', action='store_true',
                       help='Human-readable sizes (1.2M) — use with -l')
-    p_ls.add_argument('-t', '--type', choices=['c', 'f'], default=None,
-                      metavar='NS', help='Filter: c=clipboards, f=files')
+    p_ls.add_argument('-t', '--type', choices=['c', 'f', 's'], default=None,
+                      metavar='NS', help='Filter: c=clipboards, f=files, s=saved')
     p_ls.add_argument('--sort', choices=['time', 'size', 'name'], default=None,
                       help='Sort by: time, size, or name')
     p_ls.add_argument('-r', '--reverse', action='store_true', help='Reverse sort order')
     p_ls.add_argument('--export', action='store_true',
                       help='Export as JSON (requires login). Pipe: drp ls --export > drops.json')
+
+    p_load = sub.add_parser('load', help='Import a shared export file as saved drops (requires login)')
+    p_load.add_argument('file', help='Path to a drp export JSON file')
 
     commands = {
         'setup': cmd_setup,
@@ -107,6 +113,7 @@ examples:
         'mv': cmd_mv,
         'renew': cmd_renew,
         'ls': cmd_ls,
+        'load': cmd_load,
     }
 
     args = parser.parse_args()

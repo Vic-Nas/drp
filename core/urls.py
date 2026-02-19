@@ -19,6 +19,7 @@ urlpatterns = [
     path('auth/logout/', views.logout_view, name='logout'),
     path('auth/account/', views.account_view, name='account'),
     path('auth/account/export/', views.export_drops, name='export_drops'),
+    path('auth/account/import/', views.import_drops, name='import_drops'),
 
     # ── Password reset ────────────────────────────────────────────────────────
     path('auth/forgot-password/',
@@ -45,16 +46,19 @@ urlpatterns = [
          name='password_reset_complete'),
 
     # ── File drops ────────────────────────────────────────────────────────────
-    re_path(rf'^f/{KEY}/download/$', views.download_drop, name='download_drop'),
-    re_path(rf'^f/{KEY}/rename/$',   views.rename_drop, {'ns': 'f'}, name='rename_file'),
-    re_path(rf'^f/{KEY}/delete/$',   views.delete_drop, {'ns': 'f'}, name='delete_file'),
-    re_path(rf'^f/{KEY}/renew/$',    views.renew_drop,  {'ns': 'f'}, name='renew_file'),
-    re_path(rf'^f/{KEY}/$',          views.file_view,               name='file_view'),
+    re_path(rf'^f/{KEY}/download/$', views.download_drop,                    name='download_drop'),
+    re_path(rf'^f/{KEY}/rename/$',   views.rename_drop,   {'ns': 'f'},      name='rename_file'),
+    re_path(rf'^f/{KEY}/delete/$',   views.delete_drop,   {'ns': 'f'},      name='delete_file'),
+    re_path(rf'^f/{KEY}/renew/$',    views.renew_drop,    {'ns': 'f'},      name='renew_file'),
+    re_path(rf'^f/{KEY}/save/$',     views.save_bookmark, {'ns': 'f'},      name='save_bookmark_file'),
+    re_path(rf'^f/{KEY}/unsave/$',   views.unsave_bookmark, {'ns': 'f'},    name='unsave_bookmark_file'),
+    re_path(rf'^f/{KEY}/$',          views.file_view,                        name='file_view'),
 
     # ── Clipboard drops ───────────────────────────────────────────────────────
-    # Must be last — catches /key/ for clipboard access and actions.
-    re_path(rf'^{KEY}/rename/$', views.rename_drop, {'ns': 'c'}, name='rename_clipboard'),
-    re_path(rf'^{KEY}/delete/$', views.delete_drop, {'ns': 'c'}, name='delete_clipboard'),
-    re_path(rf'^{KEY}/renew/$',  views.renew_drop,  {'ns': 'c'}, name='renew_clipboard'),
-    re_path(rf'^{KEY}/$',        views.clipboard_view,            name='clipboard_view'),
+    re_path(rf'^{KEY}/rename/$',  views.rename_drop,     {'ns': 'c'},       name='rename_clipboard'),
+    re_path(rf'^{KEY}/delete/$',  views.delete_drop,     {'ns': 'c'},       name='delete_clipboard'),
+    re_path(rf'^{KEY}/renew/$',   views.renew_drop,      {'ns': 'c'},       name='renew_clipboard'),
+    re_path(rf'^{KEY}/save/$',    views.save_bookmark,   {'ns': 'c'},       name='save_bookmark_clipboard'),
+    re_path(rf'^{KEY}/unsave/$',  views.unsave_bookmark, {'ns': 'c'},       name='unsave_bookmark_clipboard'),
+    re_path(rf'^{KEY}/$',         views.clipboard_view,                      name='clipboard_view'),
 ]

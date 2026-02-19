@@ -128,12 +128,10 @@ def create_user_profile(sender, instance, created, **kwargs):
 # ── Drop ──────────────────────────────────────────────────────────────────────
 
 class Drop(models.Model):
-    # Namespace constants — used throughout views and CLI
     NS_CLIPBOARD = 'c'
     NS_FILE      = 'f'
     NS_CHOICES   = [('c', 'Clipboard'), ('f', 'File')]
 
-    # Kind constants
     TEXT = 'text'
     FILE = 'file'
     TYPE_CHOICES = [(TEXT, 'Text'), (FILE, 'File')]
@@ -148,16 +146,14 @@ class Drop(models.Model):
         related_name='drops',
     )
 
-    # Text content
     content = models.TextField(blank=True, default='')
 
-    # File — stored on Cloudinary
     file_url       = models.URLField(blank=True, default='')
     file_public_id = models.CharField(max_length=512, blank=True, default='')
     filename       = models.CharField(max_length=255, blank=True, default='')
     filesize       = models.PositiveBigIntegerField(default=0)
 
-    created_at      = models.DateTimeField(auto_now_add=True)
+    created_at       = models.DateTimeField(auto_now_add=True)
     last_accessed_at = models.DateTimeField(null=True, blank=True, db_index=True)
     max_lifetime_secs = models.PositiveIntegerField(null=True, blank=True)
 
@@ -173,8 +169,6 @@ class Drop(models.Model):
         prefix = 'f/' if self.ns == self.NS_FILE else ''
         return f'/{prefix}{self.key}/ ({self.kind})'
 
-    # ── Ownership ─────────────────────────────────────────────────────────────
-
     @property
     def owner_plan(self):
         if self.owner_id and hasattr(self.owner, 'profile'):
@@ -186,8 +180,6 @@ class Drop(models.Model):
         if self.owner_id and hasattr(self.owner, 'profile'):
             return self.owner.profile.is_paid
         return False
-
-    # ── Expiry ────────────────────────────────────────────────────────────────
 
     def is_expired(self):
         now = timezone.now()
@@ -204,18 +196,13 @@ class Drop(models.Model):
             ref = self.last_accessed_at or self.created_at
             return (now - ref) > timedelta(hours=idle_hours)
 
-        # File: time-since-creation
         return (now - self.created_at) > timedelta(days=90)
 
-    # ── Lifecycle ─────────────────────────────────────────────────────────────
-
     def touch(self):
-        """Update last_accessed_at — resets idle timer for clipboards."""
         Drop.objects.filter(pk=self.pk).update(last_accessed_at=timezone.now())
         self.last_accessed_at = timezone.now()
 
     def renew(self):
-        """Reset expiry clock from now, keeping same duration."""
         if not self.expires_at:
             return
         duration = self.expires_at - self.created_at
@@ -232,7 +219,6 @@ class Drop(models.Model):
                 self.save(update_fields=['expires_at'])
 
     def hard_delete(self):
-        """Delete drop and clean up Cloudinary + storage accounting."""
         if self.ns == self.NS_FILE and self.file_public_id:
             try:
                 import cloudinary.uploader
@@ -246,10 +232,7 @@ class Drop(models.Model):
             )
         self.delete()
 
-    # ── Permissions ───────────────────────────────────────────────────────────
-
     def can_edit(self, user):
-        """True if the given user may edit/delete/rename this drop."""
         if self.locked:
             return getattr(user, 'is_authenticated', False) and self.owner_id == user.pk
         if self.is_creation_locked():
@@ -257,5 +240,32 @@ class Drop(models.Model):
         return True
 
     def is_creation_locked(self):
-        """True within the 24h window after creation (anon drops)."""
         return bool(self.locked_until and timezone.now() < self.locked_until)
+
+
+# ── SavedDrop ─────────────────────────────────────────────────────────────────
+
+class SavedDrop(models.Model):
+    """
+    A bookmark — records that a user wants to track a drop by key.
+    No content is stored. The drop may or may not still exist on the server.
+    Saving a drop does not grant any ownership or edit permissions.
+    """
+    user     = models.ForeignKey(User, on_delete=models.CASCADE, related_name='saved_drops')
+    ns       = models.CharField(max_length=1, choices=Drop.NS_CHOICES, default=Drop.NS_CLIPBOARD)
+    key      = models.CharField(max_length=120)
+    saved_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('user', 'ns', 'key')]
+        ordering = ['-saved_at']
+
+    def __str__(self):
+        prefix = 'f/' if self.ns == Drop.NS_FILE else ''
+        return f'{self.user.email} → /{prefix}{self.key}/'
+
+    @property
+    def url_path(self):
+        if self.ns == Drop.NS_FILE:
+            return f'/f/{self.key}/'
+        return f'/{self.key}/'

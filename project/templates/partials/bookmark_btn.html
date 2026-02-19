@@ -1,0 +1,8 @@
+{# Bookmark button partial for drops #}
+<button class="btn-sm" id="bookmarkBtn" data-ns="{{ ns }}" data-key="{{ key }}">
+  {% if drop.is_bookmarked %}★ Bookmarked{% else %}☆ Bookmark{% endif %}
+</button>
+<script>
+// Example JS: You may want to handle AJAX here for bookmarking
+// document.getElementById('bookmarkBtn').addEventListener('click', function() { ... });
+</script>

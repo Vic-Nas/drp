@@ -1,5 +1,5 @@
 """
-Auth views: register, login, logout, account dashboard, export.
+Auth views: register, login, logout, account dashboard, export, import.
 """
 
 import json
@@ -10,8 +10,9 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
+from django.views.decorators.http import require_POST
 
-from core.models import Drop, Plan
+from core.models import Drop, Plan, SavedDrop
 from .helpers import check_signup_rate, user_plan
 
 
@@ -85,20 +86,25 @@ def account_view(request):
     profile = request.user.profile
     profile.recalc_storage()
 
-    # Clean expired drops on the way in
+    # Clean expired owned drops
     for d in Drop.objects.filter(owner=request.user):
         if d.is_expired():
             d.hard_delete()
 
     drops = Drop.objects.filter(owner=request.user).order_by('-created_at')
+    saved = SavedDrop.objects.filter(user=request.user).order_by('-saved_at')
     plan_limits = Plan.LIMITS.get(profile.plan, Plan.LIMITS[Plan.FREE])
 
     if 'application/json' in request.headers.get('Accept', ''):
-        return JsonResponse({'drops': [_drop_dict(d) for d in drops]})
+        return JsonResponse({
+            'drops': [_drop_dict(d) for d in drops],
+            'saved': [_saved_dict(s) for s in saved],
+        })
 
     return render(request, 'auth/account.html', {
         'profile': profile,
         'drops': drops,
+        'saved': saved,
         'plan_limits': plan_limits,
         'Plan': Plan,
     })
@@ -109,20 +115,76 @@ def account_view(request):
 @login_required
 def export_drops(request):
     drops = Drop.objects.filter(owner=request.user).order_by('-created_at')
-    data = []
+    saved = SavedDrop.objects.filter(user=request.user).order_by('-saved_at')
+
+    owned_data = []
     for d in drops:
         entry = _drop_dict(d)
-        # Add richer fields for export
-        url = f'{settings.SITE_URL}/{d.key}/' if d.ns == Drop.NS_CLIPBOARD else f'{settings.SITE_URL}/f/{d.key}/'
-        entry.update({
-            'url': url,
-            'host': settings.SITE_URL,
-        })
-        data.append(entry)
+        url = (
+            f'{settings.SITE_URL}/f/{d.key}/'
+            if d.ns == Drop.NS_FILE
+            else f'{settings.SITE_URL}/{d.key}/'
+        )
+        entry.update({'url': url, 'host': settings.SITE_URL})
+        owned_data.append(entry)
 
-    response = JsonResponse({'drops': data}, json_dumps_params={'indent': 2})
+    saved_data = [_saved_dict(s, host=settings.SITE_URL) for s in saved]
+
+    response = JsonResponse(
+        {'drops': owned_data, 'saved': saved_data},
+        json_dumps_params={'indent': 2},
+    )
     response['Content-Disposition'] = 'attachment; filename="drp-export.json"'
     return response
+
+
+# ── Import ────────────────────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def import_drops(request):
+    """
+    Accept a JSON export and bookmark all drops in it for the current user.
+    No content is stored. No ownership is transferred.
+    The importer gets SavedDrop entries pointing to the original keys.
+    """
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'error': 'Invalid JSON.'}, status=400)
+
+    # Accept both {drops: [], saved: []} and a bare list
+    if isinstance(data, list):
+        entries = data
+    else:
+        # Merge owned drops and previously saved drops from the export
+        entries = data.get('drops', []) + data.get('saved', [])
+
+    if not entries:
+        return JsonResponse({'imported': 0, 'skipped': 0})
+
+    imported = 0
+    skipped = 0
+
+    for entry in entries:
+        key = (entry.get('key') or '').strip()
+        ns = entry.get('ns', 'c')
+
+        if not key or ns not in ('c', 'f'):
+            skipped += 1
+            continue
+
+        _, created = SavedDrop.objects.get_or_create(
+            user=request.user,
+            ns=ns,
+            key=key,
+        )
+        if created:
+            imported += 1
+        else:
+            skipped += 1  # already bookmarked
+
+    return JsonResponse({'imported': imported, 'skipped': skipped})
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -138,4 +200,14 @@ def _drop_dict(d):
         'filename': d.filename or None,
         'filesize': d.filesize,
         'locked': d.locked,
+    }
+
+
+def _saved_dict(s, host=None):
+    url_path = f'/f/{s.key}/' if s.ns == Drop.NS_FILE else f'/{s.key}/'
+    return {
+        'key': s.key,
+        'ns': s.ns,
+        'saved_at': s.saved_at.isoformat(),
+        'url': f'{host}{url_path}' if host else url_path,
     }

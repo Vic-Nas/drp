@@ -1,0 +1,28 @@
+/* ── Bookmark button ────────────────────────────────────────────────────────── */
+/* Add these rules to your main stylesheet (e.g. static/css/main.css)         */
+
+.bookmark-btn {
+  background: transparent;
+  border: 1px solid var(--border, #ccc);
+  color: var(--text-muted, #888);
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.bookmark-btn:hover {
+  background: var(--hover-bg, #f5f5f5);
+  border-color: var(--accent, #555);
+  color: var(--text, #111);
+}
+
+.bookmark-btn.bookmarked {
+  background: var(--accent-faint, #fef9ec);
+  border-color: var(--accent, #e6a817);
+  color: var(--accent-dark, #b07d10);
+}
+
+.bookmark-btn.bookmarked:hover {
+  background: var(--danger-faint, #fff0f0);
+  border-color: var(--danger, #c0392b);
+  color: var(--danger, #c0392b);
+}

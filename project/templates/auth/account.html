@@ -29,7 +29,6 @@
     </div>
 
     {% if profile.is_paid %}
-      <!-- Storage bar -->
       <div class="storage-bar-wrap" style="margin-top:1rem">
         <div class="storage-label">
           {{ profile.storage_used_gb|floatformat:2 }} GB
@@ -41,13 +40,11 @@
           </div>
         </div>
       </div>
-      <!-- Manage / cancel -->
       <div style="margin-top:1rem">
         <a href="/billing/portal/" class="btn-sm">manage subscription →</a>
       </div>
 
     {% else %}
-      <!-- Upgrade cards -->
       <div class="plan-grid" style="margin-top:1rem">
         <div class="plan-card">
           <div class="plan-name">Starter</div>
@@ -81,9 +78,12 @@
     {% endif %}
   </div>
 
-  <!-- Drops -->
+  <!-- Your drops -->
   <div class="account-section">
-    <h2>your drops</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
+      <h2 style="margin-bottom:0">your drops</h2>
+      <a href="/auth/account/export/" class="btn-sm">↓ export</a>
+    </div>
     {% if drops %}
     <table class="drops-table">
       <thead>
@@ -99,7 +99,11 @@
       <tbody>
         {% for drop in drops %}
         <tr>
-          <td><a href="/{{ drop.key }}/" class="mono">{{ drop.key }}</a></td>
+          <td>
+            <a href="{% if drop.ns == 'f' %}/f/{{ drop.key }}/{% else %}/{{ drop.key }}/{% endif %}" class="mono">
+              {% if drop.ns == 'f' %}f/{% endif %}{{ drop.key }}
+            </a>
+          </td>
           <td>
             {% if drop.kind == 'file' %}📎 {{ drop.filename|truncatechars:24 }}
             {% else %}📋 {{ drop.content|truncatechars:24 }}{% endif %}
@@ -110,10 +114,10 @@
           <td class="muted">{{ drop.created_at|date:"M j, Y" }}</td>
           <td class="muted">
             {% if drop.expires_at %}{{ drop.expires_at|date:"M j, Y" }}
-            {% elif drop.kind == 'text' %}24h from creation
-            {% else %}90d inactive{% endif %}
+            {% elif drop.kind == 'text' %}24h idle
+            {% else %}90d{% endif %}
           </td>
-          <td><a href="/{{ drop.key }}/" class="btn-sm">view</a></td>
+          <td><a href="{% if drop.ns == 'f' %}/f/{{ drop.key }}/{% else %}/{{ drop.key }}/{% endif %}" class="btn-sm">view</a></td>
         </tr>
         {% endfor %}
       </tbody>
@@ -123,9 +127,99 @@
     {% endif %}
   </div>
 
+  <!-- Saved drops -->
+  <div class="account-section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem">
+      <h2 style="margin-bottom:0">saved drops</h2>
+      <label for="importInput" class="btn-sm" style="cursor:pointer">↑ import</label>
+      <input type="file" id="importInput" accept=".json" hidden/>
+    </div>
+    <p class="muted" style="font-size:.82rem;margin-bottom:.8rem">
+      Drops saved from others' exports — you can view them but not edit or delete them.
+    </p>
+    {% if saved %}
+    <table class="drops-table">
+      <thead>
+        <tr>
+          <th>key</th>
+          <th>saved</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in saved %}
+        <tr id="saved-row-{{ forloop.counter }}">
+          <td>
+            <a href="{{ s.url_path }}" class="mono">
+              {% if s.ns == 'f' %}f/{% endif %}{{ s.key }}
+            </a>
+          </td>
+          <td class="muted">{{ s.saved_at|date:"M j, Y" }}</td>
+          <td>
+            <button class="btn-sm danger"
+                    onclick="unsave('{{ s.ns }}', '{{ s.key }}', 'saved-row-{{ forloop.counter }}')">
+              unsave
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <p class="muted empty" id="savedEmpty">no saved drops yet. import an export file to add some.</p>
+    {% endif %}
+  </div>
+
   <div class="account-section">
     <a href="/auth/logout/" class="btn-sm danger">log out</a>
   </div>
 
 </div>
+
+<script>
+// ── Import ────────────────────────────────────────────────────────────────────
+document.getElementById('importInput').addEventListener('change', async function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const text = await file.text();
+  let data;
+  try { data = JSON.parse(text); } catch { alert('Invalid JSON file.'); return; }
+
+  const res = await fetch('/auth/account/import/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken'),
+    },
+    body: JSON.stringify(data),
+  });
+  const result = await res.json();
+  if (res.ok) {
+    showToast(`Imported ${result.imported} drop(s). ${result.skipped ? result.skipped + ' already saved.' : ''}`);
+    if (result.imported > 0) setTimeout(() => location.reload(), 1500);
+  } else {
+    alert(result.error || 'Import failed.');
+  }
+  e.target.value = '';
+});
+
+// ── Unsave ────────────────────────────────────────────────────────────────────
+async function unsave(ns, key, rowId) {
+  const action = ns === 'f' ? `/f/${key}/unsave/` : `/${key}/unsave/`;
+  const res = await fetch(action, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+  });
+  if (res.ok) {
+    const row = document.getElementById(rowId);
+    if (row) row.remove();
+    // Show empty message if no rows left
+    const tbody = document.querySelector('.drops-table tbody');
+    if (tbody && !tbody.querySelector('tr')) {
+      document.getElementById('savedEmpty') && (document.getElementById('savedEmpty').style.display = '');
+    }
+    showToast('Removed from saved.');
+  }
+}
+</script>
 {% endblock %}
