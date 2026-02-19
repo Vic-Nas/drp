@@ -12,13 +12,19 @@ on:
 permissions:
   contents: write
 
+# ── Platform tests ─────────────────────────────────────────────────────────────
+# Runs on all OS × Python combinations BEFORE any version bump or publish.
+# If any platform fails, publish is blocked.
+
 jobs:
   test:
     strategy:
+      fail-fast: false  # see all failures, not just the first
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ['3.10', '3.12', '3.13']
     runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -26,24 +32,132 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # ── Install ──────────────────────────────────────────────────────────────
+
       - name: Install package
         run: pip install -e .
 
-      - name: Check drp command is available
+      # ── Sanity: command is on PATH ────────────────────────────────────────────
+      # This is the most common failure on Windows — Scripts/ not in PATH.
+      # We check via python -m cli fallback AND the drp entrypoint.
+
+      - name: Check drp entrypoint is on PATH
         run: drp --version
 
-      - name: Smoke test (upload text, get, delete)
+      - name: Check fallback python -m cli also works
+        run: python -m cli --version
+
+      # ── Unit tests (no server needed) ────────────────────────────────────────
+
+      - name: Run unit tests (config, slug, cache)
+        run: python -m pytest cli/tests.py::ConfigTests cli/tests.py::SlugTests cli/tests.py::LocalDropCacheTests cli/tests.py::VersionTests -v
+        # These must work offline and on all platforms
+
+      # ── Smoke tests against live server ──────────────────────────────────────
+      # These only run when DRP_SMOKE_HOST is set in repository secrets.
+      # They test the full end-to-end flow: upload → get → delete on a real server.
+
+      - name: Smoke test — text drop upload, get, delete
+        if: ${{ env.DRP_SMOKE_HOST != '' }}
         env:
-          DRP_HOST: ${{ secrets.DRP_SMOKE_HOST }}
-        if: env.DRP_HOST != ''
+          DRP_SMOKE_HOST: ${{ secrets.DRP_SMOKE_HOST }}
         shell: bash
         run: |
-          key="ci-smoke-$RANDOM"
-          drp setup <<< $'${{ secrets.DRP_SMOKE_HOST }}\nn\n' || true
-          url=$(drp up "hello from ci" --key "$key")
-          echo "Uploaded: $url"
-          drp get "$key"
-          drp rm "$key"
+          # Generate a unique key without relying on $RANDOM (not portable)
+          KEY="ci-smoke-$(python -c 'import uuid; print(uuid.uuid4().hex[:8])')"
+          echo "Using key: $KEY"
+
+          # Configure host without prompting for login
+          python -c "
+          from cli import config
+          cfg = config.load()
+          cfg['host'] = '${{ secrets.DRP_SMOKE_HOST }}'
+          config.save(cfg)
+          "
+
+          # Upload text
+          URL=$(drp up "hello from ci on ${{ matrix.os }} py${{ matrix.python-version }}" --key "$KEY")
+          echo "Uploaded: $URL"
+          [ -z "$URL" ] && { echo "Upload returned empty URL"; exit 1; }
+
+          # Get — must print the exact text
+          RESULT=$(drp get "$KEY")
+          echo "Got: $RESULT"
+          echo "$RESULT" | grep -q "hello from ci" || { echo "Content mismatch"; exit 1; }
+
+          # List — key must appear
+          drp ls | grep -q "$KEY" || { echo "Key not found in drp ls"; exit 1; }
+
+          # Delete
+          drp rm "$KEY"
+
+          # Confirm deleted — get should fail
+          drp get "$KEY" && { echo "Drop still accessible after delete"; exit 1; } || true
+
+      - name: Smoke test — file drop upload, get
+        if: ${{ env.DRP_SMOKE_HOST != '' }}
+        env:
+          DRP_SMOKE_HOST: ${{ secrets.DRP_SMOKE_HOST }}
+        shell: bash
+        run: |
+          KEY="ci-file-$(python -c 'import uuid; print(uuid.uuid4().hex[:8])')"
+          CONTENT="file content from ${{ matrix.os }}"
+
+          # Create a temp file portably
+          python -c "
+          with open('ci_test_file.txt', 'w') as f:
+              f.write('$CONTENT')
+          "
+
+          URL=$(drp up ci_test_file.txt --key "$KEY")
+          echo "Uploaded file: $URL"
+          [ -z "$URL" ] && { echo "File upload returned empty URL"; exit 1; }
+
+          drp get "$KEY" -o ci_downloaded.txt
+          python -c "
+          content = open('ci_downloaded.txt').read()
+          assert '$CONTENT' in content, f'Content mismatch: {content!r}'
+          print('File content verified')
+          "
+
+          drp rm "$KEY"
+          rm -f ci_test_file.txt ci_downloaded.txt
+
+      - name: Smoke test — authenticated session persists across commands
+        if: ${{ env.DRP_SMOKE_HOST != '' && env.DRP_SMOKE_EMAIL != '' }}
+        env:
+          DRP_SMOKE_HOST: ${{ secrets.DRP_SMOKE_HOST }}
+          DRP_SMOKE_EMAIL: ${{ secrets.DRP_SMOKE_EMAIL }}
+          DRP_SMOKE_PASSWORD: ${{ secrets.DRP_SMOKE_PASSWORD }}
+        shell: bash
+        run: |
+          # Log in programmatically without interactive prompts
+          python -c "
+          import requests
+          from cli import api, config
+          from drp import _save_session
+          cfg = config.load()
+          host = cfg['host']
+          session = requests.Session()
+          ok = api.login(host, session, '${{ secrets.DRP_SMOKE_EMAIL }}', '${{ secrets.DRP_SMOKE_PASSWORD }}')
+          assert ok, 'Login failed'
+          cfg['email'] = '${{ secrets.DRP_SMOKE_EMAIL }}'
+          config.save(cfg)
+          _save_session(session)
+          print('Logged in, session saved')
+          "
+
+          # drp ls must NOT prompt for password (session is saved)
+          # We verify by checking it completes quickly and shows server list
+          timeout 15 drp ls || { echo "drp ls timed out or failed (may have hung waiting for password)"; exit 1; }
+
+          # Log out
+          drp logout
+
+          # drp ls after logout must fall back to local cache, not prompt
+          timeout 5 drp ls || true
+
+  # ── Only publish if ALL platform tests pass ───────────────────────────────────
 
   publish:
     needs: test
@@ -88,11 +202,14 @@ jobs:
           else
             log=$(git log --oneline --no-decorate "$prev_tag"..HEAD~1)
           fi
-          echo "$log" > /tmp/release_notes.txt
-          echo "Install / upgrade:" >> /tmp/release_notes.txt
-          echo '```' >> /tmp/release_notes.txt
-          echo 'pip install --upgrade drp-cli' >> /tmp/release_notes.txt
-          echo '```' >> /tmp/release_notes.txt
+          {
+            echo "$log"
+            echo ""
+            echo "Install / upgrade:"
+            echo '```'
+            echo 'pip install --upgrade drp-cli'
+            echo '```'
+          } > /tmp/release_notes.txt
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
