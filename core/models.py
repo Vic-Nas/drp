@@ -193,7 +193,7 @@ class Drop(models.Model):
         # Anon / free fallback: access-based
         if self.kind == self.TEXT:
             return timezone.now() > self.created_at + timedelta(hours=24)
-        return timezone.now() > self.last_accessed + timedelta(days=90)
+        return timezone.now() > self.created_at + timedelta(days=90)
 
     def renew(self):
         """Reset expiry clock from now, keeping same duration."""

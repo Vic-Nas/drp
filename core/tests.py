@@ -522,10 +522,10 @@ class DropLifecycleTests(TestCase):
         drop = Drop.objects.create(key='new-text', kind=Drop.TEXT, content='hi')
         self.assertFalse(drop.is_expired())
 
-    def test_file_drop_expires_after_90d_inactive(self):
+    def test_file_drop_expires_after_90d(self):
         drop = Drop.objects.create(key='old-file', kind=Drop.FILE, filename='f.txt')
         Drop.objects.filter(pk=drop.pk).update(
-            last_accessed=timezone.now() - timedelta(days=91)
+            created_at=timezone.now() - timedelta(days=91)
         )
         drop.refresh_from_db()
         self.assertTrue(drop.is_expired())
