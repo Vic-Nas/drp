@@ -1,36 +1,13 @@
 """
-Unit tests for core/views/error_reporting.py
-No real GitHub token or network required — all HTTP calls are mocked.
-Django is mocked out so this runs without a Django install.
+Unit tests for error reporting logic.
+Imports from core/error_reporting_logic.py which has no Django dependency,
+so this runs cleanly in CI without a Django install.
 """
 
-import sys
-import types
 from unittest.mock import patch, MagicMock
+import pytest
 
-# ── Stub out Django before anything imports it ────────────────────────────────
-# error_reporting.py uses django only for its decorators and JsonResponse.
-# We replace those with no-ops so we can test the pure logic functions.
-
-django_stub = types.ModuleType('django')
-django_http_stub = types.ModuleType('django.http')
-django_http_stub.JsonResponse = dict  # close enough for the functions we test
-django_views_stub = types.ModuleType('django.views')
-django_decorators_stub = types.ModuleType('django.views.decorators')
-django_csrf_stub = types.ModuleType('django.views.decorators.csrf')
-django_csrf_stub.csrf_exempt = lambda f: f
-django_http_dec_stub = types.ModuleType('django.views.decorators.http')
-django_http_dec_stub.require_POST = lambda f: f
-
-sys.modules.setdefault('django', django_stub)
-sys.modules.setdefault('django.http', django_http_stub)
-sys.modules.setdefault('django.views', django_views_stub)
-sys.modules.setdefault('django.views.decorators', django_decorators_stub)
-sys.modules.setdefault('django.views.decorators.csrf', django_csrf_stub)
-sys.modules.setdefault('django.views.decorators.http', django_http_dec_stub)
-
-# Now safe to import
-from core.views.error_reporting import (  # noqa: E402
+from core.error_reporting_logic import (
     _scrub,
     _scrub_traceback,
     _issue_title,
@@ -38,8 +15,6 @@ from core.views.error_reporting import (  # noqa: E402
     _create_issue,
     _build_body,
 )
-
-import pytest  # noqa: E402
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -115,28 +90,28 @@ class TestIssueTitle:
 # ── _issue_exists ─────────────────────────────────────────────────────────────
 
 class TestIssueExists:
-    @patch('core.views.error_reporting.GITHUB_TOKEN', '')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', '')
     def test_returns_false_when_no_token(self):
         assert _issue_exists('ConnectionError', 'up') is False
 
-    @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
-    @patch('core.views.error_reporting.http.get')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
     def test_returns_true_on_exact_duplicate(self, mock_get):
         mock_get.return_value = _mock_gh_response([
             _make_issue('[auto] ConnectionError in `drp up`'),
         ])
         assert _issue_exists('ConnectionError', 'up') is True
 
-    @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
-    @patch('core.views.error_reporting.http.get')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
     def test_returns_false_when_no_matching_issue(self, mock_get):
         mock_get.return_value = _mock_gh_response([
             _make_issue('[auto] TimeoutError in `drp ls`'),
         ])
         assert _issue_exists('ConnectionError', 'up') is False
 
-    @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
-    @patch('core.views.error_reporting.http.get')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
     def test_flood_guard_triggers_at_three(self, mock_get):
         mock_get.return_value = _mock_gh_response([
             _make_issue('[auto] ConnectionError in `drp up`'),
@@ -145,8 +120,8 @@ class TestIssueExists:
         ])
         assert _issue_exists('KeyError', 'up') is True
 
-    @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
-    @patch('core.views.error_reporting.http.get')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
     def test_flood_guard_does_not_trigger_at_two(self, mock_get):
         mock_get.return_value = _mock_gh_response([
             _make_issue('[auto] ConnectionError in `drp up`'),
@@ -154,8 +129,8 @@ class TestIssueExists:
         ])
         assert _issue_exists('KeyError', 'up') is False
 
-    @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
-    @patch('core.views.error_reporting.http.get')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
     def test_flood_guard_is_per_command(self, mock_get):
         mock_get.return_value = _mock_gh_response([
             _make_issue('[auto] ConnectionError in `drp up`'),
@@ -164,14 +139,14 @@ class TestIssueExists:
         ])
         assert _issue_exists('KeyError', 'get') is False
 
-    @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
-    @patch('core.views.error_reporting.http.get')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
     def test_returns_false_on_network_error(self, mock_get):
         mock_get.side_effect = Exception('network error')
         assert _issue_exists('ConnectionError', 'up') is False
 
-    @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
-    @patch('core.views.error_reporting.http.get')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
     def test_returns_false_on_bad_response(self, mock_get):
         mock = MagicMock()
         mock.ok = False
@@ -182,28 +157,28 @@ class TestIssueExists:
 # ── _create_issue ─────────────────────────────────────────────────────────────
 
 class TestCreateIssue:
-    @patch('core.views.error_reporting.GITHUB_TOKEN', '')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', '')
     def test_returns_false_when_no_token(self):
         assert _create_issue('title', 'body') is False
 
-    @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
-    @patch('core.views.error_reporting.http.post')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.post')
     def test_returns_true_on_201(self, mock_post):
         mock = MagicMock()
         mock.status_code = 201
         mock_post.return_value = mock
         assert _create_issue('title', 'body') is True
 
-    @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
-    @patch('core.views.error_reporting.http.post')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.post')
     def test_returns_false_on_non_201(self, mock_post):
         mock = MagicMock()
         mock.status_code = 403
         mock_post.return_value = mock
         assert _create_issue('title', 'body') is False
 
-    @patch('core.views.error_reporting.GITHUB_TOKEN', 'fake-token')
-    @patch('core.views.error_reporting.http.post')
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.post')
     def test_returns_false_on_network_error(self, mock_post):
         mock_post.side_effect = Exception('network error')
         assert _create_issue('title', 'body') is False
@@ -244,10 +219,8 @@ class TestBuildBody:
         ])
         body = _build_body(data)
         lines = body.split('\n')
-        drp_lines = [l for l in lines if 'cli/drp.py' in l]
-        api_lines = [l for l in lines if 'cli/api/text.py' in l]
-        assert len(drp_lines) == 1
-        assert len(api_lines) == 1
+        assert len([l for l in lines if 'cli/drp.py' in l]) == 1
+        assert len([l for l in lines if 'cli/api/text.py' in l]) == 1
 
     def test_empty_traceback_shows_none(self):
         assert '(none)' in _build_body(self._data(traceback=[]))
