@@ -268,6 +268,17 @@ def cmd_ls(args):
     if not local:
         print('  (no drops — drops you upload will appear here)')
         return
+
+    # Reconcile: silently remove drops that no longer exist on the server
+    anon_session = requests.Session()
+    alive = [d for d in local if api.key_exists(host, anon_session, d['key'])]
+    if len(alive) != len(local):
+        config.save_local_drops(alive)
+        local = alive
+
+    if not local:
+        print('  (no drops — drops you upload will appear here)')
+        return
     _print_drops(local, host, source='local')
 
 
