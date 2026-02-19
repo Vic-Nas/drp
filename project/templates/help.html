@@ -46,10 +46,14 @@
 
   <section>
     <h2>sync client</h2>
-    <p>The sync client watches a local folder and automatically uploads new or changed files to drp keys. Each file gets its own key derived from the filename. Install and set up:</p>
-    <pre><code>pip install watchdog requests
-python sync/client.py --setup</code></pre>
-    <p>It will ask for your host URL and local folder path. After that, anything you drop into that folder syncs automatically. Deleting a file removes the drop too.</p>
+    <p>The sync client watches a local folder and automatically syncs files to drp — like a lightweight OneDrive. Each file gets a key based on its filename. Set up in one command:</p>
+    <pre><code>make sync-setup</code></pre>
+    <p>This installs dependencies, asks for your host URL and sync folder, and optionally logs you in. After setup:</p>
+    <pre><code>make sync          # start syncing
+make sync-login    # (re)authenticate
+make sync-status   # show config &amp; tracked files</code></pre>
+    <p>If logged in, your synced files are owned by your account — they get plan-based expiry and are locked to you. Anonymous sync works too, but files expire after 90 days.</p>
+    <p>On startup, the client checks which remote keys are still alive and re-uploads any that expired. Deleting a local file removes the remote drop too.</p>
   </section>
 
   <section>
