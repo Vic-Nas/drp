@@ -7,6 +7,7 @@ on:
       - 'cli/**'
       - 'pyproject.toml'
       - 'CLI.md'
+      - '.github/workflows/publish.yml'
 
 permissions:
   contents: write
