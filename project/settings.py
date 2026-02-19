@@ -104,23 +104,25 @@ CLOUDINARY_STORAGE = {
 DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.RawMediaCloudinaryStorage'
 
 # Admin
-ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', 'you@yourdomain.com')
+ADMIN_EMAIL = os.environ.get('ADMIN_EMAIL', '')
+
 if DOMAIN:
     SITE_URL = f'https://{DOMAIN}'
 else:
     SITE_URL = 'http://localhost:8000'
 
 # ── Email ─────────────────────────────────────────────────────────────────────
-EMAIL_BACKEND = os.environ.get(
-    'EMAIL_BACKEND',
-    'django.core.mail.backends.console.EmailBackend'
-)
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER or 'noreply@drp.app')
+# Set RESEND_API_KEY to enable sending. Without it, emails print to the console
+# (useful for local dev — password resets appear in the terminal).
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+
+# Default sender — set this to noreply@your-verified-resend-domain.com
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', f'noreply@{DOMAIN}' if DOMAIN else 'noreply@localhost')
+
+if RESEND_API_KEY:
+    EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'core.email_backend.ResendEmailBackend')
+else:
+    EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 
 # ── Lemon Squeezy ─────────────────────────────────────────────────────────────
 LEMONSQUEEZY_API_KEY = os.environ.get('LEMONSQUEEZY_API_KEY', '')

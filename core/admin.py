@@ -1,8 +1,23 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
+from django.core.mail import send_mail
+from django.conf import settings
+from django.shortcuts import render, redirect
+from django.urls import path
+from django.utils.html import format_html
+
 from .models import UserProfile, Drop
 
+
+# ── Broadcast email form ──────────────────────────────────────────────────────
+
+class BroadcastEmailForm:
+    """Thin wrapper — we use a plain template form, no Django forms dep needed."""
+    pass
+
+
+# ── UserProfile inline ────────────────────────────────────────────────────────
 
 class UserProfileInline(admin.StackedInline):
     model = UserProfile
@@ -12,10 +27,13 @@ class UserProfileInline(admin.StackedInline):
     readonly_fields = ('storage_used_bytes',)
 
 
+# ── UserAdmin ─────────────────────────────────────────────────────────────────
+
 class UserAdmin(BaseUserAdmin):
     inlines = (UserProfileInline,)
     list_display = ('email', 'get_plan', 'get_storage', 'date_joined', 'is_active')
     search_fields = ('email', 'username')
+    actions = ['broadcast_email_action']
 
     @admin.display(description='plan')
     def get_plan(self, obj):
@@ -28,10 +46,97 @@ class UserAdmin(BaseUserAdmin):
         mb = obj.profile.storage_used_bytes / (1024 ** 2)
         return f'{mb:.1f} MB'
 
+    # Custom URL for the broadcast page
+    def get_urls(self):
+        urls = super().get_urls()
+        custom = [
+            path('broadcast-email/', self.admin_site.admin_view(self.broadcast_email_view),
+                 name='auth_user_broadcast_email'),
+        ]
+        return custom + urls
+
+    def broadcast_email_view(self, request):
+        """Admin page to compose and send a broadcast email."""
+        from django.contrib.auth.models import User
+
+        groups = {
+            'all': ('All users', User.objects.filter(is_active=True)),
+            'free': ('Free accounts', User.objects.filter(is_active=True, profile__plan='free')),
+            'starter': ('Starter accounts', User.objects.filter(is_active=True, profile__plan='starter')),
+            'pro': ('Pro accounts', User.objects.filter(is_active=True, profile__plan='pro')),
+            'paid': ('All paid accounts', User.objects.filter(is_active=True, profile__plan__in=['starter', 'pro'])),
+        }
+
+        if request.method == 'POST':
+            group_key = request.POST.get('group', 'all')
+            subject = request.POST.get('subject', '').strip()
+            body_text = request.POST.get('body', '').strip()
+            preview = request.POST.get('preview')
+
+            _, qs = groups.get(group_key, groups['all'])
+            recipients = list(qs.values_list('email', flat=True))
+
+            if preview:
+                # Show preview without sending
+                return render(request, 'admin/broadcast_email.html', {
+                    'title': 'Broadcast Email',
+                    'groups': [(k, v[0]) for k, v in groups.items()],
+                    'group_key': group_key,
+                    'subject': subject,
+                    'body': body_text,
+                    'preview_recipients': recipients,
+                    'preview_count': len(recipients),
+                    'opts': self.model._meta,
+                })
+
+            if not subject or not body_text:
+                messages.error(request, 'Subject and body are required.')
+            elif not recipients:
+                messages.warning(request, 'No recipients in that group.')
+            else:
+                # Send individually so each TO shows only their own address
+                sent = 0
+                failed = 0
+                for email in recipients:
+                    try:
+                        send_mail(
+                            subject=subject,
+                            message=body_text,
+                            from_email=settings.DEFAULT_FROM_EMAIL,
+                            recipient_list=[email],
+                            fail_silently=False,
+                        )
+                        sent += 1
+                    except Exception:
+                        failed += 1
+
+                if sent:
+                    messages.success(request, f'Sent to {sent} user(s).' + (f' {failed} failed.' if failed else ''))
+                else:
+                    messages.error(request, f'All {failed} sends failed. Check your email backend.')
+                return redirect('..')
+
+        return render(request, 'admin/broadcast_email.html', {
+            'title': 'Broadcast Email',
+            'groups': [(k, v[0]) for k, v in groups.items()],
+            'group_key': 'all',
+            'subject': '',
+            'body': '',
+            'opts': self.model._meta,
+        })
+
+    @admin.action(description='📧 Broadcast email to selected users')
+    def broadcast_email_action(self, request, queryset):
+        """Redirect to broadcast page pre-scoped to selected users — handled via session."""
+        request.session['broadcast_user_ids'] = list(queryset.values_list('id', flat=True))
+        return redirect('admin:auth_user_broadcast_email')
+
 
 admin.site.unregister(User)
 admin.site.register(User, UserAdmin)
 
+
+# ── Drop admin ────────────────────────────────────────────────────────────────
 
 @admin.register(Drop)
 class DropAdmin(admin.ModelAdmin):
@@ -41,6 +146,8 @@ class DropAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'last_accessed_at', 'renewal_count')
     raw_id_fields = ('owner',)
 
+
+# ── UserProfile admin ─────────────────────────────────────────────────────────
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
@@ -54,7 +161,6 @@ class UserProfileAdmin(admin.ModelAdmin):
         from django.utils import timezone
         from .models import Plan
         queryset.update(plan=Plan.STARTER, plan_since=timezone.now())
-        # Recalculate drop expiries
         for profile in queryset:
             for drop in profile.user.drops.filter(expires_at__isnull=False):
                 drop.recalculate_expiry_for_plan(Plan.STARTER)

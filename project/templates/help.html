@@ -59,8 +59,6 @@
     </table>
   </section>
 
-  <!-- ── CLI ────────────────────────────────────────────────────────────── -->
-
   <section>
     <h2>cli</h2>
     <p>Install:</p>
@@ -80,7 +78,7 @@ drp get q3                      # download file to disk
 drp get q3 -o my-report.pdf     # download and rename</code></pre>
     <p><code>drp get</code> never prompts for a password — drops are public by URL.</p>
 
-    <h3>listing  (like ls -lh)</h3>
+    <h3>listing</h3>
     <pre><code>drp ls                          # short list
 drp ls -l                       # long format: type, size, modified, expiry
 drp ls -lh                      # long + human-readable sizes (1.2M, 300K)
@@ -91,7 +89,7 @@ drp ls -lh --sort size -r       # sort by size, reversed
 drp ls --export > backup.json   # export as JSON (requires login)</code></pre>
 
     <h3>managing</h3>
-    <pre><code>drp rm hello                    # delete (works with short key or c/hello)
+    <pre><code>drp rm hello                    # delete
 drp mv q3 quarter3              # rename key (blocked 24h after creation)
 drp renew q3                    # extend expiry (paid only)</code></pre>
 
@@ -100,12 +98,11 @@ drp renew q3                    # extend expiry (paid only)</code></pre>
 drp logout                      # clear saved session
 drp status                      # show host, account, session, cache info
 drp ping                        # check server connectivity</code></pre>
-    <p>Once logged in, the session is saved in <code>~/.config/drp/session.json</code> and reused silently — no password prompt on every command. Run <code>drp logout</code> to clear it.</p>
+    <p>Once logged in, the session is saved in <code>~/.config/drp/session.json</code> and reused silently. Run <code>drp logout</code> to clear it.</p>
 
     <h3>key tips</h3>
-    <p>Always use <code>-k</code> when you want a memorable URL. <code>drp up config.yaml -k config</code> gives you <code>/config</code> — easy to remember, easy to share. Keys are locked for 24h after creation, so set them right on upload. If you forget, wait 24h and use <code>drp mv</code>.</p>
-
-    <p>Clipboards and files can share a key name without conflict: <code>drp up "see readme" -k readme</code> and <code>drp up README.md -k readme</code> both work — they live at <code>/c/readme</code> and <code>/f/readme</code> respectively. <code>/readme</code> resolves to the clipboard by default.</p>
+    <p>Always use <code>-k</code> when you want a memorable URL. Keys are locked for 24h after creation, so set them right on upload. If you forget, wait 24h and use <code>drp mv</code>.</p>
+    <p>Clipboards and files can share a key name without conflict — they live in separate namespaces. <code>/key</code> resolves to the clipboard by default.</p>
   </section>
 
   <section>
@@ -114,8 +111,9 @@ drp ping                        # check server connectivity</code></pre>
   </section>
 
   <section>
-    <h2>issues & feedback</h2>
-    <p>Source: <a href="https://github.com/vicnasdev/drp">github.com/vicnasdev/drp</a> · CLI: <a href="https://pypi.org/project/drp-cli/">pypi.org/project/drp-cli</a></p>
+    <h2>contact & issues</h2>
+    <p>Questions, bugs, or feedback — <a href="https://github.com/vicnasdev/drp/issues">open an issue on GitHub</a>.</p>
   </section>
+
 </div>
 {% endblock %}
