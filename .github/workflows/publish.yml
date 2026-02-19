@@ -28,7 +28,7 @@ jobs:
         id: bump
         run: |
           # Read current version
-          current=$(python -c "import re; m=re.search(r\"__version__\s*=\s*['\"](.+?)['\"]\", open('cli/__init__.py').read()); print(m.group(1))")
+          current=$(grep -oP "(?<=__version__ = ').*(?=')" cli/__init__.py)
           echo "Current version: $current"
 
           # Bump patch
