@@ -24,6 +24,9 @@ classifiers = [
     "Topic :: Utilities",
 ]
 
+ [project.optional-dependencies]
+dev = ["pytest", "requests"]
+
 [project.urls]
 Homepage = "https://drp.vicnas.me"
 Repository = "https://github.com/vicnasdev/drp"

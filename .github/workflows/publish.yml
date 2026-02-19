@@ -35,7 +35,7 @@ jobs:
       # ── Install ──────────────────────────────────────────────────────────────
 
       - name: Install package
-        run: pip install -e .
+        run: pip install -e ".[dev]"
 
       # ── Sanity: command is on PATH ────────────────────────────────────────────
       # This is the most common failure on Windows — Scripts/ not in PATH.
