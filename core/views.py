@@ -109,6 +109,11 @@ def save_drop(request):
         existing = None
 
     if existing and not existing.can_edit(request.user):
+        if existing.is_creation_locked():
+            return JsonResponse({
+                'error': 'This drop was just created and is protected for 24 hours. '
+                         'To use this key, wait until the window expires or pick a different key.'
+            }, status=403)
         return JsonResponse({'error': 'This drop is locked to its owner.'}, status=403)
 
     is_paid_user = request.user.is_authenticated and _user_plan(request.user) in (Plan.STARTER, Plan.PRO)
@@ -269,6 +274,10 @@ def rename_key(request, key):
         return JsonResponse({'error': 'POST required'}, status=405)
     drop = get_object_or_404(Drop, key=key)
     if not drop.can_edit(request.user):
+        if drop.is_creation_locked():
+            return JsonResponse({
+                'error': 'This drop is protected for 24 hours after creation and cannot be renamed yet.'
+            }, status=403)
         return JsonResponse({'error': 'This drop is locked to its owner.'}, status=403)
     new_key = request.POST.get('new_key', '').strip()
     if not new_key:
@@ -287,6 +296,10 @@ def delete_drop(request, key):
         return JsonResponse({'error': 'DELETE required'}, status=405)
     drop = get_object_or_404(Drop, key=key)
     if not drop.can_edit(request.user):
+        if drop.is_creation_locked():
+            return JsonResponse({
+                'error': 'This drop is protected for 24 hours after creation and cannot be deleted yet.'
+            }, status=403)
         return JsonResponse({'error': 'This drop is locked to its owner.'}, status=403)
     drop.hard_delete()
     return JsonResponse({'deleted': True})

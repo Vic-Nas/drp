@@ -221,6 +221,8 @@ class Drop(models.Model):
     def can_edit(self, user):
         if self.locked:
             return user.is_authenticated and self.owner_id == user.pk
+        if self.is_creation_locked():
+            return False  # 24h window: no edits from anyone
         return True
 
     def is_creation_locked(self):
