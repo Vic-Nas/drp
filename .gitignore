@@ -9,5 +9,6 @@ __pycache__/
 .history
 *.db
 *.sqlite
+*.sqlite3
 staticfiles/
 !statifiles/.gitkeep
