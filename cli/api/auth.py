@@ -7,11 +7,20 @@ from .helpers import err
 
 def get_csrf(host, session):
     """Return csrftoken, fetching from server only if not already in session."""
-    token = session.cookies.get('csrftoken')
+    token = _first_csrf(session)
     if token:
         return token
     session.get(f'{host}/', timeout=10)
-    return session.cookies.get('csrftoken', '')
+    return _first_csrf(session) or ''
+
+
+def _first_csrf(session):
+    """Safely get csrftoken even if duplicate cookies exist."""
+    for cookie in session.cookies:
+        if cookie.name == 'csrftoken':
+            return cookie.value
+    return None
+
 
 def login(host, session, email, password):
     """
