@@ -26,7 +26,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://drp.vic.so"
+Homepage = "https://drp.vicnas.me"
 Repository = "https://github.com/vicnasdev/drp"
 Issues = "https://github.com/vicnasdev/drp/issues"
 

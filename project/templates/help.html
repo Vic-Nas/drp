@@ -4,6 +4,8 @@
 <div class="help-page">
   <h1>how it works</h1>
 
+  <!-- ── Basics ─────────────────────────────────────────────────────────── -->
+
   <section>
     <h2>the idea</h2>
     <p>drp is a lightweight drop point for text and files. Pick a key, drop something, share the link. No forms, no friction. A <strong>key</strong> is your address — whoever has it can reach the content.</p>
@@ -20,6 +22,8 @@
     <p>Go to <code>/your-key</code>. Text drops can be read, copied, edited, or downloaded as <code>.txt</code>. File drops can be downloaded. You can replace either directly on the page if you have edit access.</p>
   </section>
 
+  <!-- ── Expiry & security ──────────────────────────────────────────────── -->
+
   <section>
     <h2>expiry</h2>
     <p>Anonymous text drops expire <strong>24 hours</strong> after creation. Anonymous file drops expire <strong>90 days</strong> after creation. When a drop expires everything is permanently deleted: content, file, and key.</p>
@@ -33,9 +37,11 @@
     <p>Drops created by paid accounts are <strong>locked to the owner</strong>: only the logged-in account holder can edit, rename, or delete them. Anonymous drops get a 24-hour creation window where the original creator (by session) can still make changes.</p>
   </section>
 
+  <!-- ── Accounts ───────────────────────────────────────────────────────── -->
+
   <section>
     <h2>accounts</h2>
-    <p>Free accounts let you sync your drop list across devices — your drops show up in the dashboard on any machine you log into. Paid plans (Starter $3/mo, Pro $8/mo) add larger file limits, storage quota, longer expiry, and locked drops.</p>
+    <p>Free accounts let you track your drops across devices — your drops show up in the dashboard on any machine you log into. Paid plans (Starter $3/mo, Pro $8/mo) add larger file limits, storage quota, longer expiry, and locked drops.</p>
     <p>To reset your password, use the <a href="/auth/forgot-password/">forgot password</a> link on the login page — a reset link will be emailed to you directly.</p>
   </section>
 
@@ -44,11 +50,13 @@
     <p>Logged-in users see their drops pulled from the server. Anonymous users get a local dashboard stored in the browser's <code>localStorage</code> — it's never sent to the server. You can export it as a JSON file and import it on any other device or browser to restore your list.</p>
   </section>
 
+  <!-- ── CLI ────────────────────────────────────────────────────────────── -->
+
   <section>
     <h2>cli</h2>
     <p>Install the command-line tool from <a href="https://pypi.org/project/drp-cli/">PyPI</a>:</p>
     <pre><code>pip install drp-cli</code></pre>
-    <p>Usage:</p>
+    <p>Then drop files straight from your terminal:</p>
     <pre><code>drp setup              # configure host &amp; log in
 drp up notes.txt       # upload a file → prints URL
 drp up "hello world"   # upload text → prints URL
@@ -59,13 +67,21 @@ drp mv mykey newkey    # rename a drop
 drp renew mykey        # renew expiry (paid accounts)
 drp ls                 # list your drops (requires login)
 drp status             # show config</code></pre>
-    <p>Works anonymously or logged in. Logged-in users get plan-based expiry, locked drops, and <code>drp ls</code>.</p>
+    <p>Works anonymously or logged in. Logged-in users get plan-based expiry, locked drops, and <code>drp ls</code>. Run <code>drp --help</code> or <code>drp &lt;command&gt; --help</code> for details.</p>
   </section>
+
+  <!-- ── Privacy & links ────────────────────────────────────────────────── -->
 
   <section>
     <h2>privacy</h2>
-    <p>drp is <a href="https://github.com/Vic-Nas/drp">open source</a>. Files are stored on Cloudinary. Text is stored in a Postgres database. There is no encryption at rest — don't store secrets or sensitive personal data. Security is through obscurity only: a hard-to-guess key is your only protection.</p>
-    <p>Found a bug or have a feature request? <a href="https://github.com/Vic-Nas/drp/issues">Open an issue on GitHub</a>.</p>
+    <p>drp is <a href="https://github.com/vicnasdev/drp">open source</a>. Files are stored on Cloudinary. Text is stored in a Postgres database. There is no encryption at rest — don't store secrets or sensitive personal data. Security is through obscurity only: a hard-to-guess key is your only protection.</p>
+  </section>
+
+  <section>
+    <h2>issues & feedback</h2>
+    <p>Found a bug or have a feature request? <a href="https://github.com/vicnasdev/drp/issues">Open an issue on GitHub</a>.</p>
+    <p>Source code: <a href="https://github.com/vicnasdev/drp">github.com/vicnasdev/drp</a></p>
+    <p>CLI on PyPI: <a href="https://pypi.org/project/drp-cli/">pypi.org/project/drp-cli</a></p>
   </section>
 
 </div>

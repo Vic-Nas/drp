@@ -25,7 +25,7 @@ drp --version          # show version
 
 ## How it works
 
-1. `drp setup` saves your host URL (default: `https://drp.vic.so`) and optionally logs you in
+1. `drp setup` saves your host URL (default: `https://drp.vicnas.me`) and optionally logs you in
 2. `drp up` uploads a file or text string and prints the shareable URL
 3. `drp get` retrieves a drop — text is printed to stdout, files are saved to disk
 4. Works anonymously or logged in — logged-in users get locked drops, longer expiry, and `drp ls`
@@ -36,7 +36,7 @@ Config is stored at `~/.config/drp/config.json`:
 
 ```json
 {
-  "host": "https://drp.vic.so",
+  "host": "https://drp.vicnas.me",
   "email": "you@example.com"
 }
 ```

@@ -30,7 +30,7 @@ def cmd_setup(args):
     cfg = config.load()
     print('drp setup')
     print('─────────')
-    default = cfg.get('host', 'https://drp.vic.so')
+    default = cfg.get('host', 'https://drp.vicnas.me')
     cfg['host'] = input(f'  Host [{default}]: ').strip() or default
     config.save(cfg)
 
@@ -46,7 +46,7 @@ def cmd_setup(args):
 def cmd_login(args):
     """Log in to drp."""
     cfg = config.load()
-    host = cfg.get('host', 'https://drp.vic.so')
+    host = cfg.get('host', 'https://drp.vicnas.me')
     email = input('  Email: ').strip()
     password = getpass.getpass('  Password: ')
     session = requests.Session()

@@ -40,39 +40,11 @@ jobs:
           sed -i "s/__version__ = '$current'/__version__ = '$new_version'/" cli/__init__.py
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
-      - name: Generate CLI docs
-        run: |
-          pip install requests
-          python -c "
-          import subprocess, textwrap
-
-          commands = ['setup', 'login', 'up', 'get', 'rm', 'mv', 'renew', 'ls', 'status']
-          lines = ['# drp CLI reference\n']
-
-          # Main help
-          result = subprocess.run(['python', '-m', 'cli.drp', '--help'], capture_output=True, text=True)
-          lines.append('## Overview\n')
-          lines.append('\`\`\`')
-          lines.append(result.stdout.strip())
-          lines.append('\`\`\`\n')
-
-          # Each subcommand
-          for cmd in commands:
-              result = subprocess.run(['python', '-m', 'cli.drp', cmd, '--help'], capture_output=True, text=True)
-              lines.append(f'## drp {cmd}\n')
-              lines.append('\`\`\`')
-              lines.append(result.stdout.strip())
-              lines.append('\`\`\`\n')
-
-          with open('docs/cli-reference.md', 'w') as f:
-              f.write('\n'.join(lines))
-          "
-
-      - name: Commit version bump & docs
+      - name: Commit version bump
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add cli/__init__.py docs/
+          git add cli/__init__.py
           git diff --cached --quiet && exit 0
           git commit -m "v${{ steps.bump.outputs.version }}"
           git tag "v${{ steps.bump.outputs.version }}"

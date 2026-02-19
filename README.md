@@ -116,8 +116,6 @@ drp --version         # show version
 
 Works anonymously or logged in. Logged-in users get locked drops, longer expiry, and `drp ls`.
 
-Full reference: [docs/cli-reference.md](docs/cli-reference.md)
-
 ## Plans
 
 | | Free | Starter ($3/mo) | Pro ($8/mo) |
