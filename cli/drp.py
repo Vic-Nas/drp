@@ -6,7 +6,7 @@ drp — drop clipboards and files from the command line.
   drp up file.pdf        drop a file       →  /f/key/
   drp get key            clipboard → stdout
   drp get f/key          file → saved to disk
-  drp ls -lh             list with sizes and times
+  drp ls -l              list with sizes and times
   drp load backup.json   import a shared export as saved drops
   drp rm key             delete clipboard
   drp rm f/key           delete file
@@ -40,16 +40,16 @@ key format for commands:
   f/key      file
 
 examples:
-  drp up "hello world" -k hello    clipboard at /hello
-  drp up report.pdf -k q3          file at /f/q3
+  drp up "hello world" -k hello    clipboard at /hello/
+  drp up report.pdf -k q3          file at /f/q3/
   drp get hello                    print clipboard to stdout
   drp get f/q3 -o my-report.pdf    download file, save as different name
   drp get q3                       auto-detect: clipboard first, then file
   drp rm hello                     delete clipboard
   drp rm f/q3                      delete file
   drp mv q3 quarter3               rename key (blocked 24h after creation)
-  drp ls -lh                       list with sizes and times
-  drp ls -lh -t f                  list only files
+  drp ls -l                        list with sizes and times
+  drp ls -l -t f                   list only files
   drp ls --export > backup.json    export as JSON (requires login)
   drp load backup.json             import shared export as saved drops
 """,
@@ -87,18 +87,18 @@ examples:
 
     p_ls = sub.add_parser('ls', help='List your drops')
     p_ls.add_argument('-l', '--long', action='store_true',
-                      help='Long format with size, time, and expiry (like ls -l)')
-    p_ls.add_argument('-H', '--human', action='store_true',
-                      help='Human-readable sizes (1.2M) — use with -l')
+                      help='Long format: kind, size, age, expiry (sizes always human-readable)')
+    p_ls.add_argument('--bytes', action='store_true',
+                      help='Show raw byte counts instead of human-readable sizes (use with -l)')
     p_ls.add_argument('-t', '--type', choices=['c', 'f', 's'], default=None,
-                      metavar='NS', help='Filter: c=clipboards, f=files, s=saved')
+                      metavar='TYPE', help='Filter: c=clipboards  f=files  s=saved')
     p_ls.add_argument('--sort', choices=['time', 'size', 'name'], default=None,
-                      help='Sort by: time, size, or name')
+                      help='Sort by: time, size, or name (default: newest first)')
     p_ls.add_argument('-r', '--reverse', action='store_true', help='Reverse sort order')
     p_ls.add_argument('--export', action='store_true',
-                      help='Export as JSON (requires login). Pipe: drp ls --export > drops.json')
+                      help='Dump drops as JSON — pipe to a file: drp ls --export > backup.json')
 
-    p_load = sub.add_parser('load', help='Import a shared export file as saved drops (requires login)')
+    p_load = sub.add_parser('load', help='Import a shared export as saved drops (requires login)')
     p_load.add_argument('file', help='Path to a drp export JSON file')
 
     commands = {

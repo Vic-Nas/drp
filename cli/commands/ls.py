@@ -2,7 +2,8 @@
 drp ls — list drops.
 
   drp ls             list keys (clipboards + files + saved)
-  drp ls -lh         long format with size, time, expiry
+  drp ls -l          long format with size, time, expiry (human-readable sizes)
+  drp ls -l --bytes  long format with raw byte counts
   drp ls -t c        only clipboards
   drp ls -t f        only files
   drp ls -t s        only saved (bookmarked) drops
@@ -128,7 +129,7 @@ def cmd_ls(args):
         return
 
     long_fmt = getattr(args, 'long', False)
-    human = getattr(args, 'human', False)
+    raw_bytes = getattr(args, 'bytes', False)
 
     # ── Print ─────────────────────────────────────────────────────────────────
     all_empty = not drops and not saved
@@ -146,7 +147,12 @@ def cmd_ls(args):
             print(f'{prefix}{s["key"]}  [saved]')
         return
 
-    # Long format
+    # Long format — human-readable sizes by default, raw with --bytes
+    def fmt_size(n):
+        if n == 0:
+            return '—'
+        return str(n) if raw_bytes else _human(n)
+
     rows = []
 
     # Owned drops
@@ -154,9 +160,7 @@ def cmd_ls(args):
         prefix = 'f/' if d['ns'] == 'f' else ''
         key = f'{prefix}{d["key"]}'
         kind = '📎' if d['kind'] == 'file' else '📋'
-        size = _human(d['filesize']) if human else str(d['filesize'])
-        if d['kind'] != 'file':
-            size = '—'
+        size = fmt_size(d['filesize']) if d['kind'] == 'file' else '—'
         created = _since(d.get('created_at'))
         expires = _until(d.get('expires_at')) if d.get('expires_at') else 'idle-based'
         locked = '🔒' if d.get('locked') else '  '
@@ -177,10 +181,10 @@ def cmd_ls(args):
         return
 
     # Column widths
-    key_w = max((len(r[2]) for r in rows if r[2]), default=4)
-    size_w = max((len(r[3]) for r in rows if r[3]), default=4)
+    key_w     = max((len(r[2]) for r in rows if r[2]), default=4)
+    size_w    = max((len(r[3]) for r in rows if r[3]), default=4)
     created_w = max((len(r[4]) for r in rows if r[4]), default=7)
-    exp_w = max((len(r[5]) for r in rows if r[5]), default=10)
+    exp_w     = max((len(r[5]) for r in rows if r[5]), default=10)
 
     for kind, lock, key, size, created, exp, tag in rows:
         if not key:

@@ -3,7 +3,7 @@
 Drop files or paste text, get a link instantly. **[Live →](https://drp.vicnas.me)**
 
 ```bash
-pip install drp-cli
+pipx install drp-cli
 drp setup && drp up "hello world"
 ```
 

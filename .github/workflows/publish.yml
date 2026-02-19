@@ -6,7 +6,6 @@ on:
     paths:
       - 'cli/**'
       - 'pyproject.toml'
-      - 'CLI.md'
       - '.github/workflows/publish.yml'
 
 permissions:

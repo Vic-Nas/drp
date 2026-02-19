@@ -58,9 +58,8 @@
 
   <!-- Right: Dashboard -->
   <div class="dashboard">
-    <h3>my drops</h3>
-
     {% if user.is_authenticated %}
+      <h3>my drops</h3>
       <!-- Server-side list for logged-in users -->
       <div class="drop-list" id="myDrops">
         {% if server_drops %}
@@ -93,19 +92,31 @@
       {% endif %}
 
     {% else %}
-      <!-- localStorage list for anon users -->
+      <!-- Anon: recent drops (localStorage) + upsell -->
+      <h3>my drops</h3>
       <div id="myDrops" class="drop-list">
-        <p class="empty muted">nothing yet.</p>
+        <p class="empty muted" id="anonEmpty">nothing yet.</p>
       </div>
-      <div class="dashboard-actions">
-        <button class="btn-sm" id="exportBtn" style="display:none">↓ export</button>
-        <label for="importInput" class="btn-sm" id="importLabel" style="cursor:pointer">↑ import</label>
-        <input type="file" id="importInput" accept=".json" hidden/>
-        <button class="btn-sm danger" id="clearAll" style="display:none">clear all</button>
+      <div class="dashboard-actions" id="anonActions" style="display:none">
+        <button class="btn-sm" id="exportBtn">↓ export</button>
+        <button class="btn-sm danger" id="clearAll">clear all</button>
       </div>
-      <p class="muted" style="font-size:.78rem;margin-top:.6rem">
-        <a href="/auth/register/">create an account</a> to sync drops across devices.
-      </p>
+
+      <!-- Upsell -->
+      <div class="anon-upsell">
+        <p class="upsell-heading">free account unlocks:</p>
+        <ul class="upsell-list">
+          <li>✓ drops synced across devices</li>
+          <li>✓ save & bookmark others' drops</li>
+          <li>✓ export &amp; import collections</li>
+          <li>✓ 48h idle timeout (vs 24h)</li>
+          <li>✓ 30-day max lifetime (vs 7d)</li>
+        </ul>
+        <div style="display:flex;gap:.5rem;margin-top:.6rem;flex-wrap:wrap">
+          <a href="/auth/register/" class="btn" style="font-size:.82rem;padding:.4rem .9rem">sign up free</a>
+          <a href="/auth/login/" class="btn-sm">log in</a>
+        </div>
+      </div>
     {% endif %}
   </div>
 
@@ -135,19 +146,19 @@ function removeDrop(key) {
 }
 
 function renderLocalDashboard() {
-  if (IS_AUTHED) return; // server handles it
+  if (IS_AUTHED) return;
   const drops = getMyDrops();
   const el = document.getElementById('myDrops');
-  const clearBtn = document.getElementById('clearAll');
-  const exportBtn = document.getElementById('exportBtn');
+  const emptyEl = document.getElementById('anonEmpty');
+  const actionsEl = document.getElementById('anonActions');
   if (!drops.length) {
-    el.innerHTML = '<p class="empty muted">nothing yet.</p>';
-    if (clearBtn) clearBtn.style.display = 'none';
-    if (exportBtn) exportBtn.style.display = 'none';
+    el.innerHTML = '';
+    if (emptyEl) { emptyEl.style.display = ''; el.appendChild(emptyEl); }
+    if (actionsEl) actionsEl.style.display = 'none';
     return;
   }
-  if (clearBtn) clearBtn.style.display = '';
-  if (exportBtn) exportBtn.style.display = '';
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (actionsEl) actionsEl.style.display = '';
   el.innerHTML = drops.map(d => `
     <div class="drop-item">
       <span class="drop-icon">${d.kind === 'file' ? '📎' : '📋'}</span>
@@ -161,41 +172,19 @@ function renderLocalDashboard() {
 if (!IS_AUTHED) {
   renderLocalDashboard();
 
-  const clearBtn = document.getElementById('clearAll');
-  if (clearBtn) clearBtn.addEventListener('click', () => {
+  document.getElementById('clearAll').addEventListener('click', () => {
     if (!confirm('Clear local list? Drops on the server are not affected.')) return;
     localStorage.removeItem('drp_drops');
     renderLocalDashboard();
   });
 
-  const exportBtn = document.getElementById('exportBtn');
-  if (exportBtn) exportBtn.addEventListener('click', () => {
+  document.getElementById('exportBtn').addEventListener('click', () => {
     const blob = new Blob([JSON.stringify({version:1, exported: new Date().toISOString(), drops: getMyDrops()}, null, 2)], {type:'application/json'});
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `drp-dashboard-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     showToast('exported!');
-  });
-
-  const importInput = document.getElementById('importInput');
-  if (importInput) importInput.addEventListener('change', e => {
-    const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (!data.drops || !Array.isArray(data.drops)) { showToast('Invalid file'); return; }
-        const existing = getMyDrops();
-        const existingKeys = new Set(existing.map(d => d.key));
-        const newDrops = data.drops.filter(d => !existingKeys.has(d.key));
-        saveMyDrops([...existing, ...newDrops]);
-        renderLocalDashboard();
-        showToast(`imported ${newDrops.length} drops!`);
-      } catch { showToast('Failed to import'); }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
   });
 }
 
@@ -294,7 +283,6 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
         if (!IS_AUTHED) {
           addDropLocal(data.key, data.kind, selectedFile ? selectedFile.name : text.slice(0, 30));
         } else {
-          // Reload page so server-side list updates
           window.location.reload();
           return;
         }

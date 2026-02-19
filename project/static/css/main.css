@@ -191,6 +191,32 @@ textarea:disabled { opacity: .4; }
 .drop-label { font-size: .78rem; color: var(--muted); max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drop-icon { font-size: .9rem; }
 
+/* ── Anon upsell ── */
+.anon-upsell {
+  margin-top: 1rem;
+  padding-top: .9rem;
+  border-top: 1px solid var(--border);
+}
+.upsell-heading {
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  margin-bottom: .4rem;
+  font-weight: 600;
+}
+.upsell-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: .2rem;
+  font-size: .82rem;
+  color: var(--muted);
+  margin-bottom: .2rem;
+}
+.upsell-list li { color: var(--text); }
+.upsell-list li::before { content: none; } /* color set inline per item */
+
 /* ── Drop page ── */
 .drop-page { max-width: 680px; }
 
@@ -292,14 +318,94 @@ textarea:disabled { opacity: .4; }
 }
 
 /* ── Help page ── */
-.help-page { max-width: 640px; }
-.help-page h1 { font-size: 2rem; font-weight: 800; letter-spacing: -1px; margin-bottom: 1.5rem; }
-.help-page section { margin-bottom: 1.8rem; }
-.help-page h2 { font-size: 1rem; font-weight: 700; color: var(--accent); margin-bottom: .4rem; text-transform: uppercase; letter-spacing: .05em; font-size: .82rem; }
+.help-page { max-width: 680px; }
+.help-page h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin-bottom: .4rem;
+}
+.help-page > .tagline { margin-bottom: 1.5rem; }
+
+/* Help nav */
+.help-nav {
+  display: flex;
+  gap: .3rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: .8rem;
+}
+.help-nav a {
+  font-size: .82rem;
+  color: var(--muted);
+  padding: .25rem .6rem;
+  border-radius: 4px;
+  transition: background .15s, color .15s;
+  text-decoration: none;
+}
+.help-nav a:hover { background: var(--surface); color: var(--text); }
+
+/* Help sections */
+.help-page section {
+  margin-bottom: 2.5rem;
+  scroll-margin-top: 1rem;
+}
+.help-page section h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 1rem;
+  padding-bottom: .35rem;
+  border-bottom: 1px solid var(--border);
+}
+.help-page section h3 {
+  font-size: .85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  margin: 1.1rem 0 .4rem;
+}
 .help-page p { color: var(--text); line-height: 1.7; margin-bottom: .5rem; }
-.help-page code { background: var(--surface); padding: .1em .4em; border-radius: 4px; font-family: monospace; font-size: .88em; }
-.help-page pre { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .8rem 1rem; margin: .5rem 0; }
-.help-page pre code { background: none; padding: 0; }
+.help-page code {
+  background: var(--surface);
+  padding: .1em .4em;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: .88em;
+}
+.help-page pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .8rem 1rem;
+  margin: .4rem 0 .8rem;
+  overflow-x: auto;
+}
+.help-page pre code { background: none; padding: 0; font-size: .85rem; }
+.help-page table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+  margin: .5rem 0 .8rem;
+}
+.help-page table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--border);
+}
+.help-page table td {
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.help-page table tr:last-child td { border-bottom: none; }
 
 /* ── Header nav ── */
 header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; border-bottom: 1px solid var(--border); }
