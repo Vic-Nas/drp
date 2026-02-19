@@ -3,9 +3,9 @@
 Drop files or paste text, get a link instantly. No account, no friction — just a key.
 
 - `/your-key` — view, copy, download, or replace a drop
-- Anonymous text drops expire after **24h**, file drops after **90 days inactive**
+- Anonymous text drops expire after **24h** (text) or **90 days** (files)
 - Paid accounts get locked drops, longer expiry, and renewable links
-- `sync/client.py` — lightweight folder sync client
+- Built-in folder sync client — lightweight OneDrive alternative
 
 ## Features
 
@@ -14,7 +14,7 @@ Drop files or paste text, get a link instantly. No account, no friction — just
 - **Locking** — paid drops are locked to the owner's account; anon drops have a 24h edit window
 - **Expiry & renewal** — paid accounts set explicit expiry dates and can renew any time
 - **Dashboard** — logged-in users see all drops server-side; anon users get a local browser list with export/import
-- **Sync client** — watchdog-based folder sync, one file per key
+- **Sync client** — watches a folder and syncs files to drp keys, with auth support
 - **Self-hostable** — deploys to Railway in a few clicks, runs locally with SQLite
 
 ## Deploy on Railway
@@ -60,10 +60,22 @@ pip install -r requirements.txt
 cp .env.example .env        # fill in Cloudinary values; leave EMAIL_* blank for console output
 python manage.py migrate
 python manage.py createcachetable
-python manage.py runserver
+python manage.py runserver   # or: make dev
 ```
 
-Password reset emails will print to the terminal in local dev — no mail server needed.
+Password reset emails print to the terminal in dev — no mail server needed.
+
+## Makefile
+
+```
+make dev            # start Django dev server
+make test           # run all tests (core + sync)
+make migrate        # run migrations
+make sync-setup     # install deps & configure sync client
+make sync           # start syncing
+make sync-login     # (re)authenticate sync client
+make sync-status    # show tracked files
+```
 
 ## Gmail App Password (production email)
 
@@ -78,12 +90,44 @@ Self-service password reset requires an outbound mail account. Gmail works fine:
 ## Sync client
 
 ```bash
-cd sync
-pip install watchdog requests
-python client.py --setup
+make sync-setup   # installs deps, configures host/folder, optional login
+make sync         # start watching
 ```
 
-Watches a local folder and syncs each file to its own drp key. Edits and deletes propagate automatically.
+Or manually: `python sync/client.py --setup` then `python sync/client.py`.
+
+Watches a local folder and syncs each file to its own drp key. Logged-in users get plan-based expiry and locked drops. On startup, stale keys are detected and re-uploaded.
+
+## Linux service (systemd)
+
+Run drp sync as a background service that starts on boot:
+
+```bash
+sudo tee /etc/systemd/system/drp-sync.service > /dev/null <<EOF
+[Unit]
+Description=drp folder sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=$(pwd)
+ExecStart=$(which python3) $(pwd)/sync/client.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now drp-sync
+```
+
+Check status with `systemctl status drp-sync` and logs with `journalctl -u drp-sync -f`.
+
+Run `make sync-setup` first so the config file exists at `~/.drp_sync.json`.
 
 ## Plans
 
@@ -92,7 +136,7 @@ Watches a local folder and syncs each file to its own drp key. Edits and deletes
 | Max file size | 200 MB | 1 GB | 5 GB |
 | Max text size | 500 KB | 2 MB | 10 MB |
 | Storage | — | 5 GB | 20 GB |
-| Expiry | 24h / 90d inactive | Up to 1 year | Up to 3 years |
+| Expiry | 24h / 90d | Up to 1 year | Up to 3 years |
 | Locked drops | ✗ | ✓ | ✓ |
 | Renewable | ✗ | ✓ | ✓ |
 
