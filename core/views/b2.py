@@ -34,13 +34,6 @@ def object_key(ns: str, drop_key: str) -> str:
 
 def presigned_put(ns: str, drop_key: str, content_type: str = "application/octet-stream",
                   size: int = 0, expires_in: int = 3600) -> str:
-    """
-    Generate a presigned PUT URL for direct upload to B2.
-
-    Pass `size` so boto3 includes ContentLength in the signed params —
-    B2 requires Content-Length on PUT and will reject the request if the
-    header isn't covered by the signature.
-    """
     client, bucket = _b2()
     params = {
         "Bucket": bucket,
@@ -49,62 +42,56 @@ def presigned_put(ns: str, drop_key: str, content_type: str = "application/octet
     }
     if size:
         params["ContentLength"] = size
-
-    url = client.generate_presigned_url(
-        "put_object",
-        Params=params,
-        ExpiresIn=expires_in,
-        HttpMethod="PUT",
+    return client.generate_presigned_url(
+        "put_object", Params=params, ExpiresIn=expires_in, HttpMethod="PUT",
     )
-    return url
 
 
 def presigned_get(ns: str, drop_key: str, filename: str = "",
                   expires_in: int = 3600, b2_key: str = "") -> str:
-    """
-    Generate a presigned GET URL.
-
-    Pass ``b2_key`` to use an explicit B2 object key instead of the derived
-    ``drops/{ns}/{drop_key}`` path. This is needed for drops where
-    ``file_public_id`` differs from the current key convention (e.g. legacy
-    rows uploaded before the prepare/confirm flow was introduced).
-    """
     client, bucket = _b2()
     key = b2_key if b2_key else object_key(ns, drop_key)
-    params = {
-        "Bucket": bucket,
-        "Key": key,
-    }
+    params = {"Bucket": bucket, "Key": key}
     if filename:
         safe_name = filename.replace('"', "")
         params["ResponseContentDisposition"] = f'attachment; filename="{safe_name}"'
+    return client.generate_presigned_url("get_object", Params=params, ExpiresIn=expires_in)
 
-    url = client.generate_presigned_url(
-        "get_object",
-        Params=params,
-        ExpiresIn=expires_in,
-    )
-    return url
+
+def copy_object(src_key: str, dst_key: str) -> bool:
+    """
+    Server-side copy within the same B2 bucket.
+    Used by the copy_drop action — no re-upload needed.
+    Returns True on success.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    client, bucket = _b2()
+    try:
+        client.copy_object(
+            Bucket=bucket,
+            CopySource={"Bucket": bucket, "Key": src_key},
+            Key=dst_key,
+        )
+        return True
+    except ClientError as e:
+        logger.error("B2 copy failed %s → %s: %s", src_key, dst_key, e)
+        return False
 
 
 def upload_fileobj(file_obj, ns: str, drop_key: str,
                    content_type: str = "application/octet-stream") -> str:
     from boto3.s3.transfer import TransferConfig
-
     client, bucket = _b2()
     key = object_key(ns, drop_key)
-
     config = TransferConfig(
         multipart_threshold=100 * 1024 * 1024,
         multipart_chunksize=50 * 1024 * 1024,
         max_concurrency=4,
         use_threads=True,
     )
-
     client.upload_fileobj(
-        file_obj,
-        bucket,
-        key,
+        file_obj, bucket, key,
         ExtraArgs={"ContentType": content_type},
         Config=config,
     )
@@ -134,7 +121,6 @@ def object_size(ns: str, drop_key: str) -> int:
 def delete_object(ns: str, drop_key: str) -> bool:
     import logging
     logger = logging.getLogger(__name__)
-
     client, bucket = _b2()
     try:
         client.delete_object(Bucket=bucket, Key=object_key(ns, drop_key))

@@ -18,8 +18,6 @@ from .helpers import check_signup_rate, user_plan, claim_anon_drops
 ANON_COOKIE = 'drp_anon'
 
 
-# ── Register ──────────────────────────────────────────────────────────────────
-
 def register_view(request):
     if request.user.is_authenticated:
         return redirect('home')
@@ -66,8 +64,6 @@ def register_view(request):
     })
 
 
-# ── Login ─────────────────────────────────────────────────────────────────────
-
 def login_view(request):
     if request.user.is_authenticated:
         return redirect('home')
@@ -95,14 +91,10 @@ def login_view(request):
     return render(request, 'auth/login.html', {'error': error})
 
 
-# ── Logout ────────────────────────────────────────────────────────────────────
-
 def logout_view(request):
     logout(request)
     return redirect('home')
 
-
-# ── Account ───────────────────────────────────────────────────────────────────
 
 @login_required
 def account_view(request):
@@ -132,8 +124,6 @@ def account_view(request):
     })
 
 
-# ── Export ────────────────────────────────────────────────────────────────────
-
 @login_required
 def export_drops(request):
     drops = Drop.objects.filter(owner=request.user).order_by('-created_at')
@@ -159,8 +149,6 @@ def export_drops(request):
     response['Content-Disposition'] = 'attachment; filename="drp-export.json"'
     return response
 
-
-# ── Import ────────────────────────────────────────────────────────────────────
 
 @login_required
 @require_POST
@@ -189,15 +177,12 @@ def import_drops(request):
             skipped += 1
             continue
 
-        # If user owns this drop, no need to save it — already in my drops
         if Drop.objects.filter(ns=ns, key=key, owner=request.user).exists():
             skipped += 1
             continue
 
         _, created = SavedDrop.objects.get_or_create(
-            user=request.user,
-            ns=ns,
-            key=key,
+            user=request.user, ns=ns, key=key,
         )
         if created:
             imported += 1
@@ -211,23 +196,25 @@ def import_drops(request):
 
 def _drop_dict(d):
     return {
-        'key': d.key,
-        'ns': d.ns,
-        'kind': d.kind,
-        'created_at': d.created_at.isoformat(),
+        'key':            d.key,
+        'ns':             d.ns,
+        'kind':           d.kind,
+        'created_at':     d.created_at.isoformat(),
         'last_accessed_at': d.last_accessed_at.isoformat() if d.last_accessed_at else None,
-        'expires_at': d.expires_at.isoformat() if d.expires_at else None,
-        'filename': d.filename or None,
-        'filesize': d.filesize,
-        'locked': d.locked,
+        'expires_at':     d.expires_at.isoformat() if d.expires_at else None,
+        'filename':       d.filename or None,
+        'filesize':       d.filesize,
+        'locked':         d.locked,
+        'view_count':     d.view_count,
+        'last_viewed_at': d.last_viewed_at.isoformat() if d.last_viewed_at else None,
     }
 
 
 def _saved_dict(s, host=None):
     url_path = f'/f/{s.key}/' if s.ns == Drop.NS_FILE else f'/{s.key}/'
     return {
-        'key': s.key,
-        'ns': s.ns,
+        'key':      s.key,
+        'ns':       s.ns,
         'saved_at': s.saved_at.isoformat(),
-        'url': f'{host}{url_path}' if host else url_path,
+        'url':      f'{host}{url_path}' if host else url_path,
     }

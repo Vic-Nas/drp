@@ -1,14 +1,16 @@
 """
-Drop action views: rename, delete, renew.
+Drop action views: rename, delete, renew, copy.
 
 URL patterns:
-  Clipboard:  /key/rename/   /key/delete/   /key/renew/
-  File:       /f/key/rename/ /f/key/delete/ /f/key/renew/
+  Clipboard:  /key/rename/   /key/delete/   /key/renew/   /key/copy/
+  File:       /f/key/rename/ /f/key/delete/ /f/key/renew/ /f/key/copy/
 """
 
 import logging
+import secrets
 
 from django.http import JsonResponse
+from django.utils import timezone
 
 from core.models import Drop
 
@@ -16,29 +18,20 @@ logger = logging.getLogger(__name__)
 
 
 def _get_drop(ns, key):
-    """Return drop or None."""
     return Drop.objects.filter(ns=ns, key=key).first()
 
 
 def _edit_error(drop, request):
-    """
-    Return a JsonResponse error if the user cannot edit this drop, else None.
-    Centralises all the lock / ownership error messages.
-    """
     if drop.is_expired():
         drop.hard_delete()
         return JsonResponse({'error': 'Drop has expired.'}, status=410)
-
     if not drop.can_edit(request.user):
         if drop.is_creation_locked():
             return JsonResponse(
                 {'error': 'Drop is protected for 24 hours after creation.'},
                 status=403,
             )
-        return JsonResponse(
-            {'error': 'Drop is locked to its owner.'},
-            status=403,
-        )
+        return JsonResponse({'error': 'Drop is locked to its owner.'}, status=403)
     return None
 
 
@@ -59,10 +52,8 @@ def rename_drop(request, ns, key):
     new_key = request.POST.get('new_key', '').strip()
     if not new_key:
         return JsonResponse({'error': 'New key required.'}, status=400)
-
     if new_key == key:
         return JsonResponse({'error': 'New key is the same as current key.'}, status=400)
-
     if Drop.objects.filter(ns=ns, key=new_key).exists():
         return JsonResponse({'error': 'Key already taken.'}, status=409)
 
@@ -81,7 +72,6 @@ def delete_drop(request, ns, key):
 
     drop = _get_drop(ns, key)
     if not drop:
-        # Idempotent — already gone
         return JsonResponse({'deleted': True, 'note': 'Drop was already gone.'})
 
     err = _edit_error(drop, request)
@@ -90,13 +80,11 @@ def delete_drop(request, ns, key):
 
     ok = drop.hard_delete()
     if not ok:
-        # B2 delete failed — DB record preserved, logged inside hard_delete().
         logger.error("delete_drop: hard_delete failed for %s/%s", ns, key)
         return JsonResponse(
             {'error': 'File could not be removed from storage. Please try again.'},
             status=500,
         )
-
     return JsonResponse({'deleted': True})
 
 
@@ -128,3 +116,84 @@ def renew_drop(request, ns, key):
         'expires_at': drop.expires_at.isoformat(),
         'renewals': drop.renewal_count,
     })
+
+
+# ── Copy ──────────────────────────────────────────────────────────────────────
+
+def copy_drop(request, ns, key):
+    """
+    POST /key/copy/ or /f/key/copy/
+
+    Duplicates a drop under a new key. For text drops this is instant.
+    For file drops we copy the B2 object server-side (no re-upload needed).
+
+    Body (JSON, optional):
+      { "new_key": "my-key" }   — use a specific key
+      {}                         — generate a random key
+
+    Returns:
+      { "key": "new-key", "url": "/new-key/" }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required.'}, status=405)
+
+    drop = _get_drop(ns, key)
+    if not drop:
+        return JsonResponse({'error': 'Drop not found.'}, status=404)
+
+    if drop.is_expired():
+        drop.hard_delete()
+        return JsonResponse({'error': 'Drop has expired.'}, status=410)
+
+    import json
+    try:
+        data = json.loads(request.body) if request.body else {}
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        data = {}
+
+    new_key = (data.get('new_key') or '').strip() or secrets.token_urlsafe(6)
+
+    if Drop.objects.filter(ns=ns, key=new_key).exists():
+        return JsonResponse({'error': f'Key "{new_key}" is already taken.'}, status=409)
+
+    owner = request.user if request.user.is_authenticated else None
+
+    if drop.kind == Drop.TEXT:
+        new_drop = Drop.objects.create(
+            ns=ns,
+            key=new_key,
+            kind=Drop.TEXT,
+            content=drop.content,
+            owner=owner,
+            locked=owner is not None,
+            expires_at=drop.expires_at,
+            max_lifetime_secs=drop.max_lifetime_secs,
+        )
+    else:
+        # File drop — copy B2 object server-side
+        from core.views.b2 import copy_object, object_key as b2_object_key
+        src_b2_key = drop.b2_object_key()
+        dst_b2_key = b2_object_key(ns, new_key)
+
+        ok = copy_object(src_b2_key, dst_b2_key)
+        if not ok:
+            return JsonResponse({'error': 'Could not copy file in storage.'}, status=500)
+
+        from core.views.helpers import add_storage
+        new_drop = Drop.objects.create(
+            ns=ns,
+            key=new_key,
+            kind=Drop.FILE,
+            file_public_id=dst_b2_key,
+            file_url='',
+            filename=drop.filename,
+            filesize=drop.filesize,
+            owner=owner,
+            locked=owner is not None,
+            expires_at=drop.expires_at,
+            max_lifetime_secs=drop.max_lifetime_secs,
+        )
+        add_storage(request.user, drop.filesize)
+
+    prefix = 'f/' if ns == Drop.NS_FILE else ''
+    return JsonResponse({'key': new_drop.key, 'url': f'/{prefix}{new_drop.key}/'})

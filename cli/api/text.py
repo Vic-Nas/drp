@@ -6,7 +6,7 @@ from .auth import get_csrf
 from .helpers import err
 
 
-def upload_text(host, session, text, key=None, timer=None):
+def upload_text(host, session, text, key=None, timer=None, expiry_days=None):
     """
     Upload text content.
     Returns the key string on success, None on failure.
@@ -17,6 +17,8 @@ def upload_text(host, session, text, key=None, timer=None):
     data = {'content': text, 'csrfmiddlewaretoken': csrf}
     if key:
         data['key'] = key
+    if expiry_days:
+        data['expiry_days'] = expiry_days
     try:
         res = session.post(f'{host}/save/', data=data, timeout=30)
         if timer:
@@ -49,7 +51,6 @@ def get_clipboard(host, session, key, timer=None):
                 timer.checkpoint('parse JSON')
             if data.get('kind') == 'text':
                 return 'text', data.get('content', '')
-            # Key exists but is a file — caller should try get_file
             return None, None
         _handle_http_error(res, key)
         if res.status_code not in (404, 410):

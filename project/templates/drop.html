@@ -16,9 +16,17 @@
         <button class="btn-sm" id="renameBtn">rename</button>
       {% endif %}
     </div>
+
     <div class="share-url">
       <span id="urlDisplay">{{ request.build_absolute_uri }}</span>
       <button class="btn-sm" onclick="copyUrl()">copy link</button>
+      <button class="btn-sm" id="qrToggle" onclick="toggleQr()" title="Show QR code">QR</button>
+    </div>
+
+    <!-- QR code panel -->
+    <div id="qrPanel" class="qr-panel hidden">
+      <div id="qrCode"></div>
+      <p class="qr-hint">scan to open on another device</p>
     </div>
 
     <p class="lock-hint {% if not drop.locked %}unlocked{% endif %}">
@@ -51,7 +59,7 @@
   {% if drop.kind == 'text' %}
   <div class="drop-content">
     <div class="clip-existing">
-      <pre id="clipContent">{{ drop.content }}</pre>
+      <pre id="clipPre"><code id="clipContent">{{ drop.content }}</code></pre>
       <div class="clip-actions">
         <button class="btn-sm" onclick="copyContent()">copy text</button>
         <button class="btn-sm" onclick="downloadText()">download .txt</button>
@@ -107,14 +115,22 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- QR code: MIT licensed, no tracking, ~10KB -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- Syntax highlighting: highlight.js, BSD licensed, loaded only for text drops -->
+{% if drop.kind == 'text' %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+{% endif %}
+
 <script>
-const KEY  = '{{ drop.key }}';
-const NS   = '{{ drop.ns }}';   // 'c' or 'f'
-const BASE = window.location.origin;
+const KEY     = '{{ drop.key }}';
+const NS      = '{{ drop.ns }}';
+const BASE    = window.location.origin;
 const CAN_EDIT = {{ can_edit|yesno:"true,false" }};
 const IS_OWNER = {{ is_owner|yesno:"true,false" }};
+const DROP_URL = '{{ request.build_absolute_uri }}';
 
-// Build action URLs based on namespace
 function actionUrl(action) {
   return NS === 'f' ? `/f/${KEY}/${action}/` : `/${KEY}/${action}/`;
 }
@@ -140,6 +156,36 @@ function downloadText() {
   a.download = `drp-${KEY}.txt`;
   a.click();
 }
+
+// ── QR code ───────────────────────────────────────────────────────────────────
+let qrGenerated = false;
+function toggleQr() {
+  const panel = document.getElementById('qrPanel');
+  const isHidden = panel.classList.toggle('hidden');
+  if (!isHidden && !qrGenerated) {
+    new QRCode(document.getElementById('qrCode'), {
+      text: DROP_URL,
+      width: 160,
+      height: 160,
+      colorDark: '#e8e8e8',
+      colorLight: '#1a1a1a',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+    qrGenerated = true;
+  }
+  document.getElementById('qrToggle').textContent = isHidden ? 'QR' : 'hide QR';
+}
+
+// ── Syntax highlighting ───────────────────────────────────────────────────────
+{% if drop.kind == 'text' %}
+document.addEventListener('DOMContentLoaded', () => {
+  const block = document.getElementById('clipContent');
+  if (block && typeof hljs !== 'undefined') {
+    // Let hljs auto-detect — works well for code, gracefully falls back to plain text
+    hljs.highlightElement(block);
+  }
+});
+{% endif %}
 
 // ── Rename ────────────────────────────────────────────────────────────────────
 if (CAN_EDIT) {
@@ -200,8 +246,8 @@ if (editForm) {
 
 // ── Replace file ──────────────────────────────────────────────────────────────
 let newFile = null;
-const dropZone   = document.getElementById('dropZone');
-const fileInput  = document.getElementById('fileInput');
+const dropZone  = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
 const replaceBtn = document.getElementById('replaceBtn');
 
 if (dropZone) {

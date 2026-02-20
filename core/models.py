@@ -167,6 +167,10 @@ class Drop(models.Model):
     expires_at    = models.DateTimeField(null=True, blank=True)
     renewal_count = models.PositiveIntegerField(default=0)
 
+    # ── View tracking ─────────────────────────────────────────────────────────
+    view_count    = models.PositiveIntegerField(default=0)
+    last_viewed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
     class Meta:
         unique_together = [("ns", "key")]
 
@@ -203,7 +207,7 @@ class Drop(models.Model):
 
         return (now - self.created_at) > timedelta(days=90)
 
-    # ── touch (debounced) ─────────────────────────────────────────────────────
+    # ── touch (debounced) — updates access time and view count ───────────────
 
     TOUCH_DEBOUNCE_SECS = 300  # 5 minutes
 
@@ -214,8 +218,14 @@ class Drop(models.Model):
             and (now - self.last_accessed_at).total_seconds() < self.TOUCH_DEBOUNCE_SECS
         ):
             return
-        Drop.objects.filter(pk=self.pk).update(last_accessed_at=now)
+        Drop.objects.filter(pk=self.pk).update(
+            last_accessed_at=now,
+            last_viewed_at=now,
+            view_count=models.F("view_count") + 1,
+        )
         self.last_accessed_at = now
+        self.last_viewed_at   = now
+        self.view_count      += 1
 
     def renew(self):
         if not self.expires_at:
@@ -234,18 +244,6 @@ class Drop(models.Model):
                 self.save(update_fields=["expires_at"])
 
     def hard_delete(self):
-        """
-        Delete the Drop record and, for file drops, remove the object from B2.
-        Also adjusts owner storage accounting.
-
-        Returns True on full success.
-        Returns False if the B2 delete failed — in that case the DB record is
-        intentionally kept so the drop remains visible in the dashboard and the
-        B2 object is not orphaned silently. The error is logged for ops visibility.
-
-        Callers (cleanup command, action views, expiry checks) should handle
-        False gracefully — typically log it and move on rather than crashing.
-        """
         if self.ns == self.NS_FILE and self.file_public_id:
             try:
                 from core.views.b2 import delete_object
@@ -282,29 +280,15 @@ class Drop(models.Model):
         return bool(self.locked_until and timezone.now() < self.locked_until)
 
     def b2_object_key(self) -> str:
-        """
-        The actual B2 object key for this drop.
-
-        Prefer file_public_id when set — it's the ground truth written at
-        upload time. Fall back to the derived key for drops that somehow have
-        an empty file_public_id (should not happen after the upload_confirm fix,
-        but guards against legacy rows).
-        """
         if self.file_public_id:
             return self.file_public_id
         from core.views.b2 import object_key
         return object_key(self.ns, self.key)
 
     def download_url(self, expires_in: int = 3600) -> str:
-        """
-        Return a fresh presigned B2 GET URL for this file drop.
-        Raises if called on a text drop.
-        """
         if self.ns != self.NS_FILE:
             raise ValueError("download_url() called on non-file drop")
         from core.views.b2 import presigned_get
-        # Pass the raw B2 object key directly so we bypass object_key(ns, drop_key)
-        # which would give the wrong path for drops where file_public_id ≠ drops/f/<key>.
         return presigned_get(self.ns, self.key, filename=self.filename, expires_in=expires_in,
                              b2_key=self.b2_object_key())
 
@@ -312,11 +296,6 @@ class Drop(models.Model):
 # ── SavedDrop ─────────────────────────────────────────────────────────────────
 
 class SavedDrop(models.Model):
-    """
-    A bookmark — records that a user wants to track a drop by key.
-    No content is stored. The drop may or may not still exist on the server.
-    Saving a drop does not grant any ownership or edit permissions.
-    """
     user     = models.ForeignKey(User, on_delete=models.CASCADE, related_name="saved_drops")
     ns       = models.CharField(max_length=1, choices=Drop.NS_CHOICES, default=Drop.NS_CLIPBOARD)
     key      = models.CharField(max_length=120)
