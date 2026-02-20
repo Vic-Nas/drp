@@ -1,4 +1,4 @@
-# drp
+# drp ![version](https://img.shields.io/github/v/tag/vicnasdev/drp)
 
 Drop files or paste text, get a link instantly. 
 **[Live →](https://drp.vicnas.me)**
