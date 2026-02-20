@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""
-drp — drop clipboards and files from the command line.
-
-  drp up "text"          drop a clipboard  →  /key/
-  drp up file.pdf        drop a file       →  /f/key/
-  drp get key            clipboard → stdout
-  drp get f/key          file → saved to disk
-  drp ls -l              list with sizes and times
-  drp load backup.json   import a shared export as saved drops
-  drp rm key             delete clipboard
-  drp rm f/key           delete file
-"""
+"""drp — drop clipboards and files from the command line. Run `drp --help`."""
 
 import argparse
 import sys
@@ -20,23 +9,37 @@ from cli.commands.setup import cmd_setup, cmd_login, cmd_logout
 from cli.commands.upload import cmd_up
 from cli.commands.get import cmd_get
 from cli.commands.manage import cmd_rm, cmd_mv, cmd_renew
+from cli.commands.save import cmd_save
 from cli.commands.ls import cmd_ls
 from cli.commands.load import cmd_load
 from cli.commands.status import cmd_status, cmd_ping
-from cli.commands.save import cmd_save
 
+# ── Single source of truth ────────────────────────────────────────────────────
+# (name, handler, help string)
+# Order here is the order shown in --help and on the CLI docs page.
 
-def main():
-    parser = argparse.ArgumentParser(
-        prog='drp',
-        description='Drop clipboards and files — get a link instantly.',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+COMMANDS = [
+    ('setup',   cmd_setup,   'Configure host and log in'),
+    ('login',   cmd_login,   'Log in (session saved — no repeated prompts)'),
+    ('logout',  cmd_logout,  'Log out and clear saved session'),
+    ('ping',    cmd_ping,    'Check connectivity to the drp server'),
+    ('status',  cmd_status,  'Show config, account, and session info'),
+    ('up',      cmd_up,      'Upload clipboard text or a file'),
+    ('get',     cmd_get,     'Print clipboard or download file (no login needed)'),
+    ('save',    cmd_save,    'Bookmark a drop to your account (requires login)'),
+    ('rm',      cmd_rm,      'Delete a drop'),
+    ('mv',      cmd_mv,      'Rename a key (blocked 24h after creation)'),
+    ('renew',   cmd_renew,   'Renew expiry (paid accounts only)'),
+    ('ls',      cmd_ls,      'List your drops'),
+    ('load',    cmd_load,    'Import a shared export as saved drops (requires login)'),
+]
+
+EPILOG = """
 urls:
   /key/      clipboard — activity-based expiry
   /f/key/    file — expires 90 days after upload (anon)
 
-key format for commands:
+key format:
   key        clipboard (default)
   f/key      file
 
@@ -44,51 +47,67 @@ examples:
   drp up "hello world" -k hello    clipboard at /hello/
   drp up report.pdf -k q3          file at /f/q3/
   drp get hello                    print clipboard to stdout
-  drp get f/q3 -o my-report.pdf    download file, save as different name
-  drp get q3                       auto-detect: clipboard first, then file
+  drp get f/q3 -o my-report.pdf    download file with custom name
+  drp save notes                   bookmark clipboard (appears in drp ls)
+  drp save f/report                bookmark file
   drp rm hello                     delete clipboard
-  drp rm f/q3                      delete file
-  drp mv q3 quarter3               rename key (blocked 24h after creation)
+  drp mv q3 quarter3               rename key
   drp ls -l                        list with sizes and times
-  drp ls -l -t f                   list only files
-  drp ls --export > backup.json    export as JSON (requires login)
+  drp ls --export > backup.json    export as JSON
   drp load backup.json             import shared export as saved drops
-""",
+"""
+
+
+# ── Parser ────────────────────────────────────────────────────────────────────
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog='drp',
+        description='Drop clipboards and files — get a link instantly.',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=EPILOG,
     )
     parser.add_argument('--version', '-V', action='version', version=f'%(prog)s {__version__}')
 
     sub = parser.add_subparsers(dest='command')
 
-    sub.add_parser('setup', help='Configure host and log in')
-    sub.add_parser('login', help='Log in (session saved — no repeated prompts)')
-    sub.add_parser('logout', help='Log out and clear saved session')
-    sub.add_parser('ping', help='Check connectivity to the drp server')
-    sub.add_parser('status', help='Show config, account, and session info')
+    for name, _, help_str in COMMANDS:
+        sub.add_parser(name, help=help_str)
 
-    p_up = sub.add_parser('up', help='Upload clipboard text or a file')
+    _configure_subparsers(sub)
+
+    return parser
+
+
+def _configure_subparsers(sub):
+    """Add arguments to subparsers that need them."""
+    p_up = sub._name_parser_map['up']
     p_up.add_argument('target', help='File path or text string to upload')
     p_up.add_argument('--key', '-k', default=None,
                       help='Custom key (e.g. -k q3 → /q3/ or /f/q3/)')
 
-    p_get = sub.add_parser('get', help='Print clipboard or download file (no login needed)')
+    p_get = sub._name_parser_map['get']
     p_get.add_argument('key',
-                       help='Drop key — bare key tries clipboard then file; f/key forces file')
+                       help='Bare key tries clipboard then file; f/key forces file')
     p_get.add_argument('--output', '-o', default=None,
                        help='Save file as this name (default: original filename)')
 
-    p_rm = sub.add_parser('rm', help='Delete a drop')
+    p_rm = sub._name_parser_map['rm']
     p_rm.add_argument('key', help='Drop key (e.g. hello or f/report)')
 
-    p_mv = sub.add_parser('mv', help='Rename a key (blocked 24h after creation)')
+    p_mv = sub._name_parser_map['mv']
     p_mv.add_argument('key', help='Current key (e.g. q3 or f/q3)')
     p_mv.add_argument('new_key', help='New key')
 
-    p_renew = sub.add_parser('renew', help='Renew expiry (paid accounts only)')
+    p_renew = sub._name_parser_map['renew']
     p_renew.add_argument('key', help='Drop key (e.g. hello or f/report)')
 
-    p_ls = sub.add_parser('ls', help='List your drops')
+    p_save = sub._name_parser_map['save']
+    p_save.add_argument('key', help='Drop key (e.g. notes or f/report)')
+
+    p_ls = sub._name_parser_map['ls']
     p_ls.add_argument('-l', '--long', action='store_true',
-                      help='Long format: kind, size, age, expiry (sizes always human-readable)')
+                      help='Long format: kind, size, age, expiry')
     p_ls.add_argument('--bytes', action='store_true',
                       help='Show raw byte counts instead of human-readable sizes (use with -l)')
     p_ls.add_argument('-t', '--type', choices=['c', 'f', 's'], default=None,
@@ -97,31 +116,24 @@ examples:
                       help='Sort by: time, size, or name (default: newest first)')
     p_ls.add_argument('-r', '--reverse', action='store_true', help='Reverse sort order')
     p_ls.add_argument('--export', action='store_true',
-                      help='Dump drops as JSON — pipe to a file: drp ls --export > backup.json')
+                      help='Dump drops as JSON: drp ls --export > backup.json')
 
-    p_load = sub.add_parser('load', help='Import a shared export as saved drops (requires login)')
+    p_load = sub._name_parser_map['load']
     p_load.add_argument('file', help='Path to a drp export JSON file')
 
-    commands = {
-        'setup': cmd_setup,
-        'login': cmd_login,
-        'logout': cmd_logout,
-        'ping': cmd_ping,
-        'status': cmd_status,
-        'up': cmd_up,
-        'get': cmd_get,
-        'rm': cmd_rm,
-        'mv': cmd_mv,
-        'renew': cmd_renew,
-        'ls': cmd_ls,
-        'load': cmd_load,
-    }
 
+# ── Entry point ───────────────────────────────────────────────────────────────
+
+_HANDLERS = {name: handler for name, handler, _ in COMMANDS}
+
+
+def main():
+    parser = build_parser()
     args = parser.parse_args()
 
-    if args.command in commands:
+    if args.command in _HANDLERS:
         try:
-            commands[args.command](args)
+            _HANDLERS[args.command](args)
         except KeyboardInterrupt:
             pass
         except SystemExit:
