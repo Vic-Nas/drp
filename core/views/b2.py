@@ -60,11 +60,20 @@ def presigned_put(ns: str, drop_key: str, content_type: str = "application/octet
 
 
 def presigned_get(ns: str, drop_key: str, filename: str = "",
-                  expires_in: int = 3600) -> str:
+                  expires_in: int = 3600, b2_key: str = "") -> str:
+    """
+    Generate a presigned GET URL.
+
+    Pass ``b2_key`` to use an explicit B2 object key instead of the derived
+    ``drops/{ns}/{drop_key}`` path. This is needed for drops where
+    ``file_public_id`` differs from the current key convention (e.g. legacy
+    rows uploaded before the prepare/confirm flow was introduced).
+    """
     client, bucket = _b2()
+    key = b2_key if b2_key else object_key(ns, drop_key)
     params = {
         "Bucket": bucket,
-        "Key": object_key(ns, drop_key),
+        "Key": key,
     }
     if filename:
         safe_name = filename.replace('"', "")

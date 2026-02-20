@@ -47,7 +47,9 @@ examples:
   drp up "hello world" -k hello         clipboard at /hello/
   drp up report.pdf -k q3              file at /f/q3/
   drp get hello                         print clipboard to stdout
+  drp get hello --url                   print URL without fetching content
   drp get -f q3 -o my-report.pdf        download file with custom name
+  drp get -f q3 --url                   print file drop URL without downloading
   drp save notes                        bookmark clipboard (appears in drp ls)
   drp save -f report                    bookmark file
   drp rm hello                          delete clipboard
@@ -83,7 +85,6 @@ def build_parser():
 
 def _configure_subparsers(sub):
     """Add arguments to subparsers that need them."""
-    # Lazy import so argcomplete is optional — CLI works without it installed.
     try:
         from cli.completion import (
             key_completer, file_key_completer, clipboard_key_completer,
@@ -110,10 +111,12 @@ def _configure_subparsers(sub):
                        help='Key is a file drop (e.g. drp get -f q3)')
     _attach(
         p_get.add_argument('key', help='Drop key'),
-        'key',   # namespace inferred at completion time from -f flag
+        'key',
     )
     p_get.add_argument('--output', '-o', default=None,
                        help='Save file as this name (default: original filename)')
+    p_get.add_argument('--url', '-u', action='store_true',
+                       help='Print the drop URL instead of fetching content')
     p_get.add_argument('--timing', action='store_true',
                        help='Print per-phase timing breakdown to stderr')
 
@@ -132,7 +135,6 @@ def _configure_subparsers(sub):
         p_mv.add_argument('key', help='Current key'),
         'key',
     )
-    # new_key intentionally has no completer — it's a destination name
     p_mv.add_argument('new_key', help='New key')
 
     p_renew = sub._name_parser_map['renew']
@@ -176,10 +178,6 @@ _HANDLERS = {name: handler for name, handler, _ in COMMANDS}
 def main():
     parser = build_parser()
 
-    # argcomplete.autocomplete() must be called before parser.parse_args().
-    # It exits immediately when the shell is requesting completions;
-    # it's a no-op during normal CLI invocation.
-    # We import lazily so the CLI works fine without argcomplete installed.
     try:
         import argcomplete
         argcomplete.autocomplete(parser)

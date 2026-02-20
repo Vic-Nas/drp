@@ -251,9 +251,6 @@ class Drop(models.Model):
                 from core.views.b2 import delete_object
                 ok = delete_object(self.ns, self.key)
                 if not ok:
-                    # B2 delete failed (already logged inside delete_object).
-                    # Keep the DB record so the drop isn't orphaned — an admin
-                    # can retry or the cleanup command will try again next run.
                     logger.error(
                         "hard_delete: B2 delete failed for %s/%s — DB record preserved",
                         self.ns, self.key,
@@ -266,7 +263,6 @@ class Drop(models.Model):
                 )
                 return False
 
-        # B2 object gone (or this is a text drop) — safe to remove DB record.
         if self.owner_id and self.filesize:
             from django.db import models as db_models
             UserProfile.objects.filter(user_id=self.owner_id).update(
@@ -285,6 +281,20 @@ class Drop(models.Model):
     def is_creation_locked(self):
         return bool(self.locked_until and timezone.now() < self.locked_until)
 
+    def b2_object_key(self) -> str:
+        """
+        The actual B2 object key for this drop.
+
+        Prefer file_public_id when set — it's the ground truth written at
+        upload time. Fall back to the derived key for drops that somehow have
+        an empty file_public_id (should not happen after the upload_confirm fix,
+        but guards against legacy rows).
+        """
+        if self.file_public_id:
+            return self.file_public_id
+        from core.views.b2 import object_key
+        return object_key(self.ns, self.key)
+
     def download_url(self, expires_in: int = 3600) -> str:
         """
         Return a fresh presigned B2 GET URL for this file drop.
@@ -293,7 +303,10 @@ class Drop(models.Model):
         if self.ns != self.NS_FILE:
             raise ValueError("download_url() called on non-file drop")
         from core.views.b2 import presigned_get
-        return presigned_get(self.ns, self.key, filename=self.filename, expires_in=expires_in)
+        # Pass the raw B2 object key directly so we bypass object_key(ns, drop_key)
+        # which would give the wrong path for drops where file_public_id ≠ drops/f/<key>.
+        return presigned_get(self.ns, self.key, filename=self.filename, expires_in=expires_in,
+                             b2_key=self.b2_object_key())
 
 
 # ── SavedDrop ─────────────────────────────────────────────────────────────────

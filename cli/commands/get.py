@@ -2,8 +2,10 @@
 drp get — fetch a clipboard drop or download a file.
 
   drp get <key>              print clipboard to stdout
+  drp get <key> --url        print the drop URL without fetching content
   drp get -f <key>           download file (saves to current directory)
   drp get -f <key> -o name   download with custom filename
+  drp get -f <key> --url     print the file drop URL without downloading
   drp get <key> --timing     show per-phase timing breakdown
 """
 
@@ -26,6 +28,14 @@ def cmd_get(args):
         sys.exit(1)
 
     t.checkpoint('load config')
+
+    # --url: just print the canonical URL and exit — no network needed beyond config
+    if getattr(args, 'url', False):
+        if getattr(args, 'file', False):
+            print(f'{host}/f/{args.key}/')
+        else:
+            print(f'{host}/{args.key}/')
+        return
 
     session = requests.Session()
     t.instrument(session)
