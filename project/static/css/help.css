@@ -3,32 +3,32 @@
 .help-wrap {
   display: grid;
   grid-template-columns: 160px 1fr;
-  gap: 4rem;
+  gap: 3.5rem;
   align-items: start;
-  max-width: 980px;
+  max-width: 900px;
 }
 
 /* ── Side nav ─────────────────────────────────────────────────────────────── */
 
 .help-sidenav {
   position: sticky;
-  top: 2.5rem;
+  top: 2rem;
   display: flex;
   flex-direction: column;
-  gap: .2rem;
+  gap: .15rem;
 }
 
 .help-sidenav-title {
+  display: block;
   font-size: .68rem;
   font-weight: 700;
   letter-spacing: .12em;
   text-transform: uppercase;
   color: var(--muted) !important;
   text-decoration: none !important;
-  padding: 0 0 .75rem .75rem;
-  display: block;
+  padding: 0 0 .75rem 0;
+  margin-bottom: .4rem;
   border-bottom: 1px solid var(--border);
-  margin-bottom: .35rem;
   transition: color .15s;
 }
 .help-sidenav-title:hover {
@@ -41,28 +41,25 @@
 }
 
 .help-sidenav-links a {
+  position: relative;
   font-size: .82rem;
   color: var(--muted);
-  padding: .38rem .75rem;
+  padding: .38rem .65rem;
   border-radius: 5px;
   text-decoration: none;
-  transition: color .15s, background .15s;
   line-height: 1.4;
-  position: relative;
+  transition: color .15s, background .15s;
 }
-
 .help-sidenav-links a:hover {
   color: var(--text);
   background: rgba(255,255,255,.04);
   text-decoration: none;
 }
-
 .help-sidenav-links a.active {
   color: var(--accent);
-  background: rgba(91, 141, 238, .09);
+  background: rgba(91,141,238,.09);
   font-weight: 500;
 }
-
 .help-sidenav-links a.active::before {
   content: '';
   position: absolute;
@@ -76,16 +73,12 @@
 
 /* ── Content typography ───────────────────────────────────────────────────── */
 
-.help-content {
-  min-width: 0; /* prevent grid blowout */
-}
-
 .help-content h1 {
   font-size: 1.75rem;
   font-weight: 800;
-  letter-spacing: -.04em;
-  margin-bottom: .3rem;
+  letter-spacing: -.03em;
   line-height: 1.2;
+  margin-bottom: .35rem;
 }
 
 .help-content .lead {
@@ -93,13 +86,12 @@
   font-size: .93rem;
   line-height: 1.65;
   margin-bottom: 2rem;
-  max-width: 52ch;
 }
 
 .help-content h2 {
-  font-size: .78rem;
+  font-size: .75rem;
   font-weight: 700;
-  letter-spacing: .08em;
+  letter-spacing: .09em;
   text-transform: uppercase;
   color: var(--accent);
   margin: 2.5rem 0 .9rem;
@@ -121,7 +113,6 @@
   line-height: 1.8;
   color: var(--text);
   margin-bottom: .7rem;
-  max-width: 68ch;
 }
 
 .help-content strong {
@@ -133,7 +124,6 @@
   color: var(--accent);
   text-underline-offset: 3px;
 }
-
 .help-content a:hover {
   text-decoration: underline;
 }
@@ -145,9 +135,10 @@
   border: 1px solid var(--border);
   padding: .12em .42em;
   border-radius: 4px;
-  font-family: 'SF Mono', ui-monospace, monospace;
+  font-family: ui-monospace, monospace;
   font-size: .83em;
   color: #c8d8ff;
+  word-break: break-word;
 }
 
 .help-content pre {
@@ -157,6 +148,7 @@
   padding: 1rem 1.2rem;
   margin: .6rem 0 1.2rem;
   overflow-x: auto;
+  max-width: 100%;
 }
 
 .help-content pre code {
@@ -166,6 +158,7 @@
   font-size: .83rem;
   line-height: 1.7;
   color: var(--text);
+  word-break: normal;
 }
 
 /* ── Tables ───────────────────────────────────────────────────────────────── */
@@ -192,7 +185,6 @@
   padding: .5rem .7rem;
   border-bottom: 1px solid rgba(255,255,255,.04);
   vertical-align: top;
-  color: var(--text);
   line-height: 1.55;
 }
 
@@ -210,7 +202,6 @@
 .help-content ol {
   padding-left: 1.3rem;
   margin-bottom: 1rem;
-  max-width: 66ch;
 }
 
 .help-content li {
@@ -230,18 +221,18 @@
 }
 
 .help-card {
+  display: block;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1.1rem 1.25rem;
   text-decoration: none;
   transition: border-color .15s, background .15s;
-  display: block;
 }
 
 .help-card:hover {
   border-color: var(--accent);
-  background: rgba(91, 141, 238, .04);
+  background: rgba(91,141,238,.04);
   text-decoration: none;
 }
 
@@ -260,21 +251,14 @@
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 
-@media (max-width: 720px) {
+@media (max-width: 680px) {
   .help-wrap {
     grid-template-columns: 1fr;
-    gap: 0;
+    gap: 1.5rem;
   }
 
   .help-sidenav {
     position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: .15rem;
-    padding-bottom: 1.2rem;
-    margin-bottom: 1.5rem;
-    border-bottom: 1px solid var(--border);
   }
 
   .help-sidenav-title {
@@ -284,12 +268,17 @@
   .help-sidenav-links {
     flex-direction: row;
     flex-wrap: wrap;
-    gap: .15rem;
+    gap: .25rem;
   }
 
   .help-sidenav-links a {
     font-size: .79rem;
     padding: .28rem .6rem;
+    border: 1px solid var(--border);
+  }
+
+  .help-sidenav-links a.active {
+    border-color: var(--accent);
   }
 
   .help-sidenav-links a.active::before {
@@ -298,9 +287,5 @@
 
   .help-cards {
     grid-template-columns: 1fr;
-  }
-
-  .help-content h1 {
-    font-size: 1.45rem;
   }
 }
