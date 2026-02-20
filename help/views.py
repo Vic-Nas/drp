@@ -2,7 +2,6 @@ from functools import cache
 from pathlib import Path
 
 from django.shortcuts import render
-from django.views.decorators.cache import cache_page
 
 
 def index(request):
@@ -11,7 +10,7 @@ def index(request):
     })
 
 
-@cache_page(60 * 60 * 24)
+# @cache_page(60 * 60 * 24)
 def cli(request):
     return render(request, 'help/cli.html', {
         'parser_info': _get_parser_info(),
@@ -36,7 +35,6 @@ def _get_readme_html():
     readme_path = Path(__file__).resolve().parent.parent / 'README.md'
     text = readme_path.read_text()
     html = markdown.markdown(text, extensions=['tables', 'fenced_code'])
-    # Fix relative LICENSE link — at /help/ it would 404
     html = html.replace('href="LICENSE"', 'href="https://github.com/vicnasdev/drp/blob/main/LICENSE"')
     return html
 
@@ -44,24 +42,31 @@ def _get_readme_html():
 @cache
 def _get_parser_info():
     from cli.drp import build_parser, COMMANDS
+
     parser = build_parser()
 
-    # Build a lookup from the COMMANDS list — this is the source of truth for
-    # help strings. sub.description is always empty because subparsers are only
-    # given a `help=` kwarg, not `description=`.
-    help_lookup = {name: help_str for name, _, help_str in COMMANDS}
+    # Find the subparser action that has _name_parser_map (argparse internals).
+    # Not all _group_actions have choices — iterating group.choices on the wrong
+    # group silently produces nothing, which is why commands appeared empty.
+    sub_map = {}
+    for action in parser._subparsers._group_actions:
+        if hasattr(action, '_name_parser_map'):
+            sub_map = action._name_parser_map
+            break
 
+    # COMMANDS is the single source of truth for order + help strings.
+    # sub.description is always empty — subparsers are added with help=, not description=.
     commands = []
-    for group in parser._subparsers._group_actions:
-        for name, sub in group.choices.items():
-            commands.append({
-                'name': name,
-                'help': help_lookup.get(name, ''),
-                'epilog': sub.epilog or '',
-            })
+    for name, _, help_str in COMMANDS:
+        sub = sub_map.get(name)
+        commands.append({
+            'name': name,
+            'help': help_str,
+            'epilog': (sub.epilog or '').strip() if sub else '',
+        })
 
     return {
         'description': parser.description,
-        'epilog': parser.epilog or '',
+        'epilog': (parser.epilog or '').strip(),
         'commands': commands,
     }
