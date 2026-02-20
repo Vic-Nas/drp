@@ -1,5 +1,10 @@
 {% extends 'base.html' %}
 {% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/help.css' %}">
+{% endblock %}
+
 {% block content %}
 <div class="help-wrap">
 
@@ -19,6 +24,4 @@
   </article>
 
 </div>
-
-<link rel="stylesheet" href="{% static 'css/help.css' %}">
 {% endblock %}

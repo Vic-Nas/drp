@@ -1,50 +1,27 @@
-{% extends 'help/base.html' %}
-{% block title %}drp — docs{% endblock %}
+{% extends 'base.html' %}
+{% load static %}
 
-{% block help_content %}
-<h1>help</h1>
-<p class="lead">drp is a drop point for text and files. Pick a key, drop something, share the link.</p>
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/help.css' %}">
+{% endblock %}
 
-<div class="help-cards">
-  <a href="{% url 'help_cli' %}" class="help-card">
-    <div class="help-card-title">CLI reference</div>
-    <div class="help-card-desc">Install the CLI, upload text and files, manage drops from your terminal.</div>
-  </a>
-  <a href="{% url 'help_expiry' %}" class="help-card">
-    <div class="help-card-title">Expiry</div>
-    <div class="help-card-desc">How drops expire — idle timeouts, fixed dates, max lifetimes, and renewing.</div>
-  </a>
-  <a href="{% url 'help_plans' %}" class="help-card">
-    <div class="help-card-title">Plans</div>
-    <div class="help-card-desc">What free, Starter, and Pro unlock — storage, file limits, locked drops.</div>
-  </a>
-  <a href="{% url 'help_privacy' %}" class="help-card">
-    <div class="help-card-title">Privacy & self-hosting</div>
-    <div class="help-card-desc">Where your data lives, what's encrypted, and how to run your own instance.</div>
-  </a>
+{% block content %}
+<div class="help-wrap">
+
+  <nav class="help-sidenav">
+    <a href="{% url 'help_index' %}" class="help-sidenav-title">help</a>
+    <div class="help-sidenav-links">
+      <a href="{% url 'help_index' %}"   {% if request.resolver_match.url_name == 'help_index'   %}class="active"{% endif %}>overview</a>
+      <a href="{% url 'help_cli' %}"     {% if request.resolver_match.url_name == 'help_cli'     %}class="active"{% endif %}>CLI reference</a>
+      <a href="{% url 'help_plans' %}"   {% if request.resolver_match.url_name == 'help_plans'   %}class="active"{% endif %}>plans</a>
+      <a href="{% url 'help_expiry' %}"  {% if request.resolver_match.url_name == 'help_expiry'  %}class="active"{% endif %}>expiry</a>
+      <a href="{% url 'help_privacy' %}" {% if request.resolver_match.url_name == 'help_privacy' %}class="active"{% endif %}>privacy</a>
+    </div>
+  </nav>
+
+  <article class="help-content">
+    {% block help_content %}{% endblock %}
+  </article>
+
 </div>
-
-<h2>concepts</h2>
-
-<h3>namespaces</h3>
-<p>Text and files live in separate namespaces so their keys never collide:</p>
-<table>
-  <tr><th>URL</th><th>type</th></tr>
-  <tr><td><code>/key/</code></td><td>clipboard (text)</td></tr>
-  <tr><td><code>/f/key/</code></td><td>file</td></tr>
-</table>
-<p><code>/notes/</code> is a clipboard. <code>/f/notes/</code> is a file. They're completely independent — same key name, different namespaces.</p>
-
-<h3>reserved keys</h3>
-<p>Some keys are reserved by the system and cannot be used for drops — for example <code>help</code>, <code>auth</code>, <code>admin</code>, <code>billing</code>. These correspond to top-level URL paths used by the application. The key availability check will show them as taken, and the server will reject them at save time.</p>
-
-<h3>locking</h3>
-<p><strong>Anonymous drops</strong> get a 24-hour creation lock. Nobody can overwrite or rename the key during that window. After 24h, anyone with the key can replace the content.</p>
-<p><strong>Paid drops</strong> are permanently locked to your account. Only you can edit, rename, delete, or renew them. Nobody else can overwrite a key you own.</p>
-
-<h3>saved drops</h3>
-<p>You can bookmark any drop you didn't create — useful for drops shared with you. Saved drops appear in your account dashboard and are included in exports. Saving grants no edit or delete rights.</p>
-
-<h3>anonymous drop claiming</h3>
-<p>Drops you create before signing up are tracked by a browser cookie. When you register or log in, those drops are automatically claimed and transferred to your account, with their lifetime extended to free-tier limits.</p>
 {% endblock %}
