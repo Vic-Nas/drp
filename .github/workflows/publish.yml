@@ -76,6 +76,19 @@ jobs:
 
           drp get "$KEY" && { echo "Drop still accessible after delete"; exit 1; } || true
 
+      - name: Smoke — stdin pipe upload
+        if: ${{ env.DRP_SMOKE_HOST != '' }}
+        env:
+          DRP_SMOKE_HOST: ${{ secrets.DRP_SMOKE_HOST }}
+        shell: bash
+        run: |
+          KEY="ci-stdin-$(python -c 'import uuid; print(uuid.uuid4().hex[:8])')"
+          URL=$(echo "stdin test from ci" | drp up --key "$KEY")
+          echo "Uploaded via stdin: $URL"
+          [ -z "$URL" ] && { echo "Stdin upload returned empty URL"; exit 1; }
+          drp get "$KEY" | grep -q "stdin test" || { echo "Stdin content mismatch"; exit 1; }
+          drp rm "$KEY"
+
       - name: Smoke — file drop upload, get
         if: ${{ env.DRP_SMOKE_HOST != '' }}
         env:
@@ -138,6 +151,10 @@ jobs:
   publish:
     needs: test
     runs-on: ubuntu-latest
+    # Prevent concurrent publish runs if two pushes land close together
+    concurrency:
+      group: publish
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -161,7 +178,7 @@ jobs:
           sed -i "s/__version__ = '$current'/__version__ = '$new_version'/" cli/__init__.py
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
-      - name: Commit version bump
+      - name: Commit and push version bump
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -169,6 +186,8 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "v${{ steps.bump.outputs.version }}"
           git tag -f "v${{ steps.bump.outputs.version }}"
+          # Pull and rebase in case a commit landed while CI was running
+          git pull --rebase origin main
           git push --follow-tags --force-with-lease
 
       - name: Collect commits since last release
