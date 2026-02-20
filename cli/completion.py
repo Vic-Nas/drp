@@ -188,9 +188,6 @@ def _do_refresh(config, SESSION_FILE) -> None:
     server_drops = data.get('drops', [])
     saved_drops  = data.get('saved', [])
 
-    if not server_drops and not saved_drops:
-        return
-
     # Merge: server is authoritative for keys it knows about; keep local-only
     # entries (e.g. anonymous drops on a different host) so we don't lose them.
     existing = config.load_local_drops()
