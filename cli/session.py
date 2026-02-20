@@ -32,7 +32,6 @@ def save_session(session):
     """Persist session cookies to disk."""
     config.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     SESSION_FILE.write_text(json.dumps(dict(session.cookies)) + '\n')
-    # mtime is now the authoritative freshness timestamp used by auto_login
 
 
 def clear_session():
@@ -42,10 +41,6 @@ def clear_session():
 
 
 def _session_is_fresh() -> bool:
-    """
-    Return True if the session file exists and was written recently enough
-    that we can trust it without a server ping.
-    """
     try:
         if not SESSION_FILE.exists():
             return False
@@ -59,14 +54,11 @@ def auto_login(cfg, host, session, required=False):
     """
     Load saved session and verify it's still valid.
 
-    If the session file is fresh (written within SESSION_CACHE_SECS), skip the
-    validation ping entirely — the saved cookies are loaded and we return True
-    immediately. This avoids a Railway round-trip on every CLI invocation.
+    Fast path (session fresh): load cookies and return immediately — no
+    network call, no spinner.
 
-    If the session is stale or absent, ping /auth/account/ to confirm validity.
-    If that returns non-200 (expired), prompt for password once and re-save.
-
-    Returns True if authenticated, False if anonymous.
+    Slow path (session stale): ping the server to validate. A spinner runs
+    during this wait since it can take 1-2s on a cold Railway instance.
     """
     email = cfg.get('email')
     if not email:
@@ -78,16 +70,18 @@ def auto_login(cfg, host, session, required=False):
     if _session_is_fresh():
         return True
 
-    # Slow path: validate with the server.
+    # Slow path: validate with the server — show a spinner for the wait.
+    from cli.spinner import Spinner
+
     try:
-        res = session.get(
-            f'{host}/auth/account/',
-            headers={'Accept': 'application/json'},
-            timeout=10,
-            allow_redirects=False,
-        )
+        with Spinner('connecting'):
+            res = session.get(
+                f'{host}/auth/account/',
+                headers={'Accept': 'application/json'},
+                timeout=10,
+                allow_redirects=False,
+            )
         if res.status_code == 200:
-            # Touch the session file so the next call hits the fast path.
             SESSION_FILE.touch()
             return True
     except Exception as e:

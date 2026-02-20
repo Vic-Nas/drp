@@ -29,7 +29,6 @@ def cmd_get(args):
 
     t.checkpoint('load config')
 
-    # --url: just print the canonical URL and exit — no network needed beyond config
     if getattr(args, 'url', False):
         if getattr(args, 'file', False):
             print(f'{host}/f/{args.key}/')
@@ -52,7 +51,10 @@ def cmd_get(args):
 # ── Clipboard ─────────────────────────────────────────────────────────────────
 
 def _get_clipboard(args, host, session, t):
-    kind, content = api.get_clipboard(host, session, args.key, timer=t)
+    from cli.spinner import Spinner
+
+    with Spinner('fetching'):
+        kind, content = api.get_clipboard(host, session, args.key, timer=t)
 
     if kind == 'text':
         t.print()
@@ -60,15 +62,13 @@ def _get_clipboard(args, host, session, t):
         return
 
     if kind is None and content is None:
-        # get_clipboard returns (None, None) for two reasons:
-        #   1. The key doesn't exist at all (404) — error already printed.
-        #   2. The key exists but is a file drop — probe /f/<key>/ to distinguish.
         try:
-            res = session.get(
-                f'{host}/f/{args.key}/',
-                headers={'Accept': 'application/json'},
-                timeout=10,
-            )
+            with Spinner('checking'):
+                res = session.get(
+                    f'{host}/f/{args.key}/',
+                    headers={'Accept': 'application/json'},
+                    timeout=10,
+                )
             if res.ok and res.json().get('kind') == 'file':
                 t.print()
                 print(f'  ↳ This is a file drop. Use: drp get -f {args.key}')
@@ -83,7 +83,12 @@ def _get_clipboard(args, host, session, t):
 # ── File ──────────────────────────────────────────────────────────────────────
 
 def _get_file(args, host, session, t):
-    kind, result = api.get_file(host, session, args.key)
+    # Spinner covers the metadata fetch; the progress bar takes over once
+    # bytes start flowing, so there's no overlap.
+    from cli.spinner import Spinner
+
+    with Spinner('fetching'):
+        kind, result = api.get_file(host, session, args.key)
 
     if kind != 'file' or result is None:
         t.print()

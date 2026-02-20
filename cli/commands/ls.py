@@ -79,14 +79,17 @@ def cmd_ls(args):
         print('  ✗ Not logged in. Run: drp login')
         sys.exit(1)
 
+    from cli.spinner import Spinner
+
     try:
-        res = session.get(
-            f'{host}/auth/account/',
-            headers={'Accept': 'application/json'},
-            timeout=15,
-        )
-        res.raise_for_status()
-        data = res.json()
+        with Spinner('loading'):
+            res = session.get(
+                f'{host}/auth/account/',
+                headers={'Accept': 'application/json'},
+                timeout=15,
+            )
+            res.raise_for_status()
+            data = res.json()
     except Exception as e:
         print(f'  ✗ Could not fetch drops: {e}')
         sys.exit(1)
@@ -104,7 +107,6 @@ def cmd_ls(args):
         saved = []
     elif ns_filter == 's':
         drops = []
-        # saved stays as-is
 
     # ── Sort ──────────────────────────────────────────────────────────────────
     sort_by = getattr(args, 'sort', None)
@@ -117,7 +119,6 @@ def cmd_ls(args):
     elif sort_by == 'time':
         drops.sort(key=lambda d: d.get('created_at', ''), reverse=not reverse)
     else:
-        # Default: newest first
         drops.sort(key=lambda d: d.get('created_at', ''), reverse=True)
         saved.sort(key=lambda s: s.get('saved_at', ''), reverse=True)
 
@@ -138,7 +139,6 @@ def cmd_ls(args):
         return
 
     if not long_fmt:
-        # Short: key only, type hint in brackets
         for d in drops:
             kind = 'file' if d['ns'] == 'f' else 'text'
             print(f'{d["key"]}  [{kind}]')
@@ -147,7 +147,6 @@ def cmd_ls(args):
             print(f'{s["key"]}  [{kind}] [saved]')
         return
 
-    # Long format — human-readable sizes by default, raw with --bytes
     def fmt_size(n):
         if n == 0:
             return '—'
@@ -155,7 +154,6 @@ def cmd_ls(args):
 
     rows = []
 
-    # Owned drops
     for d in drops:
         kind    = '📎' if d['kind'] == 'file' else '📋'
         ns_hint = '[file]' if d['ns'] == 'f' else '[text]'
@@ -165,9 +163,8 @@ def cmd_ls(args):
         locked  = '🔒' if d.get('locked') else '  '
         rows.append((kind, locked, d['key'], ns_hint, size, created, expires, ''))
 
-    # Saved drops (separator if both)
     if drops and saved:
-        rows.append(('', '', '', '', '', '', '', ''))  # blank separator
+        rows.append(('', '', '', '', '', '', '', ''))
 
     for s in saved:
         kind    = '📎' if s['ns'] == 'f' else '📋'
@@ -179,7 +176,6 @@ def cmd_ls(args):
         print('  (no drops)')
         return
 
-    # Column widths
     key_w     = max((len(r[2]) for r in rows if r[2]), default=4)
     size_w    = max((len(r[4]) for r in rows if r[4]), default=4)
     created_w = max((len(r[5]) for r in rows if r[5]), default=7)
