@@ -23,6 +23,7 @@ from cli.commands.manage import cmd_rm, cmd_mv, cmd_renew
 from cli.commands.ls import cmd_ls
 from cli.commands.load import cmd_load
 from cli.commands.status import cmd_status, cmd_ping
+from cli.commands.save import cmd_save
 
 
 def main():
