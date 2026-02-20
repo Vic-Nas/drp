@@ -10,7 +10,9 @@ def get_csrf(host, session):
     token = _first_csrf(session)
     if token:
         return token
-    session.get(f'{host}/', timeout=10)
+    # Fetch the login page — guaranteed to set the csrftoken cookie
+    # (home page may not render {% csrf_token %} and won't set the cookie)
+    session.get(f'{host}/auth/login/', timeout=10)
     return _first_csrf(session) or ''
 
 
