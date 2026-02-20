@@ -138,13 +138,13 @@ def cmd_ls(args):
         return
 
     if not long_fmt:
-        # Short: just keys
+        # Short: key only, type hint in brackets
         for d in drops:
-            prefix = 'f/' if d['ns'] == 'f' else ''
-            print(f'{prefix}{d["key"]}')
+            kind = 'file' if d['ns'] == 'f' else 'text'
+            print(f'{d["key"]}  [{kind}]')
         for s in saved:
-            prefix = 'f/' if s['ns'] == 'f' else ''
-            print(f'{prefix}{s["key"]}  [saved]')
+            kind = 'file' if s['ns'] == 'f' else 'text'
+            print(f'{s["key"]}  [{kind}] [saved]')
         return
 
     # Long format — human-readable sizes by default, raw with --bytes
@@ -157,24 +157,23 @@ def cmd_ls(args):
 
     # Owned drops
     for d in drops:
-        prefix = 'f/' if d['ns'] == 'f' else ''
-        key = f'{prefix}{d["key"]}'
-        kind = '📎' if d['kind'] == 'file' else '📋'
-        size = fmt_size(d['filesize']) if d['kind'] == 'file' else '—'
+        kind    = '📎' if d['kind'] == 'file' else '📋'
+        ns_hint = '[file]' if d['ns'] == 'f' else '[text]'
+        size    = fmt_size(d['filesize']) if d['kind'] == 'file' else '—'
         created = _since(d.get('created_at'))
         expires = _until(d.get('expires_at')) if d.get('expires_at') else 'idle-based'
-        locked = '🔒' if d.get('locked') else '  '
-        rows.append((kind, locked, key, size, created, expires, ''))
+        locked  = '🔒' if d.get('locked') else '  '
+        rows.append((kind, locked, d['key'], ns_hint, size, created, expires, ''))
 
     # Saved drops (separator if both)
     if drops and saved:
-        rows.append(('', '', '', '', '', '', ''))  # blank separator
+        rows.append(('', '', '', '', '', '', '', ''))  # blank separator
 
     for s in saved:
-        prefix = 'f/' if s['ns'] == 'f' else ''
-        key = f'{prefix}{s["key"]}'
+        kind    = '📎' if s['ns'] == 'f' else '📋'
+        ns_hint = '[file]' if s['ns'] == 'f' else '[text]'
         saved_at = _since(s.get('saved_at'))
-        rows.append(('🔖', '  ', key, '—', saved_at, '—', '[saved]'))
+        rows.append(('🔖', '  ', s['key'], ns_hint, '—', saved_at, '—', '[saved]'))
 
     if not rows:
         print('  (no drops)')
@@ -182,17 +181,18 @@ def cmd_ls(args):
 
     # Column widths
     key_w     = max((len(r[2]) for r in rows if r[2]), default=4)
-    size_w    = max((len(r[3]) for r in rows if r[3]), default=4)
-    created_w = max((len(r[4]) for r in rows if r[4]), default=7)
-    exp_w     = max((len(r[5]) for r in rows if r[5]), default=10)
+    size_w    = max((len(r[4]) for r in rows if r[4]), default=4)
+    created_w = max((len(r[5]) for r in rows if r[5]), default=7)
+    exp_w     = max((len(r[6]) for r in rows if r[6]), default=10)
 
-    for kind, lock, key, size, created, exp, tag in rows:
+    for kind, lock, key, ns_hint, size, created, exp, tag in rows:
         if not key:
             print()
             continue
         print(
             f'{kind} {lock}  '
             f'{key:<{key_w}}  '
+            f'{ns_hint:<6}  '
             f'{size:>{size_w}}  '
             f'{created:>{created_w}}  '
             f'{exp:<{exp_w}}'
