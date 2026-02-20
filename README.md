@@ -1,6 +1,7 @@
 # drp
 
-Drop files or paste text, get a link instantly. **[Live →](https://drp.vicnas.me)**
+Drop files or paste text, get a link instantly. 
+**[Live →](https://drp.vicnas.me)**
 
 ```bash
 pipx install drp-cli
@@ -9,10 +10,10 @@ drp setup && drp up "hello world"
 
 ## Docs
 
-**CLI** → [reference](https://drp.vicnas.me/help/cli/)
-**Expiry** → [how drops expire](https://drp.vicnas.me/help/expiry/)
-**Plans** → [free vs paid](https://drp.vicnas.me/help/plans/)
-**Self-hosting** → [deploy your own](https://drp.vicnas.me/help/privacy/)
+**CLI** → [reference](https://drp.vicnas.me/help/cli/)   
+**Expiry** → [how drops expire](https://drp.vicnas.me/help/expiry/)  
+**Plans** → [free vs paid](https://drp.vicnas.me/help/plans/)     
+**Self-hosting** → [deploy your own](https://drp.vicnas.me/help/privacy/)  
 
 ## Deploy
 
@@ -46,5 +47,6 @@ python manage.py runserver
 
 ## License
 
-Server: source-available, personal/internal use only. See [LICENSE](LICENSE).
+Server: source-available, personal/internal use only.    
+See [LICENSE](LICENSE).
 CLI (`cli/`): MIT.
