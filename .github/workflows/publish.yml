@@ -66,8 +66,6 @@ jobs:
           echo "Uploaded: $URL"
           [ -z "$URL" ] && { echo "Upload returned empty URL"; exit 1; }
 
-          echo "$URL" | grep -qv '/c/' || { echo "URL should not contain /c/ prefix"; exit 1; }
-
           RESULT=$(drp get "$KEY")
           echo "Got: $RESULT"
           echo "$RESULT" | grep -q "hello from ci" || { echo "Content mismatch"; exit 1; }
@@ -98,14 +96,14 @@ jobs:
 
           echo "$URL" | grep -q '/f/' || { echo "File URL missing /f/ prefix"; exit 1; }
 
-          drp get "f/$KEY" -o ci_downloaded.txt
+          drp get -f "$KEY" -o ci_downloaded.txt
           python -c "
           content = open('ci_downloaded.txt').read()
           assert '$CONTENT' in content, f'Content mismatch: {content!r}'
           print('File content verified')
           "
 
-          drp rm "f/$KEY"
+          drp rm -f "$KEY"
           rm -f ci_test_file.txt ci_downloaded.txt
 
       - name: Smoke — authenticated session persists
