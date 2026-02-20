@@ -15,6 +15,8 @@ from cli.commands.load import cmd_load
 from cli.commands.status import cmd_status, cmd_ping
 from cli.commands.edit import cmd_edit
 from cli.commands.cp import cmd_cp
+from cli.commands.diff import cmd_diff
+from cli.commands.serve import cmd_serve
 
 COMMANDS = [
     ('setup',   cmd_setup,   'Configure host and log in'),
@@ -32,12 +34,15 @@ COMMANDS = [
     ('renew',   cmd_renew,   'Renew expiry (paid accounts only)'),
     ('ls',      cmd_ls,      'List your drops'),
     ('load',    cmd_load,    'Import a shared export as saved drops (requires login)'),
+    ('diff',    cmd_diff,    'Diff two clipboard drops'),
+    ('serve',   cmd_serve,   'Upload a directory or file list, print URL table'),
 ]
 
 EPILOG = """
 urls:
   /key/      clipboard — activity-based expiry
   /f/key/    file — expires 90 days after upload (anon)
+  /raw/key/  clipboard as plain text — for curl | bash workflows
 
 key format:
   key        clipboard (default)
@@ -48,12 +53,17 @@ examples:
   echo "hello" | drp up -k hello        clipboard from stdin
   drp up report.pdf -k q3              file at /f/q3/
   drp up report.pdf --expires 30d       file with 30-day expiry
+  drp up "secret token" --burn          delete after first view
+  drp up https://example.com/file.pdf   fetch URL and re-host
   drp get hello                         print clipboard to stdout
   drp get hello --url                   print URL without fetching content
   drp get -f q3 -o my-report.pdf        download file with custom name
   drp edit notes                        open clipboard in $EDITOR, re-upload on save
+  drp diff v1 v2                        unified diff of two clipboard drops
   drp cp notes notes-backup             duplicate clipboard drop
   drp cp -f q3 q3-backup               duplicate file drop (server-side, no re-upload)
+  drp serve ./dist/                     upload all files in dir, print URL table
+  drp serve "*.log" --expires 7d        upload glob with expiry
   drp status notes                      view count and last seen for a drop
   drp save notes                        bookmark clipboard (appears in drp ls)
   drp save -f report                    bookmark file
@@ -75,12 +85,9 @@ def build_parser():
         epilog=EPILOG,
     )
     parser.add_argument('--version', '-V', action='version', version=f'%(prog)s {__version__}')
-
     sub = parser.add_subparsers(dest='command')
-
     for name, _, help_str in COMMANDS:
         sub.add_parser(name, help=help_str)
-
     _configure_subparsers(sub)
     return parser
 
@@ -102,67 +109,51 @@ def _configure_subparsers(sub):
         if kind in _completers:
             arg.completer = _completers[kind]
 
-    # ── up ────────────────────────────────────────────────────────────────────
     p_up = sub._name_parser_map['up']
     p_up.add_argument('target', nargs='?', default=None,
-                      help='File path or text string to upload (omit to read from stdin)')
-    p_up.add_argument('--key', '-k', default=None,
-                      help='Custom key (e.g. -k q3 → /q3/ or /f/q3/)')
+                      help='File path, text string, or https:// URL (omit to read stdin)')
+    p_up.add_argument('--key', '-k', default=None)
     p_up.add_argument('--expires', '-e', default=None, metavar='DURATION',
-                      help='Expiry duration: 7d, 30d, 1y (paid accounts only)')
+                      help='7d, 30d, 1y (paid accounts only)')
+    p_up.add_argument('--burn', '-b', action='store_true',
+                      help='Delete after first view (all plans)')
 
-    # ── get ───────────────────────────────────────────────────────────────────
     p_get = sub._name_parser_map['get']
-    p_get.add_argument('-f', '--file', action='store_true',
-                       help='Key is a file drop')
-    _attach(p_get.add_argument('key', help='Drop key'), 'key')
-    p_get.add_argument('--output', '-o', default=None,
-                       help='Save file as this name (default: original filename)')
-    p_get.add_argument('--url', '-u', action='store_true',
-                       help='Print the drop URL instead of fetching content')
-    p_get.add_argument('--timing', action='store_true',
-                       help='Print per-phase timing breakdown to stderr')
+    p_get.add_argument('-f', '--file', action='store_true')
+    _attach(p_get.add_argument('key'), 'key')
+    p_get.add_argument('--output', '-o', default=None)
+    p_get.add_argument('--url', '-u', action='store_true')
+    p_get.add_argument('--timing', action='store_true')
 
-    # ── edit ──────────────────────────────────────────────────────────────────
     p_edit = sub._name_parser_map['edit']
-    _attach(p_edit.add_argument('key', help='Clipboard drop key'), 'clip_key')
+    _attach(p_edit.add_argument('key'), 'clip_key')
 
-    # ── cp ────────────────────────────────────────────────────────────────────
     p_cp = sub._name_parser_map['cp']
-    p_cp.add_argument('-f', '--file', action='store_true',
-                      help='Key is a file drop')
+    p_cp.add_argument('-f', '--file', action='store_true')
     _attach(p_cp.add_argument('key', help='Source key'), 'key')
-    p_cp.add_argument('new_key', help='Destination key')
+    p_cp.add_argument('new_key')
 
-    # ── rm ────────────────────────────────────────────────────────────────────
     p_rm = sub._name_parser_map['rm']
     p_rm.add_argument('-f', '--file', action='store_true')
-    _attach(p_rm.add_argument('key', help='Drop key'), 'key')
+    _attach(p_rm.add_argument('key'), 'key')
 
-    # ── mv ────────────────────────────────────────────────────────────────────
     p_mv = sub._name_parser_map['mv']
     p_mv.add_argument('-f', '--file', action='store_true')
     _attach(p_mv.add_argument('key', help='Current key'), 'key')
-    p_mv.add_argument('new_key', help='New key')
+    p_mv.add_argument('new_key')
 
-    # ── renew ─────────────────────────────────────────────────────────────────
     p_renew = sub._name_parser_map['renew']
     p_renew.add_argument('-f', '--file', action='store_true')
-    _attach(p_renew.add_argument('key', help='Drop key'), 'key')
+    _attach(p_renew.add_argument('key'), 'key')
 
-    # ── save ──────────────────────────────────────────────────────────────────
     p_save = sub._name_parser_map['save']
     p_save.add_argument('-f', '--file', action='store_true')
-    _attach(p_save.add_argument('key', help='Drop key'), 'key')
+    _attach(p_save.add_argument('key'), 'key')
 
-    # ── status ────────────────────────────────────────────────────────────────
     p_status = sub._name_parser_map['status']
-    p_status.add_argument('key', nargs='?', default=None,
-                          help='Drop key to inspect (omit for global status)')
-    p_status.add_argument('-f', '--file', action='store_true',
-                          help='Key is a file drop')
+    p_status.add_argument('key', nargs='?', default=None)
+    p_status.add_argument('-f', '--file', action='store_true')
 
-    # ── ls ────────────────────────────────────────────────────────────────────
     p_ls = sub._name_parser_map['ls']
     p_ls.add_argument('-l', '--long', action='store_true')
     p_ls.add_argument('--bytes', action='store_true')
@@ -171,70 +162,71 @@ def _configure_subparsers(sub):
     p_ls.add_argument('-r', '--reverse', action='store_true')
     p_ls.add_argument('--export', action='store_true')
 
-    # ── load ──────────────────────────────────────────────────────────────────
     p_load = sub._name_parser_map['load']
-    p_load.add_argument('file', help='Path to a drp export JSON file')
+    p_load.add_argument('file')
+
+    p_diff = sub._name_parser_map['diff']
+    _attach(p_diff.add_argument('key1', help='First clipboard key'), 'clip_key')
+    _attach(p_diff.add_argument('key2', help='Second clipboard key'), 'clip_key')
+
+    p_serve = sub._name_parser_map['serve']
+    p_serve.add_argument('targets', nargs='+',
+                         help='Files, directories, or glob patterns')
+    p_serve.add_argument('--expires', '-e', default=None, metavar='DURATION',
+                         help='7d, 30d, 1y (paid only)')
 
 
 _HANDLERS = {name: handler for name, handler, _ in COMMANDS}
 
 
 def _print_colored_help():
-    """Print a colored help screen when drp is run with no arguments."""
     from cli.format import bold, dim, cyan, green
-
     print(f'  {bold("drp")} {dim(__version__)}  — drop clipboards and files, get a link instantly.')
     print()
     print(f'  {dim("usage:")}  drp <command> [options]')
     print()
     print(f'  {dim("commands:")}')
-
-    # Group commands visually
     groups = [
-        ('upload / download',  ['up', 'get', 'edit']),
-        ('manage',             ['rm', 'mv', 'cp', 'renew']),
+        ('upload / download',  ['up', 'get', 'edit', 'serve']),
+        ('manage',             ['rm', 'mv', 'cp', 'renew', 'diff']),
         ('account',            ['save', 'ls', 'load']),
         ('info',               ['status', 'ping']),
         ('setup',              ['setup', 'login', 'logout']),
     ]
-
     cmd_map = {name: help_str for name, _, help_str in COMMANDS}
-
     for group_label, names in groups:
         print(f'    {dim(group_label)}')
         for name in names:
-            help_str = cmd_map.get(name, '')
-            print(f'      {cyan(f"drp {name:<10}")}  {help_str}')
+            print(f'      {cyan(f"drp {name:<10}")}  {cmd_map.get(name, "")}')
         print()
-
     print(f'  {dim("key format:")}')
-    print(f'    {green("key")}       clipboard drop  →  /key/')
-    print(f'    {green("-f key")}    file drop       →  /f/key/')
+    print(f'    {green("key")}       clipboard  →  /key/')
+    print(f'    {green("-f key")}    file       →  /f/key/')
+    print(f'    {dim("raw url")}    plain text →  /raw/key/')
     print()
     print(f'  {dim("quick examples:")}')
-    print(f'    {dim("drp up")} "hello"          clipboard from string')
-    print(f'    {dim("drp up")} report.pdf        file upload')
-    print(f'    {dim("drp get")} hello            print clipboard to stdout')
-    print(f'    {dim("drp get")} -f q3            download file')
+    print(f'    {dim("drp up")} "hello"                  clipboard from string')
+    print(f'    {dim("drp up")} "secret" --burn          delete after first view')
+    print(f'    {dim("drp up")} https://example.com/f    fetch URL and re-host')
+    print(f'    {dim("drp up")} report.pdf               file upload')
+    print(f'    {dim("drp get")} hello                   print clipboard to stdout')
+    print(f'    {dim("drp serve")} ./dist/               upload dir, print URL table')
+    print(f'    {dim("drp diff")} v1 v2                  unified diff of two drops')
     print()
     print(f'  {dim("drp <command> --help for per-command options.")}')
 
 
 def main():
     parser = build_parser()
-
     try:
         import argcomplete
         argcomplete.autocomplete(parser)
     except ImportError:
         pass
-
     args = parser.parse_args()
-
     if args.command is None:
         _print_colored_help()
         return
-
     if args.command in _HANDLERS:
         try:
             _HANDLERS[args.command](args)

@@ -2,6 +2,7 @@ from django.urls import path, re_path
 from django.contrib.auth import views as auth_views
 from core import views
 from core.views.error_reporting import report_error
+from core.views.drops import raw_view
 
 KEY = r"(?P<key>[^/\s]+)"
 
@@ -14,6 +15,9 @@ urlpatterns = [
     # ── CLI direct-upload (prepare → PUT to B2 → confirm) ────────────────────
     path("upload/prepare/",     views.upload_prepare,   name="upload_prepare"),
     path("upload/confirm/",     views.upload_confirm,   name="upload_confirm"),
+
+    # ── Raw text ──────────────────────────────────────────────────────────────
+    re_path(rf"^raw/{KEY}/$",   raw_view,               name="raw_view"),
 
     # ── Auth ──────────────────────────────────────────────────────────────────
     path("auth/register/",      views.register_view,    name="register"),

@@ -18,6 +18,15 @@ CLI fast-download path:
   GET /f/<key>/ with Accept: application/json
     → response now includes 'presigned_url' field with a ready-to-use B2 URL
     → CLI streams directly from B2 in one fewer Railway round-trip
+
+Raw text path:
+  GET /raw/<key>/ → plain text response, no HTML
+  Useful for curl | bash workflows and embedding in scripts.
+
+Burn-after-read:
+  Drops created with burn=True are hard-deleted after the first view.
+  The deletion happens after the response is sent (for JSON) or rendered
+  (for HTML), so the viewer always receives the content.
 """
 
 import secrets
@@ -25,7 +34,7 @@ from datetime import timedelta
 from functools import cache
 
 from django.conf import settings
-from django.http import JsonResponse, Http404
+from django.http import JsonResponse, HttpResponse, Http404
 from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -44,11 +53,6 @@ ANON_COOKIE = "drp_anon"
 
 @cache
 def _get_reserved_keys():
-    """
-    Derive reserved top-level path segments from the root URL conf.
-    Deferred until first call to avoid circular import at startup.
-    Cached so the resolver is only inspected once.
-    """
     from django.urls import get_resolver
     resolver = get_resolver()
     reserved = set()
@@ -100,14 +104,6 @@ def check_key(request):
 # ── Save drop (web flow) ──────────────────────────────────────────────────────
 
 def save_drop(request):
-    """
-    Unified endpoint for web UI uploads (text + file).
-
-    For file drops the browser POSTs multipart/form-data; Django receives the
-    bytes and streams them to B2 via boto3's managed upload.  This keeps the
-    web template unchanged while the CLI uses the separate prepare/confirm flow
-    that never touches Railway for the actual bytes.
-    """
     if request.method != "POST":
         return JsonResponse({"error": "POST required."}, status=405)
 
@@ -157,7 +153,6 @@ def save_drop(request):
 
 
 def _expiry_and_lock(request, paid):
-    """Return (expires_at, locked_until) based on user plan and POST data."""
     expires_at   = None
     locked_until = None
     expiry_days  = request.POST.get("expiry_days")
@@ -239,6 +234,9 @@ def _save_text(request, ns, key, existing, paid, anon_token):
         limit = Plan.get(user_plan(request.user), "max_text_kb")
         return JsonResponse({"error": f"Text exceeds {limit} KB."}, status=400)
 
+    # burn flag — available to all plans
+    burn = request.POST.get("burn") in ("1", "true", "True")
+
     if existing:
         existing.content = text
         existing.last_accessed_at = timezone.now()
@@ -255,6 +253,7 @@ def _save_text(request, ns, key, existing, paid, anon_token):
             expires_at=expires_at,
             max_lifetime_secs=max_lifetime_secs(request.user, ns),
             anon_token=anon_token,
+            burn=burn,
         )
 
     return JsonResponse({
@@ -263,17 +262,13 @@ def _save_text(request, ns, key, existing, paid, anon_token):
         "kind": drop.kind,
         "url":  f"/{drop.key}/",
         "new":  existing is None,
+        "burn": drop.burn,
     })
 
 
 # ── CLI direct-upload endpoints ───────────────────────────────────────────────
 
 def upload_prepare(request):
-    """
-    POST /upload/prepare/
-
-    Validates auth + quota, generates a presigned B2 PUT URL.
-    """
     if request.method != "POST":
         return JsonResponse({"error": "POST required."}, status=405)
 
@@ -327,11 +322,6 @@ def upload_prepare(request):
 
 
 def upload_confirm(request):
-    """
-    POST /upload/confirm/
-
-    Called by the CLI after it has PUT the file directly to B2.
-    """
     if request.method != "POST":
         return JsonResponse({"error": "POST required."}, status=405)
 
@@ -344,6 +334,7 @@ def upload_confirm(request):
     key      = (data.get("key") or "").strip()
     ns       = data.get("ns", Drop.NS_FILE)
     filename = (data.get("filename") or key).strip()
+    burn     = bool(data.get("burn", False))
 
     if not key or ns not in (Drop.NS_CLIPBOARD, Drop.NS_FILE):
         return JsonResponse({"error": "key and valid ns required."}, status=400)
@@ -415,6 +406,7 @@ def upload_confirm(request):
             expires_at=expires_at,
             max_lifetime_secs=max_lifetime_secs(request.user, ns),
             anon_token=anon_token,
+            burn=burn,
         )
         add_storage(request.user, actual_size)
 
@@ -424,6 +416,7 @@ def upload_confirm(request):
         "kind": drop.kind,
         "url":  f"/f/{drop.key}/",
         "new":  existing is None,
+        "burn": drop.burn,
     })
 
 
@@ -436,6 +429,9 @@ def _drop_response(request, drop):
             return JsonResponse({"error": "Drop has expired."}, status=410)
         return render(request, "expired.html", {"key": drop.key})
 
+    # Capture burn state before touch() so we know whether to delete after.
+    should_burn = drop.burn
+
     drop.touch()
 
     if "application/json" in request.headers.get("Accept", ""):
@@ -443,36 +439,46 @@ def _drop_response(request, drop):
             "key":              drop.key,
             "ns":               drop.ns,
             "kind":             drop.kind,
+            "burn":             drop.burn,
             "created_at":       drop.created_at.isoformat(),
             "last_accessed_at": (drop.last_accessed_at.isoformat()
                                  if drop.last_accessed_at else None),
             "expires_at":       (drop.expires_at.isoformat()
                                  if drop.expires_at else None),
+            "view_count":       drop.view_count,
+            "last_viewed_at":   (drop.last_viewed_at.isoformat()
+                                 if drop.last_viewed_at else None),
         }
         if drop.kind == Drop.TEXT:
             data["content"] = drop.content
         else:
             data["filename"] = drop.filename
             data["filesize"]  = drop.filesize
-            # /download/ redirect path — kept for browser and backwards compat
             data["download"] = f"/f/{drop.key}/download/"
-            # Presigned B2 URL included directly so the CLI can skip the
-            # /download/ round-trip entirely (one fewer Railway RTT per fetch).
             try:
                 data["presigned_url"] = drop.download_url(expires_in=3600)
             except Exception:
-                # Non-fatal: CLI falls back to the /download/ redirect path.
                 pass
 
-        return JsonResponse(data)
+        response = JsonResponse(data)
+
+        if should_burn:
+            drop.hard_delete()
+
+        return response
 
     plan = user_plan(request.user)
-    return render(request, "drop.html", {
-        "drop":           drop,
-        "can_edit":       drop.can_edit(request.user),
-        "is_owner":       request.user.is_authenticated and drop.owner_id == request.user.pk,
+    response = render(request, "drop.html", {
+        "drop":            drop,
+        "can_edit":        drop.can_edit(request.user),
+        "is_owner":        request.user.is_authenticated and drop.owner_id == request.user.pk,
         "max_expiry_days": Plan.get(plan, "max_expiry_days"),
     })
+
+    if should_burn:
+        drop.hard_delete()
+
+    return response
 
 
 def clipboard_view(request, key):
@@ -493,14 +499,48 @@ def file_view(request, key):
     return _drop_response(request, drop)
 
 
+# ── Raw text view ─────────────────────────────────────────────────────────────
+
+def raw_view(request, key):
+    """
+    GET /raw/<key>/
+
+    Returns clipboard content as plain text — no HTML, no JSON wrapper.
+    Ideal for: curl https://drp.vicnas.me/raw/key | bash
+               curl https://drp.vicnas.me/raw/key > config.yml
+
+    File drops are not supported (returns 400).
+    Respects expiry and burn-after-read.
+    """
+    drop = Drop.objects.filter(ns=Drop.NS_CLIPBOARD, key=key).first()
+    if not drop:
+        return HttpResponse("not found\n", content_type="text/plain", status=404)
+
+    if drop.is_expired():
+        drop.hard_delete()
+        return HttpResponse("expired\n", content_type="text/plain", status=410)
+
+    if drop.kind != Drop.TEXT:
+        return HttpResponse(
+            "file drops cannot be fetched as raw text\n",
+            content_type="text/plain",
+            status=400,
+        )
+
+    should_burn = drop.burn
+    drop.touch()
+
+    response = HttpResponse(drop.content, content_type="text/plain; charset=utf-8")
+
+    if should_burn:
+        drop.hard_delete()
+
+    return response
+
+
 # ── Download ──────────────────────────────────────────────────────────────────
 
 def download_drop(request, key):
-    """
-    302-redirect to a fresh presigned B2 GET URL.
-    Kept for browser downloads and backwards compatibility.
-    The CLI uses the presigned_url field in the /f/<key>/ JSON response instead.
-    """
     drop = Drop.objects.filter(ns=Drop.NS_FILE, key=key).first()
     if not drop:
         raise Http404

@@ -167,6 +167,8 @@ class Drop(models.Model):
     expires_at    = models.DateTimeField(null=True, blank=True)
     renewal_count = models.PositiveIntegerField(default=0)
 
+    burn = models.BooleanField(default=False, help_text="Delete after first view")
+
     # ── View tracking ─────────────────────────────────────────────────────────
     view_count     = models.PositiveIntegerField(default=0)
     last_viewed_at = models.DateTimeField(null=True, blank=True, db_index=True)
@@ -207,8 +209,6 @@ class Drop(models.Model):
 
         return (now - self.created_at) > timedelta(days=90)
 
-    # ── touch (debounced) — updates access time and view count ───────────────
-
     TOUCH_DEBOUNCE_SECS = 300  # 5 minutes
 
     def touch(self):
@@ -246,8 +246,7 @@ class Drop(models.Model):
     def hard_delete(self):
         """
         Delete a file drop from B2 then remove the DB record.
-        Storage accounting is handled by the post_delete signal — no need
-        to update it manually here.
+        Storage accounting is handled by the post_delete signal.
         """
         if self.ns == self.NS_FILE and self.file_public_id:
             try:
@@ -294,8 +293,6 @@ class Drop(models.Model):
 
 
 # ── post_delete signal — storage accounting ───────────────────────────────────
-# Fires on ALL deletion paths: hard_delete(), admin, queryset.delete(), cascade.
-# Safely skips drops with no owner or no filesize (text drops, anon drops).
 
 @receiver(post_delete, sender=Drop)
 def update_storage_on_delete(sender, instance, **kwargs):
@@ -303,13 +300,12 @@ def update_storage_on_delete(sender, instance, **kwargs):
         return
     try:
         UserProfile.objects.filter(user_id=instance.owner_id).update(
-            storage_used_bytes=models.greatest(
+            storage_used_bytes=models.Greatest(
                 models.F("storage_used_bytes") - instance.filesize,
                 models.Value(0),
             )
         )
     except Exception:
-        # greatest() requires Django 5.0+ — fall back to recalc from DB truth
         try:
             profile = UserProfile.objects.get(user_id=instance.owner_id)
             profile.recalc_storage()

@@ -4,7 +4,9 @@ drp up — upload text or a file.
   drp up "hello"              clipboard from string
   echo "hello" | drp up       clipboard from stdin
   drp up report.pdf           file upload
+  drp up https://example.com/file.pdf   fetch URL and re-host
   drp up report.pdf --expires 7d
+  drp up "secret" --burn      delete after first view
 """
 
 import os
@@ -36,6 +38,33 @@ def _parse_expires(value: str) -> int | None:
         return None
 
 
+def _copy_to_clipboard(text: str) -> bool:
+    """
+    Try to copy text to the system clipboard.
+    Returns True on success, False if no clipboard tool is available.
+    Silent — never raises.
+    """
+    try:
+        import pyperclip
+        pyperclip.copy(text)
+        return True
+    except Exception:
+        pass
+
+    import subprocess
+    import shutil
+
+    for cmd in (['pbcopy'], ['xclip', '-selection', 'clipboard'], ['xsel', '--clipboard', '--input'], ['wl-copy']):
+        if shutil.which(cmd[0]):
+            try:
+                proc = subprocess.run(cmd, input=text.encode(), timeout=3)
+                return proc.returncode == 0
+            except Exception:
+                continue
+
+    return False
+
+
 def cmd_up(args):
     cfg = config.load()
     host = cfg.get('host')
@@ -46,21 +75,85 @@ def cmd_up(args):
     session = requests.Session()
     auto_login(cfg, host, session)
 
-    # ── Resolve input ─────────────────────────────────────────────────────────
     target = getattr(args, 'target', None)
     key    = args.key
+    burn   = getattr(args, 'burn', False)
 
-    # stdin pipe: drp up (no target) or target is '-'
+    # stdin pipe
     if target is None or target == '-':
         if sys.stdin.isatty():
-            print('  ✗ No input. Provide text, a file path, or pipe via stdin.')
+            print('  ✗ No input. Provide text, a file path, a URL, or pipe via stdin.')
             sys.exit(1)
         target = sys.stdin.read()
+
+    # URL fetch — download then re-upload as file drop
+    elif target.startswith('http://') or target.startswith('https://'):
+        _upload_url(host, session, target, key, cfg, args)
+        return
+
     elif os.path.isfile(target):
         _upload_file(host, session, target, key, cfg, args)
         return
 
-    _upload_text(host, session, target, key, cfg, args)
+    _upload_text(host, session, target, key, cfg, args, burn=burn)
+
+
+def _upload_url(host, session, url, key, cfg, args):
+    """Fetch a remote URL and re-upload as a file drop."""
+    from cli.progress import ProgressBar
+    from cli.format import dim
+    import mimetypes
+    import tempfile
+
+    print(f'  {dim("fetching")} {url}')
+
+    try:
+        r = requests.get(url, stream=True, timeout=30)
+        r.raise_for_status()
+    except Exception as e:
+        print(f'  ✗ Could not fetch URL: {e}')
+        sys.exit(1)
+
+    # Derive filename from URL or Content-Disposition
+    filename = _filename_from_response(r, url)
+    content_type = r.headers.get('Content-Type', 'application/octet-stream').split(';')[0]
+    total = int(r.headers.get('Content-Length', 0))
+
+    # Stream to a temp file so we can get the size for progress
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1])
+    bar = ProgressBar(max(total, 1), label='downloading')
+    try:
+        for chunk in r.iter_content(chunk_size=256 * 1024):
+            if chunk:
+                tmp.write(chunk)
+                bar.update(len(chunk))
+        bar.done()
+        tmp.flush()
+        tmp_path = tmp.name
+    finally:
+        tmp.close()
+
+    if not key:
+        key = api.slug(filename)
+
+    expiry_days = _parse_expires(getattr(args, 'expires', None))
+
+    try:
+        result_key = api.upload_file(host, session, tmp_path, key=key, expiry_days=expiry_days)
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    if not result_key:
+        report_outcome('up', 'upload_file returned None for URL fetch')
+        sys.exit(1)
+
+    final_url = f'{host}/f/{result_key}/'
+    print(final_url)
+    _try_copy(final_url)
+    config.record_drop(result_key, 'file', ns='f', filename=filename, host=host)
 
 
 def _upload_file(host, session, path, key, cfg, args):
@@ -76,18 +169,46 @@ def _upload_file(host, session, path, key, cfg, args):
 
     url = f'{host}/f/{result_key}/'
     print(url)
+    _try_copy(url)
     config.record_drop(result_key, 'file', ns='f',
                        filename=os.path.basename(path), host=host)
 
 
-def _upload_text(host, session, text, key, cfg, args):
+def _upload_text(host, session, text, key, cfg, args, burn=False):
     expiry_days = _parse_expires(getattr(args, 'expires', None))
 
-    result_key = api.upload_text(host, session, text, key=key, expiry_days=expiry_days)
+    result_key = api.upload_text(
+        host, session, text, key=key,
+        expiry_days=expiry_days,
+        burn=burn,
+    )
     if not result_key:
         report_outcome('up', 'upload_text returned None for clipboard drop')
         sys.exit(1)
 
     url = f'{host}/{result_key}/'
     print(url)
+    _try_copy(url)
     config.record_drop(result_key, 'text', ns='c', host=host)
+
+
+def _try_copy(url: str) -> None:
+    """Copy URL to clipboard and print a dim confirmation if successful."""
+    from cli.format import dim
+    if _copy_to_clipboard(url):
+        print(f'  {dim("copied to clipboard")}')
+
+
+def _filename_from_response(r, url: str) -> str:
+    """Extract a clean filename from Content-Disposition or the URL path."""
+    cd = r.headers.get('Content-Disposition', '')
+    if 'filename=' in cd:
+        for part in cd.split(';'):
+            part = part.strip()
+            if part.startswith('filename='):
+                return part[9:].strip('"\'')
+
+    from urllib.parse import urlparse
+    path = urlparse(url).path
+    name = os.path.basename(path.rstrip('/'))
+    return name if name else 'download'
