@@ -13,7 +13,7 @@
   <header>
     <a href="/" class="logo">drp</a>
     <nav>
-      <a href="/help/">docs</a>
+      <a href="/help/">help</a>
       {% if user.is_authenticated %}
         <a href="/auth/account/">
           {% if user.profile.is_paid %}<span class="plan-badge">{{ user.profile.plan }}</span> {% endif %}
@@ -33,7 +33,7 @@
     <small>
       anon: text 7d · files 90d ·
       paid: explicit expiry, renewable ·
-      <a href="/help/">docs</a> ·
+      <a href="/help/">help</a> ·
       <a href="https://github.com/vicnasdev/drp">source</a> ·
       <a href="https://github.com/vicnasdev/drp/issues">report a bug</a>
     </small>

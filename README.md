@@ -8,7 +8,7 @@ pipx install drp-cli
 drp setup && drp up "hello world"
 ```
 
-## Docs
+## Help
 
 **CLI** → [reference](https://drp.vicnas.me/help/cli/)   
 **Expiry** → [how drops expire](https://drp.vicnas.me/help/expiry/)  
