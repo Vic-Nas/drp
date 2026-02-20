@@ -26,5 +26,6 @@ install: ## Install drp CLI locally (editable)
 
 set-domain: ## Swap default host: make set-domain NEW=drp.fyi
 	@test -n "$(NEW)" || (echo "  ✗ Usage: make set-domain NEW=drp.fyi" && exit 1)
-	sed -i "s|https://[a-z.]*vicnas\.me|https://$(NEW)|g" cli/__init__.py pyproject.toml
+	old=$$(grep -oP "(?<=DEFAULT_HOST = 'https://).*(?=')" cli/__init__.py); \
+	sed -i "s|https://$$old|https://$(NEW)|g" cli/__init__.py pyproject.toml
 	@echo "  ✓ Done. Update Railway, Resend, and README.md manually."
