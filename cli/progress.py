@@ -14,11 +14,19 @@ import time
 
 _BAR_WIDTH = 30  # inner fill characters
 
+# ANSI escape: carriage return + erase to end of line.
+# Clears leftover bar characters before printing the summary line so the
+# two don't collide when the summary is shorter than the bar was.
+_CLEAR = '\r\033[K'
+
 
 class ProgressBar:
     """
     Renders a progress bar to stderr like:
       uploading  [=============>        ]  62%  6.2M/10.0M  1.4 MB/s
+
+    When stderr is not a tty (e.g. piped / redirected) all rendering is
+    suppressed so no escape sequences or partial lines pollute the output.
     """
 
     def __init__(self, total: int, label: str = ""):
@@ -26,6 +34,7 @@ class ProgressBar:
         self.label   = label
         self.done_   = 0
         self._start  = time.monotonic()
+        self._tty    = sys.stderr.isatty()
         self._render()
 
     # ── Public ────────────────────────────────────────────────────────────────
@@ -36,18 +45,28 @@ class ProgressBar:
 
     def done(self, msg: str = ""):
         self.done_ = self.total
-        self._render()
         elapsed = time.monotonic() - self._start
         speed   = self.total / elapsed if elapsed > 0 else 0
-        sys.stderr.write(
-            f"\r  ✓ {self.label}  {_fmt(self.total)}  "
-            f"({_fmt(speed)}/s  {elapsed:.1f}s)\n"
-        )
+
+        if self._tty:
+            # Erase the in-progress bar line completely before printing summary
+            sys.stderr.write(
+                f"{_CLEAR}  ✓ {self.label}  {_fmt(self.total)}  "
+                f"({_fmt(speed)}/s  {elapsed:.1f}s)\n"
+            )
+        else:
+            sys.stderr.write(
+                f"  ✓ {self.label}  {_fmt(self.total)}  "
+                f"({_fmt(speed)}/s  {elapsed:.1f}s)\n"
+            )
         sys.stderr.flush()
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
     def _render(self):
+        if not self._tty:
+            return  # never write partial bar lines to non-interactive stderr
+
         pct     = self.done_ / self.total
         filled  = int(pct * _BAR_WIDTH)
         arrow   = ">" if filled < _BAR_WIDTH else ""

@@ -7,9 +7,9 @@ Upload flow (CLI → B2 direct, never through Railway):
   3. POST /upload/confirm/  → Django verifies + creates Drop record
 
 Download flow:
-  GET /f/<key>/             → JSON with { download: "/f/<key>/download/" }
-  GET /f/<key>/download/    → 302 to presigned B2 GET URL
-  Follow the redirect and stream to disk.
+  GET /f/<key>/  → JSON with metadata including 'presigned_url' (direct B2 URL)
+                   Falls back to 'download' path if presigned_url absent.
+  Stream from presigned URL directly — Railway never proxies bytes.
 
 Both upload and download show a progress bar on stderr.
 Files are streamed in chunks — never fully loaded into memory.
@@ -84,10 +84,6 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
     drop_key      = prep["key"]
 
     # ── Step 2: stream file directly to B2 ───────────────────────────────────
-    # NOTE: requests drops Content-Length when data is a generator (uses chunked
-    # transfer encoding instead), which B2 rejects on presigned URLs.
-    # Fix: pass a file-like object (requests honours Content-Length for those)
-    # wrapped to tick the progress bar on each read().
     bar = ProgressBar(size, label="uploading")
 
     class _ProgressFile:
@@ -162,6 +158,13 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
 def get_file(host, session, key):
     """
     Fetch a file drop.
+
+    Fast path: /f/<key>/ JSON response includes 'presigned_url' — stream
+    directly from B2 with no extra Railway round-trip.
+
+    Fallback: use the 'download' path which 302-redirects to B2 (one extra
+    RTT, kept for backwards compatibility with older server versions).
+
     Returns ('file', (bytes_content, filename)) or (None, None).
     """
     from cli.progress import ProgressBar
@@ -181,25 +184,36 @@ def get_file(host, session, key):
             err(f"/f/{key}/ is not a file drop.")
             return None, None
 
-        download_path = data["download"]
-        filename      = data.get("filename", key)
-        filesize      = data.get("filesize", 0)
+        filename  = data.get("filename", key)
+        filesize  = data.get("filesize", 0)
 
-        dl_res = session.get(
-            f"{host}{download_path}",
-            timeout=10,
-            allow_redirects=False,
-        )
-        if dl_res.status_code in (301, 302, 303, 307, 308):
-            b2_url = dl_res.headers["Location"]
-        elif dl_res.ok:
-            return "file", (dl_res.content, filename)
-        else:
-            msg = f"Download redirect failed (HTTP {dl_res.status_code})"
-            err(f"{msg}.")
-            _report("get", msg)
-            return None, None
+        # ── Fast path: presigned URL returned directly ────────────────────
+        b2_url = data.get("presigned_url")
 
+        # ── Fallback: follow the /download/ redirect ──────────────────────
+        if not b2_url:
+            download_path = data.get("download")
+            if not download_path:
+                err(f"No download URL in response for /f/{key}/.")
+                _report("get", "missing both presigned_url and download fields")
+                return None, None
+
+            dl_res = session.get(
+                f"{host}{download_path}",
+                timeout=10,
+                allow_redirects=False,
+            )
+            if dl_res.status_code in (301, 302, 303, 307, 308):
+                b2_url = dl_res.headers["Location"]
+            elif dl_res.ok:
+                return "file", (dl_res.content, filename)
+            else:
+                msg = f"Download redirect failed (HTTP {dl_res.status_code})"
+                err(f"{msg}.")
+                _report("get", msg)
+                return None, None
+
+        # ── Stream from B2 ────────────────────────────────────────────────
         bar    = ProgressBar(max(filesize, 1), label="downloading")
         chunks = []
         with _requests.get(b2_url, stream=True, timeout=None) as stream:

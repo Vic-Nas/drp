@@ -13,6 +13,11 @@ Download path (both web and CLI):
   GET /f/<key>/ → JSON includes a short-lived presigned GET URL
   GET /f/<key>/download/ → 302 redirect to presigned GET URL
   (Railway never proxies file bytes → no timeout risk)
+
+CLI fast-download path:
+  GET /f/<key>/ with Accept: application/json
+    → response now includes 'presigned_url' field with a ready-to-use B2 URL
+    → CLI streams directly from B2 in one fewer Railway round-trip
 """
 
 import secrets
@@ -188,10 +193,9 @@ def _save_file(request, f, ns, key, existing, paid, anon_token):
         return JsonResponse({"error": f"File upload failed: {e}"}, status=500)
 
     if existing:
-        # Replace — update existing record; old B2 object is overwritten by key
         old_size = existing.filesize
         existing.file_public_id = b2_key
-        existing.file_url       = ""   # presigned on demand; no static URL
+        existing.file_url       = ""
         existing.filename       = f.name
         existing.filesize       = f.size
         existing.save(update_fields=["file_public_id", "file_url", "filename", "filesize"])
@@ -208,7 +212,7 @@ def _save_file(request, f, ns, key, existing, paid, anon_token):
         drop = Drop.objects.create(
             ns=ns, key=key, kind=Drop.FILE,
             file_public_id=b2_key,
-            file_url="",          # presigned on demand
+            file_url="",
             filename=f.name,
             filesize=f.size,
             owner=owner,
@@ -269,18 +273,6 @@ def upload_prepare(request):
     POST /upload/prepare/
 
     Validates auth + quota, generates a presigned B2 PUT URL.
-    The CLI uses this to upload directly to B2 without routing bytes
-    through Railway (avoiding the 30-second timeout).
-
-    Request JSON:
-      { "filename": "report.pdf", "size": 12345678,
-        "content_type": "application/pdf", "key": "report", "ns": "f" }
-
-    Response JSON (200):
-      { "presigned_url": "https://...", "key": "report", "ns": "f",
-        "expires_in": 3600 }
-
-    Error responses: 400 (bad input), 403 (locked), 413 (too large), 507 (quota)
     """
     if request.method != "POST":
         return JsonResponse({"error": "POST required."}, status=405)
@@ -303,16 +295,13 @@ def upload_prepare(request):
     if key in _get_reserved_keys():
         return JsonResponse({"error": f'"{key}" is a reserved key.'}, status=400)
 
-    # Size validation
     if size > max_file_bytes(request.user):
         limit = Plan.get(user_plan(request.user), "max_file_mb")
         return JsonResponse({"error": f"File exceeds {limit} MB limit."}, status=413)
 
-    # Quota validation (TOCTOU-safe: we re-check in confirm)
     if not storage_ok(request.user, size):
         return JsonResponse({"error": "Storage quota exceeded."}, status=507)
 
-    # Key conflict check
     existing = Drop.objects.filter(ns=ns, key=key).first()
     if existing and existing.is_expired():
         existing.hard_delete()
@@ -325,9 +314,8 @@ def upload_prepare(request):
             }, status=403)
         return JsonResponse({"error": "This drop is locked to its owner."}, status=403)
 
-    # Generate presigned PUT
     from core.views.b2 import presigned_put
-    EXPIRES_IN = 3600  # 1 hour
+    EXPIRES_IN = 3600
     presigned_url = presigned_put(ns, key, content_type=content_type, size=size, expires_in=EXPIRES_IN)
 
     return JsonResponse({
@@ -343,14 +331,6 @@ def upload_confirm(request):
     POST /upload/confirm/
 
     Called by the CLI after it has PUT the file directly to B2.
-    Verifies the object exists, re-validates quota, then creates the Drop record.
-
-    Request JSON:
-      { "key": "report", "ns": "f", "filename": "report.pdf",
-        "content_type": "application/pdf" }
-
-    Response JSON (200):
-      { "key": "report", "ns": "f", "kind": "file", "url": "/f/report/" }
     """
     if request.method != "POST":
         return JsonResponse({"error": "POST required."}, status=405)
@@ -368,7 +348,6 @@ def upload_confirm(request):
     if not key or ns not in (Drop.NS_CLIPBOARD, Drop.NS_FILE):
         return JsonResponse({"error": "key and valid ns required."}, status=400)
 
-    # Verify object actually landed in B2
     from core.views.b2 import object_exists, object_size
     if not object_exists(ns, key):
         return JsonResponse(
@@ -378,22 +357,18 @@ def upload_confirm(request):
 
     actual_size = object_size(ns, key)
 
-    # Re-validate quota now that we have the actual size
     if not storage_ok(request.user, actual_size):
-        # Roll back — delete the orphaned B2 object
         delete_from_b2(ns, key)
         return JsonResponse({"error": "Storage quota exceeded."}, status=507)
 
     paid = is_paid_user(request.user)
 
-    # Handle replace vs create
     existing = Drop.objects.filter(ns=ns, key=key).first()
     if existing and existing.is_expired():
         existing.hard_delete()
         existing = None
 
     if existing:
-        # Replacing an existing drop (owner already validated in prepare)
         old_size = existing.filesize
         from core.views.b2 import object_key as b2_object_key
         existing.file_public_id = b2_object_key(ns, key)
@@ -413,8 +388,6 @@ def upload_confirm(request):
         if not request.user.is_authenticated:
             anon_token = request.COOKIES.get(ANON_COOKIE) or secrets.token_urlsafe(32)
 
-        # Determine expiry
-        paid = is_paid_user(request.user)
         expiry_days = data.get("expiry_days")
         expires_at  = None
         locked_until = None
@@ -467,22 +440,30 @@ def _drop_response(request, drop):
 
     if "application/json" in request.headers.get("Accept", ""):
         data = {
-            "key":             drop.key,
-            "ns":              drop.ns,
-            "kind":            drop.kind,
-            "created_at":      drop.created_at.isoformat(),
+            "key":              drop.key,
+            "ns":               drop.ns,
+            "kind":             drop.kind,
+            "created_at":       drop.created_at.isoformat(),
             "last_accessed_at": (drop.last_accessed_at.isoformat()
                                  if drop.last_accessed_at else None),
-            "expires_at":      (drop.expires_at.isoformat()
-                                if drop.expires_at else None),
+            "expires_at":       (drop.expires_at.isoformat()
+                                 if drop.expires_at else None),
         }
         if drop.kind == Drop.TEXT:
             data["content"] = drop.content
         else:
             data["filename"] = drop.filename
-            data["filesize"] = drop.filesize
-            # Presigned download URL — client redirects directly to B2
+            data["filesize"]  = drop.filesize
+            # /download/ redirect path — kept for browser and backwards compat
             data["download"] = f"/f/{drop.key}/download/"
+            # Presigned B2 URL included directly so the CLI can skip the
+            # /download/ round-trip entirely (one fewer Railway RTT per fetch).
+            try:
+                data["presigned_url"] = drop.download_url(expires_in=3600)
+            except Exception:
+                # Non-fatal: CLI falls back to the /download/ redirect path.
+                pass
+
         return JsonResponse(data)
 
     plan = user_plan(request.user)
@@ -517,7 +498,8 @@ def file_view(request, key):
 def download_drop(request, key):
     """
     302-redirect to a fresh presigned B2 GET URL.
-    Railway never proxies bytes — no timeout risk.
+    Kept for browser downloads and backwards compatibility.
+    The CLI uses the presigned_url field in the /f/<key>/ JSON response instead.
     """
     drop = Drop.objects.filter(ns=Drop.NS_FILE, key=key).first()
     if not drop:
