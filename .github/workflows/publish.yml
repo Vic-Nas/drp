@@ -154,6 +154,10 @@ jobs:
           current=$(grep -oP "(?<=__version__ = ').*(?=')" cli/__init__.py)
           IFS='.' read -r major minor patch <<< "$current"
           new_version="$major.$minor.$((patch + 1))"
+          while git tag | grep -q "^v$new_version$"; do
+            patch=$((patch + 1))
+            new_version="$major.$minor.$patch"
+          done
           sed -i "s/__version__ = '$current'/__version__ = '$new_version'/" cli/__init__.py
           echo "version=$new_version" >> "$GITHUB_OUTPUT"
 
@@ -164,8 +168,8 @@ jobs:
           git add cli/__init__.py
           git diff --cached --quiet && exit 0
           git commit -m "v${{ steps.bump.outputs.version }}"
-          git tag "v${{ steps.bump.outputs.version }}"
-          git push --follow-tags
+          git tag -f "v${{ steps.bump.outputs.version }}"
+          git push --follow-tags --force-with-lease
 
       - name: Collect commits since last release
         run: |
