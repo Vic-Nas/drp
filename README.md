@@ -8,13 +8,6 @@ pipx install drp-cli
 drp setup && drp up "hello world"
 ```
 
-## Help
-
-**CLI** → [reference](https://drp.vicnas.me/help/cli/)   
-**Expiry** → [how drops expire](https://drp.vicnas.me/help/expiry/)  
-**Plans** → [free vs paid](https://drp.vicnas.me/help/plans/)     
-**Self-hosting** → [deploy your own](https://drp.vicnas.me/help/privacy/)  
-
 ## Deploy
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.com?referralCode=ZIdvo-)
