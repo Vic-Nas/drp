@@ -11,29 +11,54 @@ drp setup          # set host, log in</code></pre>
 <p>Requires Python 3.10+. <code>pipx</code> is recommended to keep the CLI isolated. You can also use <code>pip install drp-cli</code>.</p>
 
 <h2>commands</h2>
-<table>
-  <thead>
-    <tr><th>command</th><th>description</th></tr>
-  </thead>
-  <tbody>
-    {% for cmd in parser_info.commands %}
-    <tr>
-      <td><code>drp {{ cmd.name }}</code></td>
-      <td>{{ cmd.help }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
 
-<h2>examples</h2>
-<pre><code>{{ parser_info.epilog }}</code></pre>
+{% for cmd in parser_info.commands %}
+<div class="cmd-block">
+  <div class="cmd-header">
+    <code class="cmd-name">drp {{ cmd.name }}</code>
+    <span class="cmd-help">{{ cmd.help }}</span>
+  </div>
+
+  {% if cmd.args %}
+  <table class="cmd-args">
+    <thead>
+      <tr>
+        <th>argument</th>
+        <th>description</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for arg in cmd.args %}
+      <tr>
+        <td>
+          <code>{% if arg.positional %}{{ arg.metavar|lower }}{% else %}{{ arg.flags }}{% if not arg.is_flag and arg.metavar %}&nbsp;{{ arg.metavar }}{% endif %}{% endif %}</code>
+          {% if not arg.required and not arg.positional %}<span class="arg-optional">optional</span>{% endif %}
+        </td>
+        <td>
+          {{ arg.help }}
+          {% if arg.default %}<span class="arg-default">default: {{ arg.default }}</span>{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  {% if cmd.epilog %}
+  <pre class="cmd-epilog"><code>{{ cmd.epilog }}</code></pre>
+  {% endif %}
+</div>
+{% endfor %}
 
 <h2>key format</h2>
 <p>All commands accept keys in the same format:</p>
 <table>
   <tr><th>format</th><th>namespace</th></tr>
   <tr><td><code>key</code></td><td>clipboard (default)</td></tr>
-  <tr><td><code>f/key</code></td><td>file</td></tr>
+  <tr><td><code>-f key</code></td><td>file drop</td></tr>
 </table>
 <p>Keys can contain letters, numbers, hyphens, underscores, and dots. No slashes.</p>
+
+<h2>examples</h2>
+<pre><code>{{ parser_info.epilog }}</code></pre>
 {% endblock %}

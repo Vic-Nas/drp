@@ -4,7 +4,7 @@
 {% block content %}
 <div class="home-wrap">
 
-  <!-- Left: Create -->
+  <!-- Left: Create + Get -->
   <div class="creator">
     <h1>drop it.</h1>
     <p class="tagline">paste text or drop a file. get a key. share the link.</p>
@@ -15,69 +15,111 @@
     </div>
     {% endif %}
 
-    <div class="key-row">
-      <span class="prefix">drp /</span>
-      <input type="text" id="keyInput" placeholder="auto-generated (or type your own)" autocomplete="off" spellcheck="false"/>
-      <span id="keyStatus"></span>
+    <!-- Tabs -->
+    <div class="home-tabs">
+      <button class="home-tab active" id="tabSave" onclick="switchTab('save')">save</button>
+      <button class="home-tab" id="tabGet" onclick="switchTab('get')">get</button>
     </div>
 
-    <div class="content-area">
-      <textarea id="textInput" placeholder="paste text, code, links…" rows="6"></textarea>
-      <div class="or-divider">or</div>
-      <div class="drop-zone" id="dropZone">
-        <span id="dropLabel">drag & drop a file or <label for="fileInput" class="link">browse</label></span>
-        <input type="file" id="fileInput" hidden/>
+    <!-- Save panel -->
+    <div id="panelSave">
+      <div class="key-row">
+        <span class="prefix">drp /</span>
+        <input type="text" id="keyInput" placeholder="auto-generated (or type your own)" autocomplete="off" spellcheck="false"/>
+        <span id="keyStatus"></span>
       </div>
-      <div id="filePreview" class="file-preview hidden"></div>
-    </div>
 
-    <!-- Upload progress bar (hidden until upload starts) -->
-    <div id="progressWrap" class="hidden" style="margin:.6rem 0">
-      <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-bottom:.25rem">
-        <span id="progressLabel">uploading…</span>
-        <span id="progressPct">0%</span>
+      <div class="content-area">
+        <textarea id="textInput" placeholder="paste text, code, links…" rows="6"></textarea>
+        <div class="or-divider">or</div>
+        <div class="drop-zone" id="dropZone">
+          <span id="dropLabel">drag & drop a file or <label for="fileInput" class="link">browse</label></span>
+          <input type="file" id="fileInput" hidden/>
+        </div>
+        <div id="filePreview" class="file-preview hidden"></div>
       </div>
-      <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden">
-        <div id="progressBar" style="height:100%;width:0;background:var(--accent);border-radius:2px;transition:width .1s linear"></div>
+
+      <!-- Upload progress bar -->
+      <div id="progressWrap" class="hidden" style="margin:.6rem 0">
+        <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-bottom:.25rem">
+          <span id="progressLabel">uploading…</span>
+          <span id="progressPct">0%</span>
+        </div>
+        <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+          <div id="progressBar" style="height:100%;width:0;background:var(--accent);border-radius:2px;transition:width .1s linear"></div>
+        </div>
+        <div id="progressSpeed" style="font-size:.75rem;color:var(--muted);margin-top:.2rem"></div>
       </div>
-      <div id="progressSpeed" style="font-size:.75rem;color:var(--muted);margin-top:.2rem"></div>
+
+      {% if user.is_authenticated and user.profile.is_paid %}
+      <div class="expiry-row">
+        <label for="expiryDays">expires in</label>
+        <select id="expiryDays">
+          <option value="7">7 days</option>
+          <option value="30">30 days</option>
+          <option value="90" selected>90 days</option>
+          <option value="180">180 days</option>
+          {% if user.profile.plan == 'starter' %}
+          <option value="365">1 year</option>
+          {% endif %}
+          {% if user.profile.plan == 'pro' %}
+          <option value="365">1 year</option>
+          <option value="730">2 years</option>
+          <option value="1095">3 years</option>
+          {% endif %}
+        </select>
+        <span class="muted" style="font-size:.8rem">from creation · renewable</span>
+      </div>
+      {% endif %}
+
+      <button class="btn" id="saveBtn">save & get link</button>
+      <p id="errorMsg" class="error hidden"></p>
+
+      <div id="resultBox" class="result-box hidden">
+        <span class="muted">your link:</span>
+        <a id="resultUrl" href="#" target="_blank"></a>
+        <button class="btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('resultUrl').href); showToast('copied!')">copy</button>
+      </div>
+
+      {% if not user.is_authenticated %}
+      <p id="anonNudge" class="anon-nudge hidden">
+        Drop expires in 7 days. <a href="/auth/register/">Sign up free</a> to claim it and extend to 30 days.
+      </p>
+      {% endif %}
     </div>
 
-    {% if user.is_authenticated and user.profile.is_paid %}
-    <div class="expiry-row">
-      <label for="expiryDays">expires in</label>
-      <select id="expiryDays">
-        <option value="7">7 days</option>
-        <option value="30">30 days</option>
-        <option value="90" selected>90 days</option>
-        <option value="180">180 days</option>
-        {% if user.profile.plan == 'starter' %}
-        <option value="365">1 year</option>
-        {% endif %}
-        {% if user.profile.plan == 'pro' %}
-        <option value="365">1 year</option>
-        <option value="730">2 years</option>
-        <option value="1095">3 years</option>
-        {% endif %}
-      </select>
-      <span class="muted" style="font-size:.8rem">from creation · renewable</span>
+    <!-- Get panel -->
+    <div id="panelGet" class="hidden">
+      <div class="key-row">
+        <span class="prefix">drp /</span>
+        <input type="text" id="getKeyInput" placeholder="enter key…"
+               autocomplete="off" spellcheck="false"/>
+      </div>
+      <div style="display:flex;gap:.5rem;margin-bottom:.8rem">
+        <button class="btn" id="getBtn">get drop</button>
+        <button class="btn-sm" id="getFileBtn">get file</button>
+      </div>
+      <p id="getError" class="error hidden"></p>
+
+      <!-- Text drop result -->
+      <div id="getResult" class="clip-existing hidden">
+        <pre id="getContent" style="white-space:pre-wrap;word-break:break-all;font-size:.88rem;font-family:monospace"></pre>
+        <div class="clip-actions" style="margin-top:.7rem">
+          <button class="btn-sm" onclick="copyGetContent()">copy text</button>
+          <button class="btn-sm" id="openDropBtn">open page</button>
+        </div>
+      </div>
+
+      <!-- File drop result -->
+      <div id="getFileResult" class="file-card big hidden" style="margin-top:.8rem">
+        <span class="file-icon">📎</span>
+        <div>
+          <div class="fname" id="getFileName"></div>
+          <div class="fsize muted" id="getFileSize"></div>
+        </div>
+        <a id="getFileLink" href="#" class="btn">↓ download</a>
+      </div>
     </div>
-    {% endif %}
-
-    <button class="btn" id="saveBtn">save & get link</button>
-    <p id="errorMsg" class="error hidden"></p>
-
-    <div id="resultBox" class="result-box hidden">
-      <span class="muted">your link:</span>
-      <a id="resultUrl" href="#" target="_blank"></a>
-      <button class="btn-sm" onclick="navigator.clipboard.writeText(document.getElementById('resultUrl').href); showToast('copied!')">copy</button>
-    </div>
-
-    {% if not user.is_authenticated %}
-    <p id="anonNudge" class="anon-nudge hidden">
-      Drop expires in 7 days. <a href="/auth/register/">Sign up free</a> to claim it and extend to 30 days.
-    </p>
-    {% endif %}
   </div>
 
   <!-- Right: Dashboard -->
@@ -170,6 +212,90 @@
 const IS_AUTHED = {{ user.is_authenticated|yesno:"true,false" }};
 const IS_PAID   = {{ user.is_authenticated|yesno:"true,false" }}
                   && {{ user.profile.is_paid|default:"false"|yesno:"true,false" }};
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('panelSave').classList.toggle('hidden', tab !== 'save');
+  document.getElementById('panelGet').classList.toggle('hidden', tab !== 'get');
+  document.getElementById('tabSave').classList.toggle('active', tab === 'save');
+  document.getElementById('tabGet').classList.toggle('active', tab === 'get');
+  if (tab === 'get') document.getElementById('getKeyInput').focus();
+}
+
+// ── Get drop ──────────────────────────────────────────────────────────────────
+let _currentGetKey = '';
+
+async function doGet(isFile) {
+  const key    = document.getElementById('getKeyInput').value.trim();
+  const errEl  = document.getElementById('getError');
+  const resEl  = document.getElementById('getResult');
+  const fileEl = document.getElementById('getFileResult');
+  errEl.classList.add('hidden');
+  resEl.classList.add('hidden');
+  fileEl.classList.add('hidden');
+
+  if (!key) {
+    errEl.textContent = 'Enter a key first.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  _currentGetKey = key;
+  const url = isFile ? `/f/${key}/` : `/${key}/`;
+
+  const btn = isFile ? document.getElementById('getFileBtn') : document.getElementById('getBtn');
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '…';
+
+  try {
+    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const data = await res.json();
+
+    if (!res.ok) {
+      errEl.textContent = data.error || `Not found (${res.status}).`;
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    if (data.kind === 'text') {
+      document.getElementById('getContent').textContent = data.content;
+      document.getElementById('openDropBtn').onclick = () => window.open(`/${key}/`, '_blank');
+      resEl.classList.remove('hidden');
+    } else if (data.kind === 'file') {
+      document.getElementById('getFileName').textContent = data.filename || key;
+      document.getElementById('getFileSize').textContent =
+        data.filesize ? formatSize(data.filesize) : '';
+      document.getElementById('getFileLink').href = `/f/${key}/download/`;
+      fileEl.classList.remove('hidden');
+    } else {
+      // Key exists in one namespace but not the other — suggest the other
+      if (!isFile) {
+        errEl.textContent = `/${key}/ is a file drop. Use "get file" instead.`;
+      } else {
+        errEl.textContent = `/f/${key}/ is a clipboard drop. Use "get drop" instead.`;
+      }
+      errEl.classList.remove('hidden');
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
+function copyGetContent() {
+  navigator.clipboard.writeText(document.getElementById('getContent').textContent);
+  showToast('copied!');
+}
+
+document.getElementById('getBtn').addEventListener('click', () => doGet(false));
+document.getElementById('getFileBtn').addEventListener('click', () => doGet(true));
+document.getElementById('getKeyInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doGet(false);
+});
 
 // ── Import (logged-in) ────────────────────────────────────────────────────────
 if (IS_AUTHED) {
@@ -284,7 +410,7 @@ dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.class
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); setFile(e.dataTransfer.files[0]); });
 dropZone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change',   () => setFile(fileInput.files[0]));
+fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
 
 function setFile(f) {
   if (!f) return;
@@ -321,11 +447,9 @@ function updateProgress(loaded, total) {
   const pct     = total > 0 ? Math.round((loaded / total) * 100) : 0;
   const elapsed = (performance.now() - _uploadStart) / 1000;
   const speed   = elapsed > 0.1 ? loaded / elapsed : 0;
-
   document.getElementById('progressBar').style.width = pct + '%';
   document.getElementById('progressPct').textContent = pct + '%';
-  document.getElementById('progressLabel').textContent =
-    pct < 100 ? 'uploading…' : 'confirming…';
+  document.getElementById('progressLabel').textContent = pct < 100 ? 'uploading…' : 'confirming…';
   document.getElementById('progressSpeed').textContent =
     speed > 0 ? `${formatSize(speed)}/s  ·  ${formatSize(loaded)} / ${formatSize(total)}` : '';
 }
@@ -363,7 +487,6 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
   xhr.open('POST', '/save/');
   xhr.setRequestHeader('X-CSRFToken', getCookie('csrftoken'));
 
-  // ── Upload progress (file drops only) ─────────────────────────────────────
   xhr.upload.addEventListener('progress', e => {
     if (e.lengthComputable) updateProgress(e.loaded, e.total);
   });

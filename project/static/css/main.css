@@ -433,3 +433,114 @@ nav a:hover { color: var(--text); text-decoration: none; }
 @media (max-width: 500px) {
   .plan-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Home tabs (save / get) ── */
+.home-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.home-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: .9rem;
+  font-weight: 600;
+  margin-bottom: -1px;
+  padding: .4rem .9rem;
+  transition: color .15s, border-color .15s;
+}
+.home-tab:hover { color: var(--text); }
+.home-tab.active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+/* ── CLI docs — command blocks ── */
+.cmd-block {
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.cmd-block:last-child { border-bottom: none; }
+
+.cmd-header {
+  display: flex;
+  align-items: baseline;
+  gap: .8rem;
+  margin-bottom: .75rem;
+  flex-wrap: wrap;
+}
+.cmd-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: none;
+  padding: 0;
+}
+.cmd-help {
+  color: var(--muted);
+  font-size: .88rem;
+}
+
+.cmd-args {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .84rem;
+  margin-bottom: .6rem;
+}
+.cmd-args th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: .3rem .6rem;
+  border-bottom: 1px solid var(--border);
+}
+.cmd-args td {
+  padding: .35rem .6rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.cmd-args tr:last-child td { border-bottom: none; }
+.cmd-args td:first-child { white-space: nowrap; }
+.cmd-args code {
+  background: var(--surface);
+  padding: .1em .35em;
+  border-radius: 3px;
+  font-size: .85em;
+}
+
+.arg-optional {
+  font-size: .72rem;
+  color: var(--muted);
+  margin-left: .35rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: .05em .3em;
+  vertical-align: middle;
+}
+.arg-default {
+  display: block;
+  font-size: .78rem;
+  color: var(--muted);
+  margin-top: .15rem;
+}
+
+.cmd-epilog {
+  margin-top: .5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .6rem .8rem;
+}
+.cmd-epilog code {
+  background: none;
+  padding: 0;
+  font-size: .82rem;
+}
