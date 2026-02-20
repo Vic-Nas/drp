@@ -78,7 +78,7 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
         prep = res.json()
     except Exception as e:
         err(f"Prepare error: {e}")
-        raise  # let main() catch and report unhandled exceptions
+        raise
 
     presigned_url = prep["presigned_url"]
     drop_key      = prep["key"]
@@ -100,13 +100,13 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
             presigned_url,
             data=_file_iter(),
             headers={
-                "Content-Type": content_type,
-                # Content-Length is intentionally omitted — boto3 only signs
-                # content-type and host. Sending extra headers breaks the
-                # signature check and causes B2 to return 400.
-                # requests sets Content-Length automatically.
+                "Content-Type":   content_type,
+                "Content-Length": str(size),
+                # Both headers are now included in the presigned URL's
+                # SignedHeaders (boto3 signs ContentLength when passed as
+                # a Param to generate_presigned_url), so B2 accepts them.
             },
-            timeout=None,  # no timeout — large files can take a while
+            timeout=None,
         )
         if not put_res.ok:
             msg = f"B2 upload failed (HTTP {put_res.status_code})"
@@ -155,11 +155,6 @@ def get_file(host, session, key):
     """
     Fetch a file drop.
     Returns ('file', (bytes_content, filename)) or (None, None).
-
-    Flow:
-      1. GET /f/<key>/         → JSON metadata including /f/<key>/download/
-      2. GET /f/<key>/download/ → 302 to presigned B2 URL
-      3. Stream bytes from B2 to memory / disk
     """
     from cli.progress import ProgressBar
 
