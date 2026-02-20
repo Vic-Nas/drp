@@ -2,6 +2,7 @@ from functools import cache
 from pathlib import Path
 
 from django.shortcuts import render
+from django.views.decorators.cache import cache_page
 
 
 def index(request):
@@ -10,7 +11,7 @@ def index(request):
     })
 
 
-# @cache_page(60 * 60 * 24)
+@cache_page(60 * 60 * 24)
 def cli(request):
     return render(request, 'help/cli.html', {
         'parser_info': _get_parser_info(),
