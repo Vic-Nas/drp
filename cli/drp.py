@@ -179,6 +179,47 @@ def _configure_subparsers(sub):
 _HANDLERS = {name: handler for name, handler, _ in COMMANDS}
 
 
+def _print_colored_help():
+    """Print a colored help screen when drp is run with no arguments."""
+    from cli.format import bold, dim, cyan, green
+
+    print(f'  {bold("drp")} {dim(__version__)}  — drop clipboards and files, get a link instantly.')
+    print()
+    print(f'  {dim("usage:")}  drp <command> [options]')
+    print()
+    print(f'  {dim("commands:")}')
+
+    # Group commands visually
+    groups = [
+        ('upload / download',  ['up', 'get', 'edit']),
+        ('manage',             ['rm', 'mv', 'cp', 'renew']),
+        ('account',            ['save', 'ls', 'load']),
+        ('info',               ['status', 'ping']),
+        ('setup',              ['setup', 'login', 'logout']),
+    ]
+
+    cmd_map = {name: help_str for name, _, help_str in COMMANDS}
+
+    for group_label, names in groups:
+        print(f'    {dim(group_label)}')
+        for name in names:
+            help_str = cmd_map.get(name, '')
+            print(f'      {cyan(f"drp {name:<10}")}  {help_str}')
+        print()
+
+    print(f'  {dim("key format:")}')
+    print(f'    {green("key")}       clipboard drop  →  /key/')
+    print(f'    {green("-f key")}    file drop       →  /f/key/')
+    print()
+    print(f'  {dim("quick examples:")}')
+    print(f'    {dim("drp up")} "hello"          clipboard from string')
+    print(f'    {dim("drp up")} report.pdf        file upload')
+    print(f'    {dim("drp get")} hello            print clipboard to stdout')
+    print(f'    {dim("drp get")} -f q3            download file')
+    print()
+    print(f'  {dim("drp <command> --help for per-command options.")}')
+
+
 def main():
     parser = build_parser()
 
@@ -189,6 +230,10 @@ def main():
         pass
 
     args = parser.parse_args()
+
+    if args.command is None:
+        _print_colored_help()
+        return
 
     if args.command in _HANDLERS:
         try:

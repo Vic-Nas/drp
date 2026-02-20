@@ -23,6 +23,7 @@ def cmd_status(args):
     from cli.format import dim, green, bold
 
     cfg = config.load()
+    _sync_local_cache(cfg)
     local_count = len(config.load_local_drops())
 
     print(bold('drp status'))
@@ -95,6 +96,26 @@ def _drop_status(args, key):
         kind = data.get('kind', 'text')
         idle = dim('24h after last access' if kind == 'text' else '90d after upload')
         print(f'  {dim("expires")}     {idle}')
+
+
+def _sync_local_cache(cfg) -> None:
+    """
+    Synchronously prune dead drops from the local cache.
+    Only runs if a session exists and the user is logged in.
+    Silent — never blocks or raises.
+    """
+    try:
+        from cli.session import SESSION_FILE
+        if not SESSION_FILE.exists():
+            return
+        email = cfg.get('email')
+        host  = cfg.get('host')
+        if not email or not host:
+            return
+        from cli.completion import _do_refresh
+        _do_refresh(config, SESSION_FILE)
+    except Exception:
+        pass
 
 
 def cmd_ping(args):
