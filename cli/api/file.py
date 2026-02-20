@@ -89,8 +89,11 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
             presigned_url,
             data=_file_iter(),
             headers={
-                "Content-Type":   content_type,
-                "Content-Length": str(size),
+                "Content-Type": content_type,
+                # Content-Length is intentionally omitted — boto3 only signs
+                # content-type and host. Sending extra headers breaks the
+                # signature check and causes B2 to return 400.
+                # requests will set Content-Length automatically.
             },
             timeout=None,  # no timeout — large files can take a while
         )
