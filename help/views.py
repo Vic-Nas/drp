@@ -11,7 +11,7 @@ def index(request):
     })
 
 
-# @cache_page(60 * 60 * 24)
+@cache_page(60 * 60 * 24)
 def cli(request):
     return render(request, 'help/cli.html', {
         'parser_info': _get_parser_info(),
