@@ -4,6 +4,13 @@ Drop action API calls: delete, rename, renew, list, key_exists, save_bookmark.
 URL conventions:
   Clipboard:  /key/delete|rename|renew|save/
   File:       /f/key/delete|rename|renew|save/
+
+Return value conventions for callers (manage.py):
+  rename() → new_key string   on success
+             False             on a known/reported error (404, 409, 403 …)
+             None              on an unexpected error (network, bad JSON, etc.)
+  delete() → True / False (unchanged)
+  renew()  → (expires_at, renewals) / (None, None) (unchanged)
 """
 
 from .auth import get_csrf
@@ -27,8 +34,6 @@ def delete(host, session, key, ns='c'):
         if res.ok:
             return True
         if res.status_code == 404:
-            # 404 means the key doesn't exist in this namespace — not a success.
-            # Most likely cause: user ran `drp rm key` on a file drop without -f.
             err(f'Drop not found. If this is a file drop, use: drp rm -f {key}')
             _report_http('rm', 404, f'delete ns={ns} — likely wrong namespace')
             return False
@@ -40,6 +45,16 @@ def delete(host, session, key, ns='c'):
 
 
 def rename(host, session, key, new_key, ns='c'):
+    """
+    Rename a drop key.
+
+    Returns:
+      str   — the new key on success
+      False — a known error that has already been printed and reported
+               (404 wrong-namespace, 409 key taken, 403 locked, 400 bad input)
+      None  — an unexpected error (network failure, unhandled status code)
+               caller should file a SilentFailure report
+    """
     csrf = get_csrf(host, session)
     try:
         res = session.post(
@@ -49,10 +64,46 @@ def rename(host, session, key, new_key, ns='c'):
         )
         if res.ok:
             return res.json().get('key')
+
+        # ── Known errors — print a helpful message and report, then return
+        # False so the caller knows not to file a redundant SilentFailure. ──
+        if res.status_code == 404:
+            ns_flag = '-f ' if ns == 'f' else ''
+            other_flag = '' if ns == 'f' else '-f '
+            err(
+                f'Drop /{ns_flag}{key}/ not found. '
+                f'If this is a {"file" if ns == "c" else "clipboard"} drop, '
+                f'use: drp mv {other_flag}{key} {new_key}'
+            )
+            _report_http('mv', 404, f'rename ns={ns} — likely wrong namespace')
+            return False
+
+        if res.status_code == 409:
+            err(f'Key "{new_key}" is already taken.')
+            _report_http('mv', 409, f'rename ns={ns} key conflict')
+            return False
+
+        if res.status_code == 403:
+            try:
+                msg = res.json().get('error', 'Permission denied.')
+            except Exception:
+                msg = 'Permission denied.'
+            err(f'Rename blocked: {msg}')
+            _report_http('mv', 403, f'rename ns={ns}')
+            return False
+
+        if res.status_code == 400:
+            _handle_error(res, 'Rename failed')
+            _report_http('mv', 400, f'rename ns={ns}')
+            return False
+
+        # Unexpected status — let caller decide whether to report
         _handle_error(res, 'Rename failed')
         _report_http('mv', res.status_code, f'rename ns={ns}')
+
     except Exception as e:
         err(f'Rename error: {e}')
+
     return None
 
 

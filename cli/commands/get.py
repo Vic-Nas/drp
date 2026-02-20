@@ -28,7 +28,7 @@ def cmd_get(args):
     t.checkpoint('load config')
 
     session = requests.Session()
-    t.instrument(session)   # attach response hook before any request
+    t.instrument(session)
     auto_login(cfg, host, session)
 
     t.checkpoint('load session')
@@ -47,56 +47,50 @@ def _get_clipboard(args, host, session, t):
     if kind == 'text':
         t.print()
         print(content)
-    elif kind is None and content is None:
-        # Could be a file drop — try the file path before giving up
-        url, filename = api.get_file_meta(host, session, args.key)
-        if url:
-            t.print()
-            print(f'  ↳ This is a file drop. Use: drp get -f {args.key}')
-        else:
-            t.print()
-            sys.exit(1)
+        return
+
+    if kind is None and content is None:
+        # get_clipboard returns (None, None) for two reasons:
+        #   1. The key doesn't exist at all (404) — error already printed.
+        #   2. The key exists but is a file drop — probe /f/<key>/ to distinguish.
+        try:
+            res = session.get(
+                f'{host}/f/{args.key}/',
+                headers={'Accept': 'application/json'},
+                timeout=10,
+            )
+            if res.ok and res.json().get('kind') == 'file':
+                t.print()
+                print(f'  ↳ This is a file drop. Use: drp get -f {args.key}')
+                return
+        except Exception:
+            pass
+
+        t.print()
+        sys.exit(1)
 
 
 # ── File ──────────────────────────────────────────────────────────────────────
 
 def _get_file(args, host, session, t):
-    import os
+    kind, result = api.get_file(host, session, args.key)
 
-    url, filename = api.get_file_meta(host, session, args.key, timer=t)
-
-    if not url:
+    if kind != 'file' or result is None:
         t.print()
         sys.exit(1)
 
+    content, filename = result
     output_name = getattr(args, 'output', None) or filename or args.key
 
-    t.checkpoint('got presigned URL')
+    t.checkpoint('download complete')
 
-    # Stream the download — don't time this as a single block since it
-    # depends on file size. Print progress instead.
     try:
-        dl = requests.get(url, stream=True, timeout=60)
-        dl.raise_for_status()
-    except Exception as e:
-        print(f'  ✗ Download failed: {e}', file=sys.stderr)
+        with open(output_name, 'wb') as f:
+            f.write(content)
+    except OSError as e:
+        print(f'  ✗ Could not write {output_name}: {e}', file=sys.stderr)
         t.print()
         sys.exit(1)
 
-    total = int(dl.headers.get('content-length', 0))
-    received = 0
-
-    with open(output_name, 'wb') as f:
-        for chunk in dl.iter_content(chunk_size=65536):
-            f.write(chunk)
-            received += len(chunk)
-            if total and sys.stderr.isatty():
-                pct = received / total * 100
-                print(f'\r  ↓ {output_name}  {pct:.0f}%', end='', file=sys.stderr)
-
-    if total and sys.stderr.isatty():
-        print(file=sys.stderr)  # newline after progress
-
-    t.checkpoint('download')
     t.print()
     print(f'  ✓ Saved {output_name}')

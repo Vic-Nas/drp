@@ -38,9 +38,10 @@ def cmd_rm(args):
         print(f'  ✓ Deleted /{prefix}{key}/')
         config.remove_local_drop(key)
     else:
-        # api.delete() already printed an error and filed a report if it got
-        # an unexpected HTTP status. report_outcome() covers the case where it
-        # returned False for a non-HTTP reason (e.g. network exception swallowed).
+        # api.delete() already printed an error and filed an HTTP report for
+        # known failures (e.g. 404 wrong namespace). report_outcome() covers
+        # the case where it returned False for a non-HTTP reason (e.g. a network
+        # exception that was swallowed).
         report_outcome('rm', f'delete returned False for ns={ns} drop')
         print(f'  ✗ Could not delete /{key}/.')
         sys.exit(1)
@@ -57,13 +58,24 @@ def cmd_mv(args):
     auto_login(cfg, host, session)
 
     ns, key = _parse_key(args.key, args.file)
-    new_key = api.rename(host, session, key, args.new_key, ns=ns)
+    result = api.rename(host, session, key, args.new_key, ns=ns)
 
-    if new_key:
+    if isinstance(result, str):
+        # Success — result is the confirmed new key from the server
         prefix = 'f/' if ns == 'f' else ''
-        print(f'  ✓ /{prefix}{key}/ → /{prefix}{new_key}/')
-        config.rename_local_drop(key, new_key)
+        print(f'  ✓ /{prefix}{key}/ → /{prefix}{result}/')
+        config.rename_local_drop(key, result)
+
+    elif result is False:
+        # Known error — api.rename() already printed a message and filed an
+        # HTTP report. Don't file a redundant SilentFailure on top of it.
+        print(f'  ✗ Could not rename /{key}/.')
+        sys.exit(1)
+
     else:
+        # result is None — unexpected failure (network error, unhandled status).
+        # api.rename() has already printed what it knows; file a SilentFailure
+        # so we have a record that something unexpected happened.
         report_outcome('mv', f'rename returned None for ns={ns} drop')
         print(f'  ✗ Could not rename /{key}/.')
         sys.exit(1)
