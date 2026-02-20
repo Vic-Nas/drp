@@ -1,9 +1,9 @@
 """
-Drop action API calls: delete, rename, renew, list, key_exists.
+Drop action API calls: delete, rename, renew, list, key_exists, save_bookmark.
 
 URL conventions:
-  Clipboard:  /key/delete|rename|renew/
-  File:       /f/key/delete|rename|renew/
+  Clipboard:  /key/delete|rename|renew|save/
+  File:       /f/key/delete|rename|renew|save/
 """
 
 from .auth import get_csrf
@@ -17,10 +17,6 @@ def _url(host, ns, key, action):
 
 
 def delete(host, session, key, ns='c'):
-    """
-    Delete a drop.
-    Returns True on success or if already gone (idempotent).
-    """
     csrf = get_csrf(host, session)
     try:
         res = session.delete(
@@ -31,7 +27,6 @@ def delete(host, session, key, ns='c'):
         if res.ok:
             return True
         if res.status_code == 404:
-            # Already gone — treat as success
             return True
         _handle_error(res, 'Delete failed')
     except Exception as e:
@@ -40,10 +35,6 @@ def delete(host, session, key, ns='c'):
 
 
 def rename(host, session, key, new_key, ns='c'):
-    """
-    Rename a drop's key.
-    Returns the new key string on success, None on failure.
-    """
     csrf = get_csrf(host, session)
     try:
         res = session.post(
@@ -60,10 +51,6 @@ def rename(host, session, key, new_key, ns='c'):
 
 
 def renew(host, session, key, ns='c'):
-    """
-    Renew a drop's expiry.
-    Returns (expires_at_str, renewal_count) on success, (None, None) on failure.
-    """
     csrf = get_csrf(host, session)
     try:
         res = session.post(
@@ -80,11 +67,33 @@ def renew(host, session, key, ns='c'):
     return None, None
 
 
+def save_bookmark(host, session, key, ns='c'):
+    """
+    Bookmark a drop. Returns True if saved, False on failure.
+    Requires login — server returns 403 if not authenticated.
+    """
+    csrf = get_csrf(host, session)
+    try:
+        res = session.post(
+            _url(host, ns, key, 'save'),
+            data={'csrfmiddlewaretoken': csrf},
+            timeout=10,
+        )
+        if res.ok:
+            return True
+        if res.status_code == 403:
+            err('drp save requires a logged-in account. Run: drp login')
+            return False
+        if res.status_code == 404:
+            err(f'Drop /{key}/ not found.')
+            return False
+        _handle_error(res, 'Save failed')
+    except Exception as e:
+        err(f'Save error: {e}')
+    return False
+
+
 def list_drops(host, session):
-    """
-    List the logged-in user's drops.
-    Returns list of dicts on success, None if not authenticated.
-    """
     try:
         res = session.get(
             f'{host}/auth/account/',
@@ -94,7 +103,7 @@ def list_drops(host, session):
         if res.ok:
             return res.json().get('drops', [])
         if res.status_code in (302, 403):
-            return None  # Not logged in
+            return None
         err(f'Server returned {res.status_code}.')
     except Exception as e:
         err(f'List error: {e}')
@@ -102,7 +111,6 @@ def list_drops(host, session):
 
 
 def key_exists(host, session, key, ns='c'):
-    """Return True if the key exists on the server in the given namespace."""
     try:
         res = session.get(
             f'{host}/check-key/',
