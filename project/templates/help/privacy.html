@@ -6,8 +6,11 @@
 <p class="lead">Where your data lives, what isn't encrypted, and how to run your own instance.</p>
 
 <h2>data storage</h2>
-<p><strong>Text</strong> is stored in PostgreSQL. <strong>Files</strong> are stored on Cloudinary and served via their CDN. Both are on third-party infrastructure when using the hosted instance at <a href="https://drp.vicnas.me">drp.vicnas.me</a>.</p>
+<p><strong>Text</strong> is stored in PostgreSQL. <strong>Files</strong> are stored on Backblaze B2 and served via short-lived presigned URLs — Railway never proxies file bytes, so there's no timeout risk and no bandwidth cost on the app server.</p>
 <p>There is <strong>no encryption at rest</strong>. Don't store secrets, credentials, or sensitive personal data. A hard-to-guess key is your only access control for anonymous drops — anyone with the URL can read the content.</p>
+
+<h2>file upload flow</h2>
+<p>Files uploaded via the CLI go directly from your machine to B2 using a presigned PUT URL — they never touch the drp server. Files uploaded via the web browser pass through the server briefly (Django streams them to B2). Either way, Railway's 30-second request timeout is not a concern for large files.</p>
 
 <h2>anonymous drops</h2>
 <p>Anonymous drops are not associated with any account. They're tracked by a short-lived browser cookie (<code>drp_anon</code>) solely to enable drop claiming at sign-up. The cookie is deleted after claiming or after 7 days. No IP address or device fingerprint is stored against your drops.</p>
@@ -25,9 +28,17 @@
 <ul>
   <li>Python 3.10+</li>
   <li>PostgreSQL (SQLite works locally but isn't recommended for production)</li>
-  <li>Cloudinary account (free tier covers most personal use)</li>
+  <li>Backblaze B2 account (free tier: first 10 GB free, then $6/TB/month)</li>
   <li>Any host that can run a gunicorn process — Railway, Fly.io, Render, VPS</li>
 </ul>
+
+<h3>B2 bucket setup</h3>
+<pre><code>1. Create a B2 bucket (private — presigned URLs handle access)
+2. Create an application key scoped to that bucket
+3. Note your endpoint URL from the bucket details page
+   e.g. https://s3.us-east-005.backblazeb2.com
+4. Set a lifecycle rule: delete incomplete large file uploads after 1 day
+   (prevents orphaned multipart objects from billing you)</code></pre>
 
 <h3>deploy on Railway</h3>
 <pre><code>1. Fork the repo
@@ -45,9 +56,10 @@
   <tr><td><code>SECRET_KEY</code></td><td>yes</td><td>Random Django secret key</td></tr>
   <tr><td><code>DOMAIN</code></td><td>yes</td><td>Your domain, no <code>https://</code></td></tr>
   <tr><td><code>DB_URL</code></td><td>yes</td><td>PostgreSQL connection URL</td></tr>
-  <tr><td><code>CLOUDINARY_CLOUD_NAME</code></td><td>yes</td><td>Cloudinary credentials</td></tr>
-  <tr><td><code>CLOUDINARY_API_KEY</code></td><td>yes</td><td></td></tr>
-  <tr><td><code>CLOUDINARY_API_SECRET</code></td><td>yes</td><td></td></tr>
+  <tr><td><code>B2_KEY_ID</code></td><td>yes</td><td>B2 application key ID</td></tr>
+  <tr><td><code>B2_APP_KEY</code></td><td>yes</td><td>B2 application key secret</td></tr>
+  <tr><td><code>B2_BUCKET_NAME</code></td><td>no</td><td>Defaults to <code>drp-files</code></td></tr>
+  <tr><td><code>B2_ENDPOINT_URL</code></td><td>no</td><td>Defaults to <code>https://s3.us-east-005.backblazeb2.com</code></td></tr>
   <tr><td><code>RESEND_API_KEY</code></td><td>no</td><td>Enables email. Without it, emails print to console.</td></tr>
   <tr><td><code>DEFAULT_FROM_EMAIL</code></td><td>no</td><td>Defaults to <code>noreply@&lt;DOMAIN&gt;</code></td></tr>
   <tr><td><code>ADMIN_EMAIL</code></td><td>no</td><td>Your email, shown on register page</td></tr>
@@ -59,7 +71,7 @@
 <p>On Railway, run this via the shell tab in your service dashboard.</p>
 
 <h3>expired drop cleanup</h3>
-<p>Expired drops are deleted lazily on access, but you should also run the cleanup command periodically to sweep drops nobody is accessing:</p>
+<p>Expired drops are deleted lazily on access, but you should also run the cleanup command periodically. It removes both the DB record and the B2 object:</p>
 <pre><code>python manage.py cleanup</code></pre>
 <p>Set this up as a cron job or a Railway cron service — once or twice a day is enough.</p>
 

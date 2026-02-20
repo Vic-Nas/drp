@@ -6,7 +6,8 @@
 <p class="lead">How long drops live depends on whether you're anonymous, on a free account, or a paid plan — and whether the drop is text or a file.</p>
 
 <h2>clipboards (text)</h2>
-<p>Clipboards use <strong>activity-based expiry</strong>. They don't expire on a fixed timer — they idle out when nobody accesses them. A clipboard that's still being read stays alive.</p>
+<p>Clipboards use <strong>activity-based expiry</strong>. They don't expire on a fixed timer — they idle out when nobody accesses them. A clipboard that's still being read regularly stays alive.</p>
+<p>To avoid unnecessary database writes, accesses within a 5-minute window of the previous access don't reset the idle clock. For a 24–48 hour idle timeout this is invisible in practice.</p>
 
 <table>
   <tr><th>tier</th><th>idle timeout</th><th>max lifetime</th></tr>
@@ -42,8 +43,7 @@ drp renew f/key      # renew a file</code></pre>
 <p>You can also renew from the drop page — click <strong>renew</strong> next to the expiry date.</p>
 
 <h2>what happens when a drop expires</h2>
-<p>Expired drops are deleted on the next access — when someone visits the URL, the server checks expiry, deletes the drop, and returns a 410 Gone response. A background <code>cleanup</code> management command also sweeps for expired drops periodically.</p>
-<p>File drops stored on Cloudinary are also deleted from the CDN when a drop is hard-deleted.</p>
+<p>Expired drops are deleted on the next access — when someone visits the URL, the server checks expiry, deletes the drop (including its B2 object for file drops), and returns a 410 Gone response. A background <code>cleanup</code> management command also sweeps for expired drops periodically.</p>
 
 <h2>claiming anonymous drops</h2>
 <p>If you create drops before signing up, they're tracked by a browser cookie. When you register or log in, those drops are automatically claimed — transferred to your account and extended to free-tier lifetimes. This happens once per session cookie.</p>

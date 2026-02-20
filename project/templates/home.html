@@ -31,6 +31,18 @@
       <div id="filePreview" class="file-preview hidden"></div>
     </div>
 
+    <!-- Upload progress bar (hidden until upload starts) -->
+    <div id="progressWrap" class="hidden" style="margin:.6rem 0">
+      <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--muted);margin-bottom:.25rem">
+        <span id="progressLabel">uploading…</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden">
+        <div id="progressBar" style="height:100%;width:0;background:var(--accent);border-radius:2px;transition:width .1s linear"></div>
+      </div>
+      <div id="progressSpeed" style="font-size:.75rem;color:var(--muted);margin-top:.2rem"></div>
+    </div>
+
     {% if user.is_authenticated and user.profile.is_paid %}
     <div class="expiry-row">
       <label for="expiryDays">expires in</label>
@@ -185,6 +197,7 @@ if (IS_AUTHED) {
   }
 }
 
+// ── Local (anon) drop list ────────────────────────────────────────────────────
 function getMyDrops() {
   try { return JSON.parse(localStorage.getItem('drp_drops') || '[]'); } catch { return []; }
 }
@@ -202,17 +215,17 @@ function removeDrop(key) {
 
 function renderLocalDashboard() {
   if (IS_AUTHED) return;
-  const drops = getMyDrops();
-  const el = document.getElementById('myDrops');
-  const emptyEl = document.getElementById('anonEmpty');
+  const drops    = getMyDrops();
+  const el       = document.getElementById('myDrops');
+  const emptyEl  = document.getElementById('anonEmpty');
   const actionsEl = document.getElementById('anonActions');
   if (!drops.length) {
     el.innerHTML = '';
-    if (emptyEl) { emptyEl.style.display = ''; el.appendChild(emptyEl); }
-    if (actionsEl) actionsEl.style.display = 'none';
+    if (emptyEl)   { emptyEl.style.display = ''; el.appendChild(emptyEl); }
+    if (actionsEl)   actionsEl.style.display = 'none';
     return;
   }
-  if (emptyEl) emptyEl.style.display = 'none';
+  if (emptyEl)   emptyEl.style.display = 'none';
   if (actionsEl) actionsEl.style.display = '';
   el.innerHTML = drops.map(d => `
     <div class="drop-item">
@@ -243,8 +256,9 @@ if (!IS_AUTHED) {
   });
 }
 
+// ── Key availability check ────────────────────────────────────────────────────
 let keyTimer = null;
-const keyInput = document.getElementById('keyInput');
+const keyInput  = document.getElementById('keyInput');
 const keyStatus = document.getElementById('keyStatus');
 
 keyInput.addEventListener('input', () => {
@@ -252,29 +266,30 @@ keyInput.addEventListener('input', () => {
   const val = keyInput.value.trim();
   if (!val) { keyStatus.textContent = ''; return; }
   keyTimer = setTimeout(async () => {
-    const res = await fetch(`/check-key/?key=${encodeURIComponent(val)}`);
+    const res  = await fetch(`/check-key/?key=${encodeURIComponent(val)}`);
     const data = await res.json();
     keyStatus.textContent = data.available ? '✓' : '✗ taken';
-    keyStatus.className = data.available ? 'ok' : 'taken';
+    keyStatus.className   = data.available ? 'ok' : 'taken';
   }, 400);
 });
 
+// ── File selection ────────────────────────────────────────────────────────────
 let selectedFile = null;
-const dropZone = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
+const dropZone   = document.getElementById('dropZone');
+const fileInput  = document.getElementById('fileInput');
 const filePreview = document.getElementById('filePreview');
-const textInput = document.getElementById('textInput');
+const textInput  = document.getElementById('textInput');
 
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); setFile(e.dataTransfer.files[0]); });
 dropZone.addEventListener('click', () => fileInput.click());
-fileInput.addEventListener('change', () => setFile(fileInput.files[0]));
+fileInput.addEventListener('change',   () => setFile(fileInput.files[0]));
 
 function setFile(f) {
   if (!f) return;
   selectedFile = f;
-  textInput.value = '';
+  textInput.value    = '';
   textInput.disabled = true;
   filePreview.classList.remove('hidden');
   filePreview.innerHTML = `<span>📎 ${f.name} (${formatSize(f.size)})</span> <button class="btn-sm danger" onclick="clearFile()">✕</button>`;
@@ -283,18 +298,44 @@ function setFile(f) {
 }
 
 function clearFile() {
-  selectedFile = null;
-  fileInput.value = '';
+  selectedFile       = null;
+  fileInput.value    = '';
   textInput.disabled = false;
   filePreview.classList.add('hidden');
   dropZone.classList.remove('has-file');
-  document.getElementById('dropLabel').innerHTML = 'drag & drop a file or <label for="fileInput" class="link">browse</label>';
+  document.getElementById('dropLabel').innerHTML =
+    'drag & drop a file or <label for="fileInput" class="link">browse</label>';
 }
 
+// ── Progress bar helpers ──────────────────────────────────────────────────────
+let _uploadStart = 0;
+
+function showProgress() {
+  document.getElementById('progressWrap').classList.remove('hidden');
+  _uploadStart = performance.now();
+}
+function hideProgress() {
+  document.getElementById('progressWrap').classList.add('hidden');
+}
+function updateProgress(loaded, total) {
+  const pct     = total > 0 ? Math.round((loaded / total) * 100) : 0;
+  const elapsed = (performance.now() - _uploadStart) / 1000;
+  const speed   = elapsed > 0.1 ? loaded / elapsed : 0;
+
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+  document.getElementById('progressLabel').textContent =
+    pct < 100 ? 'uploading…' : 'confirming…';
+  document.getElementById('progressSpeed').textContent =
+    speed > 0 ? `${formatSize(speed)}/s  ·  ${formatSize(loaded)} / ${formatSize(total)}` : '';
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
 document.getElementById('saveBtn').addEventListener('click', async () => {
-  const key = keyInput.value.trim();
-  const text = textInput.value.trim();
-  const errEl = document.getElementById('errorMsg');
+  const key    = keyInput.value.trim();
+  const text   = textInput.value.trim();
+  const errEl  = document.getElementById('errorMsg');
+  const saveBtn = document.getElementById('saveBtn');
   errEl.classList.add('hidden');
 
   if (!text && !selectedFile) {
@@ -303,64 +344,76 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     return;
   }
 
+  saveBtn.disabled    = true;
+  saveBtn.textContent = 'saving…';
+
   const fd = new FormData();
   if (key) fd.append('key', key);
-  if (selectedFile) { fd.append('file', selectedFile); }
-  else { fd.append('content', text); }
   const expiryEl = document.getElementById('expiryDays');
   if (expiryEl) fd.append('expiry_days', expiryEl.value);
 
-  const saveBtn = document.getElementById('saveBtn');
-  saveBtn.disabled = true;
-  saveBtn.textContent = 'saving…';
+  if (selectedFile) {
+    fd.append('file', selectedFile);
+    showProgress();
+  } else {
+    fd.append('content', text);
+  }
 
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/save/');
   xhr.setRequestHeader('X-CSRFToken', getCookie('csrftoken'));
 
+  // ── Upload progress (file drops only) ─────────────────────────────────────
   xhr.upload.addEventListener('progress', e => {
-    if (e.lengthComputable) {
-      const pct = Math.round((e.loaded / e.total) * 100);
-      saveBtn.textContent = pct < 100 ? `uploading… ${pct}%` : 'saving…';
-    }
+    if (e.lengthComputable) updateProgress(e.loaded, e.total);
   });
 
   xhr.addEventListener('load', () => {
+    hideProgress();
     try {
       const data = JSON.parse(xhr.responseText);
       if (xhr.status === 200) {
         if (!IS_AUTHED) {
-          addDropLocal(data.key, data.kind, selectedFile ? selectedFile.name : text.slice(0, 30));
+          addDropLocal(data.key, data.kind,
+            selectedFile ? selectedFile.name : text.slice(0, 30));
           const nudge = document.getElementById('anonNudge');
           if (nudge) nudge.classList.remove('hidden');
         } else {
           window.location.reload();
           return;
         }
-        document.getElementById('resultUrl').href = window.location.origin + '/' + data.key + '/';
-        document.getElementById('resultUrl').textContent = window.location.origin + '/' + data.key + '/';
+        const base = data.ns === 'f' ? `/f/${data.key}/` : `/${data.key}/`;
+        document.getElementById('resultUrl').href        = window.location.origin + base;
+        document.getElementById('resultUrl').textContent = window.location.origin + base;
         document.getElementById('resultBox').classList.remove('hidden');
-        textInput.value = ''; textInput.disabled = false;
-        keyInput.value = ''; keyStatus.textContent = '';
+        textInput.value    = '';
+        textInput.disabled = false;
+        keyInput.value     = '';
+        keyStatus.textContent = '';
         clearFile();
-        saveBtn.disabled = false; saveBtn.textContent = 'save & get link';
+        saveBtn.disabled    = false;
+        saveBtn.textContent = 'save & get link';
         showToast('drop created!');
       } else {
         errEl.textContent = data.error || 'Something went wrong.';
         errEl.classList.remove('hidden');
-        saveBtn.disabled = false; saveBtn.textContent = 'save & get link';
+        saveBtn.disabled    = false;
+        saveBtn.textContent = 'save & get link';
       }
     } catch {
       errEl.textContent = 'Unexpected error.';
       errEl.classList.remove('hidden');
-      saveBtn.disabled = false; saveBtn.textContent = 'save & get link';
+      saveBtn.disabled    = false;
+      saveBtn.textContent = 'save & get link';
     }
   });
 
   xhr.addEventListener('error', () => {
+    hideProgress();
     errEl.textContent = 'Network error.';
     errEl.classList.remove('hidden');
-    saveBtn.disabled = false; saveBtn.textContent = 'save & get link';
+    saveBtn.disabled    = false;
+    saveBtn.textContent = 'save & get link';
   });
 
   xhr.send(fd);

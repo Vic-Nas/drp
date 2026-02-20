@@ -1,10 +1,9 @@
 django>=5.0
 python-dotenv
-cloudinary
-django-cloudinary-storage
 dj-database-url
 whitenoise
 gunicorn
 requests
 psycopg2-binary>=2.9
 resend
+boto3

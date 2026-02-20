@@ -111,8 +111,8 @@ jobs:
       - name: Smoke — authenticated session persists
         if: ${{ env.DRP_SMOKE_HOST != '' && env.DRP_SMOKE_EMAIL != '' }}
         env:
-          DRP_SMOKE_HOST: ${{ secrets.DRP_SMOKE_HOST }}
-          DRP_SMOKE_EMAIL: ${{ secrets.DRP_SMOKE_EMAIL }}
+          DRP_SMOKE_HOST:     ${{ secrets.DRP_SMOKE_HOST }}
+          DRP_SMOKE_EMAIL:    ${{ secrets.DRP_SMOKE_EMAIL }}
           DRP_SMOKE_PASSWORD: ${{ secrets.DRP_SMOKE_PASSWORD }}
         shell: bash
         run: |
