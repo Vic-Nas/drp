@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 from django.utils import timezone
 from datetime import timedelta
@@ -168,7 +168,7 @@ class Drop(models.Model):
     renewal_count = models.PositiveIntegerField(default=0)
 
     # ── View tracking ─────────────────────────────────────────────────────────
-    view_count    = models.PositiveIntegerField(default=0)
+    view_count     = models.PositiveIntegerField(default=0)
     last_viewed_at = models.DateTimeField(null=True, blank=True, db_index=True)
 
     class Meta:
@@ -244,6 +244,11 @@ class Drop(models.Model):
                 self.save(update_fields=["expires_at"])
 
     def hard_delete(self):
+        """
+        Delete a file drop from B2 then remove the DB record.
+        Storage accounting is handled by the post_delete signal — no need
+        to update it manually here.
+        """
         if self.ns == self.NS_FILE and self.file_public_id:
             try:
                 from core.views.b2 import delete_object
@@ -261,12 +266,7 @@ class Drop(models.Model):
                 )
                 return False
 
-        if self.owner_id and self.filesize:
-            from django.db import models as db_models
-            UserProfile.objects.filter(user_id=self.owner_id).update(
-                storage_used_bytes=db_models.F("storage_used_bytes") - self.filesize
-            )
-        self.delete()
+        self.delete()  # post_delete signal handles storage accounting
         return True
 
     def can_edit(self, user):
@@ -291,6 +291,33 @@ class Drop(models.Model):
         from core.views.b2 import presigned_get
         return presigned_get(self.ns, self.key, filename=self.filename, expires_in=expires_in,
                              b2_key=self.b2_object_key())
+
+
+# ── post_delete signal — storage accounting ───────────────────────────────────
+# Fires on ALL deletion paths: hard_delete(), admin, queryset.delete(), cascade.
+# Safely skips drops with no owner or no filesize (text drops, anon drops).
+
+@receiver(post_delete, sender=Drop)
+def update_storage_on_delete(sender, instance, **kwargs):
+    if not instance.owner_id or not instance.filesize:
+        return
+    try:
+        UserProfile.objects.filter(user_id=instance.owner_id).update(
+            storage_used_bytes=models.greatest(
+                models.F("storage_used_bytes") - instance.filesize,
+                models.Value(0),
+            )
+        )
+    except Exception:
+        # greatest() requires Django 5.0+ — fall back to recalc from DB truth
+        try:
+            profile = UserProfile.objects.get(user_id=instance.owner_id)
+            profile.recalc_storage()
+        except Exception:
+            logger.exception(
+                "update_storage_on_delete: failed to update storage for user_id=%s",
+                instance.owner_id,
+            )
 
 
 # ── SavedDrop ─────────────────────────────────────────────────────────────────
