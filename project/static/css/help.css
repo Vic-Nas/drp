@@ -1,0 +1,182 @@
+/* Help page styles extracted from base.html */
+.help-wrap {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 3rem;
+  align-items: start;
+  max-width: 960px;
+}
+
+/* ── Side nav ── */
+.help-sidenav {
+  position: sticky;
+  top: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+.help-sidenav-title {
+  font-weight: 800;
+  font-size: .75rem;
+  color: var(--muted) !important;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  text-decoration: none !important;
+}
+.help-sidenav-title:hover { color: var(--text) !important; text-decoration: none !important; }
+.help-sidenav-links {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border);
+}
+.help-sidenav-links a {
+  color: var(--muted);
+  font-size: .85rem;
+  padding: .35rem 0 .35rem .9rem;
+  border-left: 2px solid transparent;
+  margin-left: -1px;
+  transition: color .15s, border-color .15s;
+  text-decoration: none;
+  line-height: 1.4;
+}
+.help-sidenav-links a:hover { color: var(--text); text-decoration: none; }
+.help-sidenav-links a.active {
+  color: var(--accent);
+  border-left-color: var(--accent);
+  font-weight: 500;
+}
+
+/* ── Content typography ── */
+.help-content h1 {
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  margin-bottom: .35rem;
+}
+.help-content .lead {
+  color: var(--muted);
+  margin-bottom: 2rem;
+  font-size: .95rem;
+}
+.help-content h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 2rem 0 .8rem;
+  padding-bottom: .35rem;
+  border-bottom: 1px solid var(--border);
+}
+.help-content h3 {
+  font-size: .82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--muted);
+  margin: 1.3rem 0 .4rem;
+}
+.help-content p {
+  line-height: 1.75;
+  margin-bottom: .6rem;
+  color: var(--text);
+}
+.help-content code {
+  background: var(--surface);
+  padding: .1em .4em;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: .88em;
+}
+.help-content pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .9rem 1.1rem;
+  margin: .5rem 0 1rem;
+  overflow-x: auto;
+}
+.help-content pre code {
+  background: none;
+  padding: 0;
+  font-size: .85rem;
+  line-height: 1.6;
+}
+.help-content table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .85rem;
+  margin: .5rem 0 1rem;
+}
+.help-content table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--border);
+}
+.help-content table td {
+  padding: .45rem .6rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.help-content table tr:last-child td { border-bottom: none; }
+.help-content ul, .help-content ol {
+  padding-left: 1.4rem;
+  margin-bottom: .8rem;
+  line-height: 1.75;
+}
+.help-content li { margin-bottom: .2rem; }
+
+/* ── Overview cards ── */
+.help-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.help-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem;
+  text-decoration: none;
+  transition: border-color .15s;
+  display: block;
+}
+.help-card:hover { border-color: var(--accent); text-decoration: none; }
+.help-card-title { font-weight: 700; color: var(--text); margin-bottom: .25rem; }
+.help-card-desc { font-size: .82rem; color: var(--muted); line-height: 1.5; }
+
+@media (max-width: 700px) {
+  .help-wrap { grid-template-columns: 1fr; }
+  .help-sidenav {
+    position: static;
+    gap: .6rem;
+  }
+  .help-sidenav-title { display: none; }
+  .help-sidenav-links {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-left: none;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: .8rem;
+    margin-bottom: .8rem;
+    gap: .2rem;
+  }
+  .help-sidenav-links a {
+    border-left: none;
+    border-bottom: 2px solid transparent;
+    margin-left: 0;
+    padding: .2rem .5rem .35rem;
+    border-radius: 4px 4px 0 0;
+    font-size: .82rem;
+  }
+  .help-sidenav-links a.active {
+    border-left: none;
+    border-bottom-color: var(--accent);
+    background: none;
+  }
+  .help-cards { grid-template-columns: 1fr; }
+}
