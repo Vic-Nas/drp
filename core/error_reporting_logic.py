@@ -54,8 +54,12 @@ def _issue_title(exc_type, command):
 
 def _issue_exists(exc_type, command):
     """
-    Return True if an open issue for this exc_type + command already exists,
-    or if the flood guard triggers (3+ open auto issues for the same command).
+    Return True if an open issue for this exact (exc_type, command) pair
+    already exists, or if the flood guard triggers.
+
+    Flood guard: max 5 open auto issues per command. Keyed on full title
+    (exc_type + command) so distinct errors each get one issue rather than
+    all sharing a single command bucket.
     """
     if not GITHUB_TOKEN:
         return False
@@ -66,7 +70,7 @@ def _issue_exists(exc_type, command):
                 'Authorization': f'token {GITHUB_TOKEN}',
                 'Accept': 'application/vnd.github+json',
             },
-            params={'state': 'open', 'labels': 'bug,auto-reported', 'per_page': 50},
+            params={'state': 'open', 'labels': 'bug,auto-reported', 'per_page': 100},
             timeout=8,
         )
         if not res.ok:
@@ -75,17 +79,17 @@ def _issue_exists(exc_type, command):
         open_issues = res.json()
         exact_title = _issue_title(exc_type, command)
 
-        # Exact duplicate
+        # Exact duplicate — same error, same command
         if any(i['title'] == exact_title for i in open_issues):
             return True
 
-        # Flood guard — if 3+ open auto issues for same command, stop filing
+        # Flood guard — max 5 open auto issues per command regardless of type
         command_issues = [
             i for i in open_issues
             if i['title'].startswith('[auto] ')
             and f'`drp {command}`' in i['title']
         ]
-        if len(command_issues) >= 3:
+        if len(command_issues) >= 5:
             return True
 
     except Exception:

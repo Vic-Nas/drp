@@ -26,6 +26,15 @@ from .helpers import err
 CHUNK = 256 * 1024  # 256 KB read/write chunks
 
 
+def _report(command, msg):
+    """Fire-and-forget crash report for handled errors that should be tracked."""
+    try:
+        from cli.crash_reporter import report
+        report(command, RuntimeError(msg))
+    except Exception:
+        pass
+
+
 # ── Upload ────────────────────────────────────────────────────────────────────
 
 def upload_file(host, session, filepath, key=None, expiry_days=None):
@@ -62,12 +71,14 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
             timeout=30,
         )
         if not res.ok:
+            msg = f"Prepare failed (HTTP {res.status_code})"
             _handle_error(res, "Prepare failed")
+            _report("up", msg)
             return None
         prep = res.json()
     except Exception as e:
         err(f"Prepare error: {e}")
-        return None
+        raise  # let main() catch and report unhandled exceptions
 
     presigned_url = prep["presigned_url"]
     drop_key      = prep["key"]
@@ -93,16 +104,18 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
                 # Content-Length is intentionally omitted — boto3 only signs
                 # content-type and host. Sending extra headers breaks the
                 # signature check and causes B2 to return 400.
-                # requests will set Content-Length automatically.
+                # requests sets Content-Length automatically.
             },
             timeout=None,  # no timeout — large files can take a while
         )
         if not put_res.ok:
-            err(f"B2 upload failed (HTTP {put_res.status_code}): {put_res.text[:200]}")
+            msg = f"B2 upload failed (HTTP {put_res.status_code})"
+            err(f"{msg}: {put_res.text[:200]}")
+            _report("up", msg)
             return None
     except Exception as e:
         err(f"Upload error: {e}")
-        return None
+        raise
 
     bar.done()
 
@@ -126,9 +139,12 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
         )
         if res.ok:
             return res.json().get("key")
+        msg = f"Confirm failed (HTTP {res.status_code})"
         _handle_error(res, "Confirm failed")
+        _report("up", msg)
     except Exception as e:
         err(f"Confirm error: {e}")
+        raise
 
     return None
 
@@ -162,11 +178,10 @@ def get_file(host, session, key):
             err(f"/f/{key}/ is not a file drop.")
             return None, None
 
-        download_path = data["download"]          # e.g. /f/report/download/
+        download_path = data["download"]
         filename      = data.get("filename", key)
         filesize      = data.get("filesize", 0)
 
-        # Follow the redirect to the presigned B2 URL
         dl_res = session.get(
             f"{host}{download_path}",
             timeout=10,
@@ -175,18 +190,20 @@ def get_file(host, session, key):
         if dl_res.status_code in (301, 302, 303, 307, 308):
             b2_url = dl_res.headers["Location"]
         elif dl_res.ok:
-            # Shouldn't happen, but handle gracefully
             return "file", (dl_res.content, filename)
         else:
-            err(f"Download redirect failed (HTTP {dl_res.status_code}).")
+            msg = f"Download redirect failed (HTTP {dl_res.status_code})"
+            err(f"{msg}.")
+            _report("get", msg)
             return None, None
 
-        # Stream from B2 — no session cookies needed
         bar    = ProgressBar(max(filesize, 1), label="downloading")
         chunks = []
         with _requests.get(b2_url, stream=True, timeout=None) as stream:
             if not stream.ok:
-                err(f"B2 download failed (HTTP {stream.status_code}).")
+                msg = f"B2 download failed (HTTP {stream.status_code})"
+                err(f"{msg}.")
+                _report("get", msg)
                 return None, None
             for chunk in stream.iter_content(chunk_size=CHUNK):
                 if chunk:
@@ -198,7 +215,7 @@ def get_file(host, session, key):
 
     except Exception as e:
         err(f"Get error: {e}")
-        return None, None
+        raise
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -217,4 +234,6 @@ def _handle_http_error(res, key):
     elif res.status_code == 410:
         err(f"File /f/{key}/ has expired.")
     else:
-        err(f"Server returned {res.status_code}.")
+        msg = f"Server returned {res.status_code}"
+        err(f"{msg}.")
+        _report("get", msg)
