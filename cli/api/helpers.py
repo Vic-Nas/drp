@@ -16,9 +16,11 @@ def slug(name):
 
 def err(msg):
     """Print a formatted error to stderr."""
-    print(f'  ✗ {msg}', file=sys.stderr)
+    from cli.format import red
+    print(f'  {red("✗", stream=sys.stderr)} {msg}', file=sys.stderr)
 
 
 def ok(msg):
     """Print a formatted success message."""
-    print(f'  ✓ {msg}')
+    from cli.format import green
+    print(f'  {green("✓")} {msg}')

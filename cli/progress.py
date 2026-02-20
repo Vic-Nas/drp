@@ -15,8 +15,6 @@ import time
 _BAR_WIDTH = 30  # inner fill characters
 
 # ANSI escape: carriage return + erase to end of line.
-# Clears leftover bar characters before printing the summary line so the
-# two don't collide when the summary is shorter than the bar was.
 _CLEAR = '\r\033[K'
 
 
@@ -48,15 +46,17 @@ class ProgressBar:
         elapsed = time.monotonic() - self._start
         speed   = self.total / elapsed if elapsed > 0 else 0
 
+        from cli.format import green
+        tick = green('✓', stream=sys.stderr)
+
         if self._tty:
-            # Erase the in-progress bar line completely before printing summary
             sys.stderr.write(
-                f"{_CLEAR}  ✓ {self.label}  {_fmt(self.total)}  "
+                f"{_CLEAR}  {tick} {self.label}  {_fmt(self.total)}  "
                 f"({_fmt(speed)}/s  {elapsed:.1f}s)\n"
             )
         else:
             sys.stderr.write(
-                f"  ✓ {self.label}  {_fmt(self.total)}  "
+                f"  {tick} {self.label}  {_fmt(self.total)}  "
                 f"({_fmt(speed)}/s  {elapsed:.1f}s)\n"
             )
         sys.stderr.flush()
@@ -65,19 +65,25 @@ class ProgressBar:
 
     def _render(self):
         if not self._tty:
-            return  # never write partial bar lines to non-interactive stderr
+            return
 
-        pct     = self.done_ / self.total
-        filled  = int(pct * _BAR_WIDTH)
-        arrow   = ">" if filled < _BAR_WIDTH else ""
-        bar     = "=" * filled + arrow + " " * (_BAR_WIDTH - filled - len(arrow))
+        from cli.format import cyan, dim
+
+        pct    = self.done_ / self.total
+        filled = int(pct * _BAR_WIDTH)
+        arrow  = ">" if filled < _BAR_WIDTH else ""
+        fill   = "=" * filled + arrow
+        empty  = " " * (_BAR_WIDTH - filled - len(arrow))
+
+        # Color just the filled portion cyan, brackets dim
+        bar = dim("[") + cyan(fill, stream=sys.stderr) + empty + dim("]")
 
         elapsed = time.monotonic() - self._start
         speed   = self.done_ / elapsed if elapsed > 0.1 else 0
         speed_s = f"  {_fmt(speed)}/s" if speed > 0 else ""
 
         line = (
-            f"\r  {self.label:<12} [{bar}] "
+            f"\r  {self.label:<12} {bar} "
             f"{int(pct * 100):>3}%  "
             f"{_fmt(self.done_)}/{_fmt(self.total)}"
             f"{speed_s}"

@@ -22,12 +22,60 @@ def cmd_setup(args):
     default = cfg.get('host', DEFAULT_HOST)
     cfg['host'] = input(f'  Host [{default}]: ').strip() or default
     config.save(cfg)
+    _setup_ansi(cfg)
     answer = input('  Log in now? (y/n) [y]: ').strip().lower()
     if answer != 'n':
         cmd_login(args)
     check_scripts_in_path()
     _setup_completion()
     print(f'\n  ✓ Config saved to {config.CONFIG_FILE}')
+
+
+def _setup_ansi(cfg: dict) -> None:
+    """
+    Detect ANSI color support, enable it on Windows if possible, and persist
+    the result as cfg['ansi']. Writes config to disk before returning.
+
+    Respects NO_COLOR env var (no-color.org).
+    """
+    # NO_COLOR always wins
+    if os.environ.get('NO_COLOR'):
+        cfg['ansi'] = False
+        config.save(cfg)
+        print('  Color:     disabled (NO_COLOR set)')
+        return
+
+    supported = False
+
+    if sys.platform == 'win32':
+        # The empty os.system('') call activates ANSI processing in the
+        # legacy Windows console. Then we verify via the console mode flag.
+        os.system('')
+        try:
+            import ctypes
+            ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004
+            STD_OUTPUT_HANDLE = -11
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.GetStdHandle(STD_OUTPUT_HANDLE)
+            mode = ctypes.c_ulong()
+            kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+            if not (mode.value & ENABLE_VIRTUAL_TERMINAL_PROCESSING):
+                # Try to enable it
+                kernel32.SetConsoleMode(
+                    handle, mode.value | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+                )
+                kernel32.GetConsoleMode(handle, ctypes.byref(mode))
+            supported = bool(mode.value & ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+        except Exception:
+            supported = False
+    else:
+        supported = sys.stdout.isatty()
+
+    cfg['ansi'] = supported
+    config.save(cfg)
+
+    status = '✓ enabled' if supported else '✗ not supported (plain output)'
+    print(f'  Color:     {status}')
 
 
 def cmd_login(args):
@@ -61,21 +109,10 @@ def cmd_logout(args):
 # ── Completion setup ──────────────────────────────────────────────────────────
 
 def _setup_completion():
-    """
-    Called at the end of drp setup.
-
-    1. Ensure argcomplete is installed in the current environment.
-    2. Write a shell-specific activation line to the user's profile so
-       completion survives across sessions.
-    3. Print what was done, or what to do manually if auto-install failed.
-
-    Entirely non-fatal — completion is a nice-to-have, not a setup blocker.
-    """
     print()
     print('  Tab completion')
     print('  ──────────────')
 
-    # ── Step 1: install argcomplete if missing ─────────────────────────────
     if not _argcomplete_available():
         print('  Installing argcomplete…', end=' ', flush=True)
         ok = _install_argcomplete()
@@ -88,7 +125,6 @@ def _setup_completion():
     else:
         print('  argcomplete already installed  ✓')
 
-    # ── Step 2: write activation line to shell profile ─────────────────────
     shell, profile = _detect_shell_and_profile()
     activation = _activation_line(shell)
 
@@ -123,14 +159,6 @@ def _argcomplete_available() -> bool:
 
 
 def _install_argcomplete() -> bool:
-    """
-    Try to install argcomplete into whichever Python is running this process.
-
-    Tries pipx inject first (correct approach when installed via pipx — keeps
-    argcomplete inside the drp-cli venv rather than polluting the system).
-    Falls back to pip in the current interpreter for pip/venv installs.
-    """
-    # pipx sets PIPX_HOME; if present, inject into the drp-cli venv.
     if os.environ.get('PIPX_HOME') or _pipx_available():
         result = subprocess.run(
             ['pipx', 'inject', 'drp-cli', 'argcomplete'],
@@ -139,7 +167,6 @@ def _install_argcomplete() -> bool:
         if result.returncode == 0:
             return True
 
-    # Fall back to pip in the current interpreter.
     result = subprocess.run(
         [sys.executable, '-m', 'pip', 'install', '--quiet', 'argcomplete'],
         capture_output=True,
@@ -156,19 +183,10 @@ def _pipx_available() -> bool:
 
 
 def _detect_shell_and_profile() -> tuple[str, str | None]:
-    """
-    Returns (shell_name, profile_path_or_None).
-
-    shell_name — basename of $SHELL, lowercased.
-    profile_path — best file to append the activation line to, or None if we
-                   can't determine one (unknown shell, no writable candidate).
-    """
     shell_path = os.environ.get('SHELL', '')
     shell = os.path.basename(shell_path).lower()
     home = Path.home()
 
-    # Ordered preference: use whichever file already exists; otherwise fall
-    # back to the first candidate (we'll create it in _append_to_profile).
     candidates: dict[str, list[Path]] = {
         'bash': [home / '.bashrc', home / '.bash_profile'],
         'zsh':  [home / '.zshrc'],
@@ -179,13 +197,11 @@ def _detect_shell_and_profile() -> tuple[str, str | None]:
         if path.exists():
             return shell, str(path)
 
-    # No existing file — return the preferred path so we can create it.
     first = candidates.get(shell, [None])[0]
     return shell, str(first) if first else None
 
 
 def _activation_line(shell: str) -> str | None:
-    """One-liner that activates drp completion for the given shell."""
     return {
         'bash': 'eval "$(register-python-argcomplete drp)"',
         'zsh':  (
@@ -213,8 +229,6 @@ def _append_to_profile(profile_path: str, activation: str) -> bool:
     except Exception:
         return False
 
-
-# ── Fallback hints ────────────────────────────────────────────────────────────
 
 def _print_manual_install_hint():
     print()
