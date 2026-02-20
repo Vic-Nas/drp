@@ -3,6 +3,9 @@ Formatting helpers: human-readable sizes, times, and minimal ANSI color.
 
 Color is gated on the 'ansi' key in config (set by drp setup) and
 sys.stdout.isatty() / sys.stderr.isatty() so nothing leaks into pipes or logs.
+
+Override with FORCE_COLOR=1 env var for terminals that don't report isatty()
+correctly (some tmux, screen, VS Code, SSH setups).
 """
 
 import math
@@ -49,16 +52,29 @@ def human_time(iso_str):
 
 # ── ANSI color ─────────────────────────────────────────────────────────────────
 #
-# Only emits escape codes when:
-#   1. config has ansi=true  (set once by drp setup)
-#   2. the target stream is a real TTY
-#   3. NO_COLOR env var is not set  (no-color.org)
+# Emits escape codes when ANY of these are true:
+#   1. FORCE_COLOR env var is set (user override for broken TTY detection)
+#
+# And NONE of these are true:
+#   1. NO_COLOR env var is set  (no-color.org)
+#   2. config has ansi=false
+#
+# Without FORCE_COLOR, also requires the target stream to be a real TTY.
 #
 # Use the stream= kwarg to check stderr instead of stdout (e.g. progress bar).
 
 def _ansi_on(stream=None) -> bool:
+    # NO_COLOR always wins
     if os.environ.get('NO_COLOR'):
         return False
+    # FORCE_COLOR overrides TTY detection (but still respects NO_COLOR and config)
+    if os.environ.get('FORCE_COLOR'):
+        try:
+            from cli import config as _cfg
+            return bool(_cfg.load().get('ansi', False))
+        except Exception:
+            return True
+    # Normal path: check config then TTY
     try:
         from cli import config as _cfg
         if not _cfg.load().get('ansi', False):

@@ -20,16 +20,23 @@ def cmd_status(args):
         _drop_status(args, key)
         return
 
+    from cli.format import dim, green, bold
+
     cfg = config.load()
     local_count = len(config.load_local_drops())
-    print('drp status')
-    print('──────────')
-    print(f'  Host:        {cfg.get("host", "(not set)")}')
-    print(f'  Account:     {cfg.get("email", "anonymous")}')
-    print(f'  Session:     {"active" if SESSION_FILE.exists() else "none"}')
-    print(f'  Local drops: {local_count}')
-    print(f'  Config:      {config.CONFIG_FILE}')
-    print(f'  Cache:       {config.DROPS_FILE}')
+
+    print(bold('drp status'))
+    print(dim('──────────'))
+    print(f'  {dim("Host:")}        {cfg.get("host", "(not set)")}')
+    print(f'  {dim("Account:")}     {cfg.get("email", "anonymous")}')
+
+    session_active = SESSION_FILE.exists()
+    session_str = green('active') if session_active else dim('none')
+    print(f'  {dim("Session:")}     {session_str}')
+
+    print(f'  {dim("Local drops:")} {local_count}')
+    print(f'  {dim("Config:")}      {config.CONFIG_FILE}')
+    print(f'  {dim("Cache:")}       {config.DROPS_FILE}')
 
 
 def _drop_status(args, key):
@@ -44,7 +51,7 @@ def _drop_status(args, key):
     url = f'{host}/f/{key}/' if ns == 'f' else f'{host}/{key}/'
 
     from cli.spinner import Spinner
-    from cli.format import dim
+    from cli.format import dim, green, red, bold
     from cli.api.helpers import err
 
     session = requests.Session()
@@ -76,16 +83,18 @@ def _drop_status(args, key):
     views  = data.get('view_count', 0)
     last   = data.get('last_viewed_at')
 
-    print(f'  /{prefix}{key}/')
-    print(f'  {dim("─" * (len(key) + len(prefix) + 3))}')
-    print(f'  views       {views}')
-    print(f'  last seen   {human_time(last) if last else "never"}')
-    print(f'  created     {human_time(data.get("created_at"))}')
+    sep = dim('─' * (len(key) + len(prefix) + 3))
+    print(f'  {bold("/" + prefix + key + "/")}')
+    print(f'  {sep}')
+    print(f'  {dim("views")}       {green(str(views)) if views else dim("0")}')
+    print(f'  {dim("last seen")}   {human_time(last) if last else dim("never")}')
+    print(f'  {dim("created")}     {human_time(data.get("created_at"))}')
     if data.get('expires_at'):
-        print(f'  expires     {human_time(data.get("expires_at"))}')
+        print(f'  {dim("expires")}     {human_time(data.get("expires_at"))}')
     else:
         kind = data.get('kind', 'text')
-        print(f'  expires     {"24h after last access" if kind == "text" else "90d after upload"}')
+        idle = dim('24h after last access' if kind == 'text' else '90d after upload')
+        print(f'  {dim("expires")}     {idle}')
 
 
 def cmd_ping(args):
@@ -94,15 +103,22 @@ def cmd_ping(args):
     if not host:
         print('  ✗ Not configured. Run: drp setup')
         sys.exit(1)
+
+    from cli.format import green, red
+
     try:
         res = requests.get(f'{host}/', timeout=5)
-        print(f'  ✓ {host} reachable (HTTP {res.status_code})')
+        tick = green('✓')
+        print(f'  {tick} {host} reachable (HTTP {res.status_code})')
     except requests.ConnectionError:
-        print(f'  ✗ {host} unreachable — connection refused.')
+        cross = red('✗')
+        print(f'  {cross} {host} unreachable — connection refused.')
         sys.exit(1)
     except requests.Timeout:
-        print(f'  ✗ {host} unreachable — timed out.')
+        cross = red('✗')
+        print(f'  {cross} {host} unreachable — timed out.')
         sys.exit(1)
     except Exception as e:
-        print(f'  ✗ {host} unreachable: {e}')
+        cross = red('✗')
+        print(f'  {cross} {host} unreachable: {e}')
         sys.exit(1)
