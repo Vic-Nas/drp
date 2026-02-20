@@ -328,7 +328,7 @@ def upload_prepare(request):
     # Generate presigned PUT
     from core.views.b2 import presigned_put
     EXPIRES_IN = 3600  # 1 hour
-    presigned_url = presigned_put(ns, key, content_type=content_type, expires_in=EXPIRES_IN)
+    presigned_url = presigned_put(ns, key, content_type=content_type, size=size, expires_in=EXPIRES_IN)
 
     return JsonResponse({
         "presigned_url": presigned_url,
