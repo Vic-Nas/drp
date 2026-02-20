@@ -73,12 +73,6 @@
 
 /* ── Content area ─────────────────────────────────────────────────────────── */
 
-/*
- * min-width: 0 is required on grid children.
- * Without it, the default min-width: auto lets <pre> blocks on the CLI
- * page expand the column beyond its 1fr allocation, which squeezes the
- * nav column and makes the layout differ page-to-page.
- */
 .help-content {
   min-width: 0;
 }
@@ -110,12 +104,11 @@
 }
 
 .help-content h3 {
-  font-size: .75rem;
+  font-size: .9rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .07em;
-  color: var(--muted);
+  color: var(--text);
   margin: 1.5rem 0 .45rem;
+  font-family: ui-monospace, monospace;
 }
 
 .help-content p {
@@ -156,7 +149,6 @@
   border-radius: var(--radius);
   padding: 1rem 1.2rem;
   margin: .6rem 0 1.2rem;
-  /* overflow-x scroll keeps pre from blowing out the grid column */
   overflow-x: auto;
 }
 

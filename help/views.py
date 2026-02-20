@@ -43,15 +43,20 @@ def _get_readme_html():
 
 @cache
 def _get_parser_info():
-    from cli.drp import build_parser
+    from cli.drp import build_parser, COMMANDS
     parser = build_parser()
+
+    # Build a lookup from the COMMANDS list — this is the source of truth for
+    # help strings. sub.description is always empty because subparsers are only
+    # given a `help=` kwarg, not `description=`.
+    help_lookup = {name: help_str for name, _, help_str in COMMANDS}
 
     commands = []
     for group in parser._subparsers._group_actions:
         for name, sub in group.choices.items():
             commands.append({
                 'name': name,
-                'help': sub.description or '',
+                'help': help_lookup.get(name, ''),
                 'epilog': sub.epilog or '',
             })
 
