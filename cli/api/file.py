@@ -84,27 +84,33 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
     drop_key      = prep["key"]
 
     # ── Step 2: stream file directly to B2 ───────────────────────────────────
+    # NOTE: requests drops Content-Length when data is a generator (uses chunked
+    # transfer encoding instead), which B2 rejects on presigned URLs.
+    # Fix: pass a file-like object (requests honours Content-Length for those)
+    # wrapped to tick the progress bar on each read().
     bar = ProgressBar(size, label="uploading")
 
-    def _file_iter():
-        with open(filepath, "rb") as f:
-            while True:
-                chunk = f.read(CHUNK)
-                if not chunk:
-                    break
+    class _ProgressFile:
+        def __init__(self, path):
+            self._f = open(path, "rb")
+        def read(self, n=-1):
+            chunk = self._f.read(n)
+            if chunk:
                 bar.update(len(chunk))
-                yield chunk
+            return chunk
+        def __len__(self):
+            return size
+        def close(self):
+            self._f.close()
 
+    pf = _ProgressFile(filepath)
     try:
         put_res = _requests.put(
             presigned_url,
-            data=_file_iter(),
+            data=pf,
             headers={
                 "Content-Type":   content_type,
                 "Content-Length": str(size),
-                # Both headers are now included in the presigned URL's
-                # SignedHeaders (boto3 signs ContentLength when passed as
-                # a Param to generate_presigned_url), so B2 accepts them.
             },
             timeout=None,
         )
@@ -116,6 +122,8 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
     except Exception as e:
         err(f"Upload error: {e}")
         raise
+    finally:
+        pf.close()
 
     bar.done()
 
