@@ -71,7 +71,17 @@
   border-radius: 2px;
 }
 
-/* ── Content typography ───────────────────────────────────────────────────── */
+/* ── Content area ─────────────────────────────────────────────────────────── */
+
+/*
+ * min-width: 0 is required on grid children.
+ * Without it, the default min-width: auto lets <pre> blocks on the CLI
+ * page expand the column beyond its 1fr allocation, which squeezes the
+ * nav column and makes the layout differ page-to-page.
+ */
+.help-content {
+  min-width: 0;
+}
 
 .help-content h1 {
   font-size: 1.75rem;
@@ -138,7 +148,6 @@
   font-family: ui-monospace, monospace;
   font-size: .83em;
   color: #c8d8ff;
-  word-break: break-word;
 }
 
 .help-content pre {
@@ -147,8 +156,8 @@
   border-radius: var(--radius);
   padding: 1rem 1.2rem;
   margin: .6rem 0 1.2rem;
+  /* overflow-x scroll keeps pre from blowing out the grid column */
   overflow-x: auto;
-  max-width: 100%;
 }
 
 .help-content pre code {
@@ -158,7 +167,6 @@
   font-size: .83rem;
   line-height: 1.7;
   color: var(--text);
-  word-break: normal;
 }
 
 /* ── Tables ───────────────────────────────────────────────────────────────── */
@@ -251,7 +259,7 @@
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 
-@media (max-width: 680px) {
+@media (max-width: 640px) {
   .help-wrap {
     grid-template-columns: 1fr;
     gap: 1.5rem;
@@ -259,6 +267,12 @@
 
   .help-sidenav {
     position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
   }
 
   .help-sidenav-title {
@@ -275,10 +289,12 @@
     font-size: .79rem;
     padding: .28rem .6rem;
     border: 1px solid var(--border);
+    border-radius: 4px;
   }
 
   .help-sidenav-links a.active {
     border-color: var(--accent);
+    background: rgba(91,141,238,.09);
   }
 
   .help-sidenav-links a.active::before {
