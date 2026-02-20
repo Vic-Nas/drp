@@ -112,22 +112,26 @@ class TestIssueExists:
 
     @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
     @patch('core.error_reporting_logic.http.get')
-    def test_flood_guard_triggers_at_three(self, mock_get):
+    def test_flood_guard_triggers_at_five(self, mock_get):
         mock_get.return_value = _mock_gh_response([
             _make_issue('[auto] ConnectionError in `drp up`'),
             _make_issue('[auto] TimeoutError in `drp up`'),
             _make_issue('[auto] ValueError in `drp up`'),
+            _make_issue('[auto] KeyError in `drp up`'),
+            _make_issue('[auto] RuntimeError in `drp up`'),
         ])
-        assert _issue_exists('KeyError', 'up') is True
+        assert _issue_exists('OSError', 'up') is True
 
     @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
     @patch('core.error_reporting_logic.http.get')
-    def test_flood_guard_does_not_trigger_at_two(self, mock_get):
+    def test_flood_guard_does_not_trigger_at_four(self, mock_get):
         mock_get.return_value = _mock_gh_response([
             _make_issue('[auto] ConnectionError in `drp up`'),
             _make_issue('[auto] TimeoutError in `drp up`'),
+            _make_issue('[auto] ValueError in `drp up`'),
+            _make_issue('[auto] KeyError in `drp up`'),
         ])
-        assert _issue_exists('KeyError', 'up') is False
+        assert _issue_exists('OSError', 'up') is False
 
     @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
     @patch('core.error_reporting_logic.http.get')
@@ -136,6 +140,8 @@ class TestIssueExists:
             _make_issue('[auto] ConnectionError in `drp up`'),
             _make_issue('[auto] TimeoutError in `drp up`'),
             _make_issue('[auto] ValueError in `drp up`'),
+            _make_issue('[auto] KeyError in `drp up`'),
+            _make_issue('[auto] RuntimeError in `drp up`'),
         ])
         assert _issue_exists('KeyError', 'get') is False
 
