@@ -2,7 +2,7 @@
 drp save — bookmark a drop to your account.
 
   drp save key        bookmark a clipboard drop
-  drp save f/key      bookmark a file drop
+  drp save -f key     bookmark a file drop
 
 Saving grants no ownership or edit rights — the drop appears
 in drp ls under [saved] and in your account dashboard.
@@ -17,10 +17,8 @@ from cli import config, api
 from cli.session import auto_login
 
 
-def _parse_key(raw):
-    if raw.startswith('f/'):
-        return 'f', raw[2:]
-    return 'c', raw
+def _parse_key(raw, is_file=False):
+    return ('f', raw) if is_file else ('c', raw)
 
 
 def cmd_save(args):
@@ -40,7 +38,7 @@ def cmd_save(args):
         print('  ✗ Not logged in. Run: drp login')
         sys.exit(1)
 
-    ns, key = _parse_key(args.key)
+    ns, key = _parse_key(args.key, args.file)
     prefix = 'f/' if ns == 'f' else ''
 
     if api.save_bookmark(host, session, key, ns=ns):

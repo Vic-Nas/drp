@@ -41,20 +41,22 @@ urls:
 
 key format:
   key        clipboard (default)
-  f/key      file
+  -f key     file drop
 
 examples:
-  drp up "hello world" -k hello    clipboard at /hello/
-  drp up report.pdf -k q3          file at /f/q3/
-  drp get hello                    print clipboard to stdout
-  drp get f/q3 -o my-report.pdf    download file with custom name
-  drp save notes                   bookmark clipboard (appears in drp ls)
-  drp save f/report                bookmark file
-  drp rm hello                     delete clipboard
-  drp mv q3 quarter3               rename key
-  drp ls -l                        list with sizes and times
-  drp ls --export > backup.json    export as JSON
-  drp load backup.json             import shared export as saved drops
+  drp up "hello world" -k hello         clipboard at /hello/
+  drp up report.pdf -k q3              file at /f/q3/
+  drp get hello                         print clipboard to stdout
+  drp get -f q3 -o my-report.pdf        download file with custom name
+  drp save notes                        bookmark clipboard (appears in drp ls)
+  drp save -f report                    bookmark file
+  drp rm hello                          delete clipboard
+  drp rm -f report                      delete file
+  drp mv q3 quarter3                    rename clipboard key
+  drp mv -f q3 quarter3                 rename file key
+  drp ls -l                             list with sizes and times
+  drp ls --export > backup.json         export as JSON
+  drp load backup.json                  import shared export as saved drops
 """
 
 
@@ -87,23 +89,32 @@ def _configure_subparsers(sub):
                       help='Custom key (e.g. -k q3 → /q3/ or /f/q3/)')
 
     p_get = sub._name_parser_map['get']
-    p_get.add_argument('key',
-                       help='Bare key tries clipboard then file; f/key forces file')
+    p_get.add_argument('key', help='Drop key')
+    p_get.add_argument('-f', '--file', action='store_true',
+                       help='Key is a file drop (e.g. drp get -f q3)')
     p_get.add_argument('--output', '-o', default=None,
                        help='Save file as this name (default: original filename)')
 
     p_rm = sub._name_parser_map['rm']
-    p_rm.add_argument('key', help='Drop key (e.g. hello or f/report)')
+    p_rm.add_argument('key', help='Drop key')
+    p_rm.add_argument('-f', '--file', action='store_true',
+                      help='Key is a file drop (e.g. drp rm -f report)')
 
     p_mv = sub._name_parser_map['mv']
-    p_mv.add_argument('key', help='Current key (e.g. q3 or f/q3)')
+    p_mv.add_argument('key', help='Current key')
     p_mv.add_argument('new_key', help='New key')
+    p_mv.add_argument('-f', '--file', action='store_true',
+                      help='Key is a file drop (e.g. drp mv -f q3 quarter3)')
 
     p_renew = sub._name_parser_map['renew']
-    p_renew.add_argument('key', help='Drop key (e.g. hello or f/report)')
+    p_renew.add_argument('key', help='Drop key')
+    p_renew.add_argument('-f', '--file', action='store_true',
+                         help='Key is a file drop (e.g. drp renew -f report)')
 
     p_save = sub._name_parser_map['save']
-    p_save.add_argument('key', help='Drop key (e.g. notes or f/report)')
+    p_save.add_argument('key', help='Drop key')
+    p_save.add_argument('-f', '--file', action='store_true',
+                        help='Key is a file drop (e.g. drp save -f report)')
 
     p_ls = sub._name_parser_map['ls']
     p_ls.add_argument('-l', '--long', action='store_true',

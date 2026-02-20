@@ -2,8 +2,8 @@
 drp get — retrieve a clipboard or file drop.
 
   drp get key          clipboard → stdout
-  drp get f/key        file drop → saved to disk
-  drp get f/key -o out save with custom filename
+  drp get -f key       file drop → saved to disk
+  drp get -f key -o out save with custom filename
 """
 
 import sys
@@ -25,11 +25,9 @@ def cmd_get(args):
     session = requests.Session()
     load_session(session)  # silent — never prompts for password
 
-    raw_key = args.key
-    force_file = raw_key.startswith('f/')
-    key = raw_key[2:] if force_file else raw_key
+    key = args.key
 
-    if force_file:
+    if args.file:
         _get_file(host, session, key, args)
         return
 
@@ -39,7 +37,7 @@ def cmd_get(args):
         return
 
     print(f'  ✗ No clipboard drop found for /{key}/')
-    print(f'  → If this is a file, try: drp get f/{key}')
+    print(f'  → If this is a file, try: drp get -f {key}')
     sys.exit(1)
 
 
