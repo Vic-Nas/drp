@@ -1,27 +1,6 @@
-{% extends 'base.html' %}
-{% load static %}
+{% extends 'help/base.html' %}
+{% block title %}drp — help{% endblock %}
 
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/help.css' %}">
-{% endblock %}
-
-{% block content %}
-<div class="help-wrap">
-
-  <nav class="help-sidenav">
-    <a href="{% url 'help_index' %}" class="help-sidenav-title">help</a>
-    <div class="help-sidenav-links">
-      <a href="{% url 'help_index' %}"   {% if request.resolver_match.url_name == 'help_index'   %}class="active"{% endif %}>overview</a>
-      <a href="{% url 'help_cli' %}"     {% if request.resolver_match.url_name == 'help_cli'     %}class="active"{% endif %}>CLI</a>
-      <a href="{% url 'help_plans' %}"   {% if request.resolver_match.url_name == 'help_plans'   %}class="active"{% endif %}>plans</a>
-      <a href="{% url 'help_expiry' %}"  {% if request.resolver_match.url_name == 'help_expiry'  %}class="active"{% endif %}>expiry</a>
-      <a href="{% url 'help_privacy' %}" {% if request.resolver_match.url_name == 'help_privacy' %}class="active"{% endif %}>privacy</a>
-    </div>
-  </nav>
-
-  <article class="help-content">
-    {% block help_content %}{% endblock %}
-  </article>
-
-</div>
+{% block help_content %}
+{{ readme_html|safe }}
 {% endblock %}

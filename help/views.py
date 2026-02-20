@@ -1,11 +1,14 @@
 from functools import cache
+from pathlib import Path
 
 from django.shortcuts import render
 from django.views.decorators.cache import cache_page
 
 
 def index(request):
-    return render(request, 'help/index.html')
+    return render(request, 'help/index.html', {
+        'readme_html': _get_readme_html(),
+    })
 
 
 @cache_page(60 * 60 * 24)
@@ -25,6 +28,17 @@ def plans(request):
 
 def privacy(request):
     return render(request, 'help/privacy.html')
+
+
+@cache
+def _get_readme_html():
+    import markdown
+    readme_path = Path(__file__).resolve().parent.parent / 'README.md'
+    text = readme_path.read_text()
+    html = markdown.markdown(text, extensions=['tables', 'fenced_code'])
+    # Fix relative LICENSE link — at /help/ it would 404
+    html = html.replace('href="LICENSE"', 'href="https://github.com/vicnasdev/drp/blob/main/LICENSE"')
+    return html
 
 
 @cache
