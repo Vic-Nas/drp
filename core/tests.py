@@ -122,11 +122,16 @@ class DropTouchTests(TestCase):
         Drop.objects.filter(pk=self.drop.pk).update(last_accessed_at=recent)
         self.drop.last_accessed_at = recent
 
-        with patch.object(Drop.objects, "filter", wraps=Drop.objects.filter) as mock_filter:
-            self.drop.touch()
-            # filter().update() must NOT be called for a write
-            for call in mock_filter.return_value.update.call_args_list:
-                self.fail(f"Unexpected DB write: {call}")
+        self.drop.touch()
+
+        # Within the debounce window, last_accessed_at must NOT be updated in the DB
+        self.drop.refresh_from_db()
+        self.assertAlmostEqual(
+            self.drop.last_accessed_at.timestamp(),
+            recent.timestamp(),
+            delta=2,
+            msg="touch() wrote to the DB within the debounce window",
+        )
 
     def test_touch_writes_after_debounce_window(self):
         old = timezone.now() - timedelta(seconds=Drop.TOUCH_DEBOUNCE_SECS + 10)

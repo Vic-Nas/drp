@@ -30,6 +30,7 @@ from .helpers import (
     is_paid_user, max_lifetime_secs, gen_key,
     upload_to_b2, delete_from_b2, add_storage,
 )
+from core.views.b2 import object_exists, object_size
 
 ANON_COOKIE = "drp_anon"
 
@@ -367,7 +368,6 @@ def upload_confirm(request):
         return JsonResponse({"error": "key and valid ns required."}, status=400)
 
     # Verify object actually landed in B2
-    from core.views.b2 import object_exists, object_size
     if not object_exists(ns, key):
         return JsonResponse(
             {"error": "File not found in storage. Upload may have failed or expired."},
