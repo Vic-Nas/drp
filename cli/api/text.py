@@ -6,17 +6,21 @@ from .auth import get_csrf
 from .helpers import err
 
 
-def upload_text(host, session, text, key=None):
+def upload_text(host, session, text, key=None, timer=None):
     """
     Upload text content.
     Returns the key string on success, None on failure.
     """
     csrf = get_csrf(host, session)
+    if timer:
+        timer.checkpoint('get CSRF token')
     data = {'content': text, 'csrfmiddlewaretoken': csrf}
     if key:
         data['key'] = key
     try:
         res = session.post(f'{host}/save/', data=data, timeout=30)
+        if timer:
+            timer.checkpoint('upload request')
         if res.ok:
             return res.json().get('key')
         _handle_error(res, 'Upload failed')
@@ -26,7 +30,7 @@ def upload_text(host, session, text, key=None):
     return None
 
 
-def get_clipboard(host, session, key):
+def get_clipboard(host, session, key, timer=None):
     """
     Fetch a clipboard drop.
     Returns (kind='text', content_str) or (None, None).
@@ -37,8 +41,12 @@ def get_clipboard(host, session, key):
             headers={'Accept': 'application/json'},
             timeout=30,
         )
+        if timer:
+            timer.checkpoint('HTTP request')
         if res.ok:
             data = res.json()
+            if timer:
+                timer.checkpoint('parse JSON')
             if data.get('kind') == 'text':
                 return 'text', data.get('content', '')
             # Key exists but is a file — caller should try get_file

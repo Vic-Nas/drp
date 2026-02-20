@@ -114,6 +114,8 @@ def _configure_subparsers(sub):
     )
     p_get.add_argument('--output', '-o', default=None,
                        help='Save file as this name (default: original filename)')
+    p_get.add_argument('--timing', action='store_true',
+                       help='Print per-phase timing breakdown to stderr')
 
     p_rm = sub._name_parser_map['rm']
     p_rm.add_argument('-f', '--file', action='store_true',
