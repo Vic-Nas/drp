@@ -9,6 +9,7 @@ import requests
 
 from cli import config, api
 from cli.session import auto_login
+from cli.crash_reporter import report_outcome
 
 
 def cmd_up(args):
@@ -36,6 +37,7 @@ def _upload_file(host, session, path, key, cfg):
 
     result_key = api.upload_file(host, session, path, key=key)
     if not result_key:
+        report_outcome('up', 'upload_file returned None (prepare/confirm flow failed)')
         sys.exit(1)
 
     url = f'{host}/f/{result_key}/'
@@ -47,6 +49,7 @@ def _upload_file(host, session, path, key, cfg):
 def _upload_text(host, session, text, key, cfg):
     result_key = api.upload_text(host, session, text, key=key)
     if not result_key:
+        report_outcome('up', 'upload_text returned None for clipboard drop')
         sys.exit(1)
 
     url = f'{host}/{result_key}/'

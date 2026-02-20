@@ -54,12 +54,16 @@ def _issue_title(exc_type, command):
 
 def _issue_exists(exc_type, command):
     """
-    Return True if an open issue for this exact (exc_type, command) pair
-    already exists, or if the flood guard triggers.
+    Return True if an open issue for this (exc_type, command) pair already
+    exists, or if the flood guard triggers (max 5 open auto issues per command).
 
-    Flood guard: max 5 open auto issues per command. Keyed on full title
-    (exc_type + command) so distinct errors each get one issue rather than
-    all sharing a single command bucket.
+    For HTTP status errors (exc_type starts with 'HTTP') we deduplicate by
+    status code + command rather than exact title, so HTTP403 in `drp rm` and
+    HTTP403 in `drp mv` are tracked separately but repeated HTTP403 in `drp rm`
+    don't spawn new issues.
+
+    For SilentFailure we deduplicate by command only (one open issue per
+    command is enough to flag the problem).
     """
     if not GITHUB_TOKEN:
         return False
@@ -79,11 +83,30 @@ def _issue_exists(exc_type, command):
         open_issues = res.json()
         exact_title = _issue_title(exc_type, command)
 
-        # Exact duplicate — same error, same command
+        # 1. Exact duplicate — same exc_type + command
         if any(i['title'] == exact_title for i in open_issues):
             return True
 
-        # Flood guard — max 5 open auto issues per command regardless of type
+        # 2. For HTTP errors: treat all HTTP4xx/5xx variants for the same
+        #    command as a single bucket (one issue per status code + command).
+        if exc_type.startswith('HTTP'):
+            for issue in open_issues:
+                t = issue['title']
+                if t.startswith('[auto] HTTP') and f'`drp {command}`' in t:
+                    # Same status code already open for this command
+                    if exc_type in t:
+                        return True
+
+        # 3. For SilentFailure: one open issue per command is enough.
+        if exc_type == 'SilentFailure':
+            if any(
+                i['title'].startswith('[auto] SilentFailure')
+                and f'`drp {command}`' in i['title']
+                for i in open_issues
+            ):
+                return True
+
+        # 4. Flood guard — max 5 open auto issues per command regardless of type.
         command_issues = [
             i for i in open_issues
             if i['title'].startswith('[auto] ')

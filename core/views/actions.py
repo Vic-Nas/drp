@@ -6,9 +6,13 @@ URL patterns:
   File:       /f/key/rename/ /f/key/delete/ /f/key/renew/
 """
 
+import logging
+
 from django.http import JsonResponse
 
 from core.models import Drop
+
+logger = logging.getLogger(__name__)
 
 
 def _get_drop(ns, key):
@@ -84,7 +88,15 @@ def delete_drop(request, ns, key):
     if err:
         return err
 
-    drop.hard_delete()
+    ok = drop.hard_delete()
+    if not ok:
+        # B2 delete failed — DB record preserved, logged inside hard_delete().
+        logger.error("delete_drop: hard_delete failed for %s/%s", ns, key)
+        return JsonResponse(
+            {'error': 'File could not be removed from storage. Please try again.'},
+            status=500,
+        )
+
     return JsonResponse({'deleted': True})
 
 

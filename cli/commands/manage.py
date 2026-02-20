@@ -13,6 +13,7 @@ import requests
 from cli import config, api
 from cli.session import auto_login
 from cli.format import human_time
+from cli.crash_reporter import report_outcome
 
 
 def _parse_key(raw, is_file=False):
@@ -37,6 +38,10 @@ def cmd_rm(args):
         print(f'  ✓ Deleted /{prefix}{key}/')
         config.remove_local_drop(key)
     else:
+        # api.delete() already printed an error and filed a report if it got
+        # an unexpected HTTP status. report_outcome() covers the case where it
+        # returned False for a non-HTTP reason (e.g. network exception swallowed).
+        report_outcome('rm', f'delete returned False for ns={ns} drop')
         print(f'  ✗ Could not delete /{key}/.')
         sys.exit(1)
 
@@ -59,6 +64,7 @@ def cmd_mv(args):
         print(f'  ✓ /{prefix}{key}/ → /{prefix}{new_key}/')
         config.rename_local_drop(key, new_key)
     else:
+        report_outcome('mv', f'rename returned None for ns={ns} drop')
         print(f'  ✗ Could not rename /{key}/.')
         sys.exit(1)
 
@@ -80,5 +86,6 @@ def cmd_renew(args):
         prefix = 'f/' if ns == 'f' else ''
         print(f'  ✓ /{prefix}{key}/ renewed → expires {human_time(expires_at)} (renewal #{renewals})')
     else:
+        report_outcome('renew', f'renew returned (None, None) for ns={ns} drop')
         print(f'  ✗ Could not renew /{key}/.')
         sys.exit(1)

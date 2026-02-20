@@ -4,6 +4,9 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils import timezone
 from datetime import timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ── Plans ─────────────────────────────────────────────────────────────────────
@@ -146,16 +149,10 @@ class Drop(models.Model):
         related_name="drops",
     )
 
-    # Token set on anonymous drops so they can be claimed on signup/login
     anon_token = models.CharField(max_length=64, null=True, blank=True, db_index=True)
 
     content = models.TextField(blank=True, default="")
 
-    # file_url       — presigned GET URLs expire; we regenerate on demand from
-    #                  (ns, key) via b2.presigned_get().  This field now stores
-    #                  the *permanent* B2 download base URL if needed for legacy
-    #                  records, but is otherwise unused for new drops.
-    # file_public_id — stores the B2 object key, e.g. "drops/f/report"
     file_url       = models.URLField(blank=True, default="")
     file_public_id = models.CharField(max_length=512, blank=True, default="")
     filename       = models.CharField(max_length=255, blank=True, default="")
@@ -208,9 +205,6 @@ class Drop(models.Model):
 
     # ── touch (debounced) ─────────────────────────────────────────────────────
 
-    #: Skip the DB write if last_accessed_at is within this many seconds.
-    #: Prevents a write on every GET for hot drops without affecting expiry logic
-    #: (idle timeout is 24–48h so 5 min is invisible).
     TOUCH_DEBOUNCE_SECS = 300  # 5 minutes
 
     def touch(self):
@@ -219,7 +213,7 @@ class Drop(models.Model):
             self.last_accessed_at is not None
             and (now - self.last_accessed_at).total_seconds() < self.TOUCH_DEBOUNCE_SECS
         ):
-            return  # recent enough — skip the write
+            return
         Drop.objects.filter(pk=self.pk).update(last_accessed_at=now)
         self.last_accessed_at = now
 
@@ -243,23 +237,43 @@ class Drop(models.Model):
         """
         Delete the Drop record and, for file drops, remove the object from B2.
         Also adjusts owner storage accounting.
+
+        Returns True on full success.
+        Returns False if the B2 delete failed — in that case the DB record is
+        intentionally kept so the drop remains visible in the dashboard and the
+        B2 object is not orphaned silently. The error is logged for ops visibility.
+
+        Callers (cleanup command, action views, expiry checks) should handle
+        False gracefully — typically log it and move on rather than crashing.
         """
         if self.ns == self.NS_FILE and self.file_public_id:
-            # file_public_id stores the B2 object key ("drops/f/<key>")
-            # We call delete_object directly with ns+key rather than the stored
-            # public_id so the logic stays consistent even if the field is stale.
             try:
                 from core.views.b2 import delete_object
-                delete_object(self.ns, self.key)
-            except Exception:
-                pass  # never let storage errors block DB cleanup
+                ok = delete_object(self.ns, self.key)
+                if not ok:
+                    # B2 delete failed (already logged inside delete_object).
+                    # Keep the DB record so the drop isn't orphaned — an admin
+                    # can retry or the cleanup command will try again next run.
+                    logger.error(
+                        "hard_delete: B2 delete failed for %s/%s — DB record preserved",
+                        self.ns, self.key,
+                    )
+                    return False
+            except Exception as e:
+                logger.error(
+                    "hard_delete: unexpected error deleting B2 object %s/%s: %s",
+                    self.ns, self.key, e,
+                )
+                return False
 
+        # B2 object gone (or this is a text drop) — safe to remove DB record.
         if self.owner_id and self.filesize:
             from django.db import models as db_models
             UserProfile.objects.filter(user_id=self.owner_id).update(
                 storage_used_bytes=db_models.F("storage_used_bytes") - self.filesize
             )
         self.delete()
+        return True
 
     def can_edit(self, user):
         if self.locked:

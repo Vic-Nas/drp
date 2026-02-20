@@ -20,6 +20,7 @@ def upload_text(host, session, text, key=None):
         if res.ok:
             return res.json().get('key')
         _handle_error(res, 'Upload failed')
+        _report_http('up', res.status_code, 'upload_text')
     except Exception as e:
         err(f'Upload error: {e}')
     return None
@@ -43,6 +44,8 @@ def get_clipboard(host, session, key):
             # Key exists but is a file — caller should try get_file
             return None, None
         _handle_http_error(res, key)
+        if res.status_code not in (404, 410):
+            _report_http('get', res.status_code, 'get_clipboard')
     except Exception as e:
         err(f'Get error: {e}')
     return None, None
@@ -63,3 +66,11 @@ def _handle_http_error(res, key):
         err(f'Drop /{key}/ has expired.')
     else:
         err(f'Server returned {res.status_code}.')
+
+
+def _report_http(command: str, status_code: int, context: str) -> None:
+    try:
+        from cli.crash_reporter import report_http_error
+        report_http_error(command, status_code, context)
+    except Exception:
+        pass
