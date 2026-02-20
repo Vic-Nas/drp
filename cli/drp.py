@@ -83,38 +83,71 @@ def build_parser():
 
 def _configure_subparsers(sub):
     """Add arguments to subparsers that need them."""
+    # Lazy import so argcomplete is optional — CLI works without it installed.
+    try:
+        from cli.completion import (
+            key_completer, file_key_completer, clipboard_key_completer,
+        )
+        _completers = {
+            'key':       key_completer,
+            'file_key':  file_key_completer,
+            'clip_key':  clipboard_key_completer,
+        }
+    except Exception:
+        _completers = {}
+
+    def _attach(arg, kind):
+        if kind in _completers:
+            arg.completer = _completers[kind]
+
     p_up = sub._name_parser_map['up']
     p_up.add_argument('target', help='File path or text string to upload')
     p_up.add_argument('--key', '-k', default=None,
                       help='Custom key (e.g. -k q3 → /q3/ or /f/q3/)')
 
     p_get = sub._name_parser_map['get']
-    p_get.add_argument('key', help='Drop key')
     p_get.add_argument('-f', '--file', action='store_true',
                        help='Key is a file drop (e.g. drp get -f q3)')
+    _attach(
+        p_get.add_argument('key', help='Drop key'),
+        'key',   # namespace inferred at completion time from -f flag
+    )
     p_get.add_argument('--output', '-o', default=None,
                        help='Save file as this name (default: original filename)')
 
     p_rm = sub._name_parser_map['rm']
-    p_rm.add_argument('key', help='Drop key')
     p_rm.add_argument('-f', '--file', action='store_true',
                       help='Key is a file drop (e.g. drp rm -f report)')
+    _attach(
+        p_rm.add_argument('key', help='Drop key'),
+        'key',
+    )
 
     p_mv = sub._name_parser_map['mv']
-    p_mv.add_argument('key', help='Current key')
-    p_mv.add_argument('new_key', help='New key')
     p_mv.add_argument('-f', '--file', action='store_true',
                       help='Key is a file drop (e.g. drp mv -f q3 quarter3)')
+    _attach(
+        p_mv.add_argument('key', help='Current key'),
+        'key',
+    )
+    # new_key intentionally has no completer — it's a destination name
+    p_mv.add_argument('new_key', help='New key')
 
     p_renew = sub._name_parser_map['renew']
-    p_renew.add_argument('key', help='Drop key')
     p_renew.add_argument('-f', '--file', action='store_true',
                          help='Key is a file drop (e.g. drp renew -f report)')
+    _attach(
+        p_renew.add_argument('key', help='Drop key'),
+        'key',
+    )
 
     p_save = sub._name_parser_map['save']
-    p_save.add_argument('key', help='Drop key')
     p_save.add_argument('-f', '--file', action='store_true',
                         help='Key is a file drop (e.g. drp save -f report)')
+    _attach(
+        p_save.add_argument('key', help='Drop key'),
+        'key',
+    )
 
     p_ls = sub._name_parser_map['ls']
     p_ls.add_argument('-l', '--long', action='store_true',
@@ -140,6 +173,17 @@ _HANDLERS = {name: handler for name, handler, _ in COMMANDS}
 
 def main():
     parser = build_parser()
+
+    # argcomplete.autocomplete() must be called before parser.parse_args().
+    # It exits immediately when the shell is requesting completions;
+    # it's a no-op during normal CLI invocation.
+    # We import lazily so the CLI works fine without argcomplete installed.
+    try:
+        import argcomplete
+        argcomplete.autocomplete(parser)
+    except ImportError:
+        pass
+
     args = parser.parse_args()
 
     if args.command in _HANDLERS:

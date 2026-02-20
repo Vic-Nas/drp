@@ -1,5 +1,5 @@
 [tool.pytest.ini_options]
-testpaths = ["cli/tests_unit.py", "core/tests_error_reporting.py"]
+testpaths = ["cli/tests_unit.py", "cli/tests_completion.py", "core/tests_error_reporting.py"]
 
 [build-system]
 requires = ["setuptools>=68.0"]
@@ -30,7 +30,8 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "requests"]
+completion = ["argcomplete>=3.1"]
+dev = ["pytest", "requests", "argcomplete>=3.1"]
 
 [project.urls]
 Homepage  = "https://drp.vicnas.me"
