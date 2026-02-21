@@ -139,6 +139,10 @@ def update_account_settings(request):
     profile.notify_bug_fix = request.POST.get('notify_bug_fix') == '1'
     profile.save(update_fields=['notify_bug_fix'])
     return redirect('account')
+
+
+@login_required
+def export_drops(request):
     drops = Drop.objects.filter(owner=request.user).order_by('-created_at')
     saved = SavedDrop.objects.filter(user=request.user).order_by('-saved_at')
 
