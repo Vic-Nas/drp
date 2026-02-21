@@ -77,7 +77,7 @@ def delete_drop(request, ns, key):
 
     drop = _get_drop(ns, key)
     if not drop:
-        return JsonResponse({'deleted': True, 'note': 'Drop was already gone.'})
+        return JsonResponse({'error': 'Drop not found.'}, status=404)
 
     err = _edit_error(drop, request)
     if err:
