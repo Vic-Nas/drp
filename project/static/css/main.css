@@ -53,26 +53,6 @@ main {
   padding: 2.5rem 1.5rem;
 }
 
-/* When the left rail is visible, the left gutter is occupied.
-   Shift main right by half the rail width so it stays optically centered
-   in the remaining space. Rail kicks in at 1000px. */
-@media (min-width: 1000px) {
-  main {
-    /* Half of the rail width (up to 150px) nudges main toward true center.
-       Using min() mirrors the rail's own width calculation. */
-    margin-left: calc(min(150px, (100vw - 900px) / 4 - 8px));
-    margin-right: auto;
-  }
-}
-
-/* At very wide viewports the rail is capped at 300px so the offset caps too */
-@media (min-width: 1600px) {
-  main {
-    margin-left: auto;
-    margin-right: auto;
-  }
-}
-
 footer {
   text-align: center;
   padding: 1.2rem;
