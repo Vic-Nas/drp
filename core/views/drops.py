@@ -23,6 +23,8 @@ from django.shortcuts import render, redirect
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 
+from core.views.b2 import object_exists, object_size
+from core.views.b2 import object_key as b2_object_key
 from core.models import Drop, Plan, SavedDrop
 from .helpers import (
     user_plan, max_file_bytes, max_text_bytes, storage_ok,
@@ -359,7 +361,6 @@ def upload_confirm(request):
     if not key or ns not in (Drop.NS_CLIPBOARD, Drop.NS_FILE):
         return JsonResponse({"error": "key and valid ns required."}, status=400)
 
-    from core.views.b2 import object_exists, object_size
     if not object_exists(ns, key):
         return JsonResponse(
             {"error": "File not found in storage. Upload may have failed or expired."},
@@ -381,7 +382,6 @@ def upload_confirm(request):
 
     if existing:
         old_size = existing.filesize
-        from core.views.b2 import object_key as b2_object_key
         existing.file_public_id = b2_object_key(ns, key)
         existing.file_url       = ""
         existing.filename       = filename
@@ -412,7 +412,7 @@ def upload_confirm(request):
         elif not request.user.is_authenticated:
             locked_until = timezone.now() + timedelta(hours=24)
 
-        from core.views.b2 import object_key as b2_object_key
+        
         owner = request.user if request.user.is_authenticated else None
         drop = Drop.objects.create(
             ns=ns, key=key, kind=Drop.FILE,

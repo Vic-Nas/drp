@@ -275,14 +275,11 @@ class Drop(models.Model):
                         "hard_delete: B2 delete failed for %s/%s — DB record preserved",
                         self.ns, self.key,
                     )
-                    return False
             except Exception as e:
                 logger.error(
                     "hard_delete: unexpected error deleting B2 object %s/%s: %s",
                     self.ns, self.key, e,
                 )
-                return False
-
         self.delete()
         return True
 
@@ -307,7 +304,7 @@ class Drop(models.Model):
             raise ValueError("download_url() called on non-file drop")
         from core.views.b2 import presigned_get
         return presigned_get(self.ns, self.key, filename=self.filename,
-                             expires_in=expires_in, b2_key=self.b2_object_key())
+                     expires_in=expires_in)
 
 
 # ── post_delete signal — storage accounting ───────────────────────────────────
