@@ -1,17 +1,16 @@
 """
-Unit tests for cli/completion.py
+cli/tests/test_completion.py
 
-These run without a network connection and without argcomplete installed.
-They test the cache-read and merge logic directly.
+Migrated from tests_completion.py — no changes to existing tests,
+just moved into the package structure.
 """
 
-import json
-import tempfile
 import time
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -118,13 +117,7 @@ class TestKeyCompleter:
 # ── _do_refresh merge logic ───────────────────────────────────────────────────
 
 class TestDoRefreshMerge:
-    """Test the merge logic in _do_refresh without hitting the network."""
-
     def _run_refresh(self, server_response, existing_drops):
-        """
-        Runs _do_refresh with a mocked session and config, returns the
-        list that would have been written to drops.json.
-        """
         import cli.completion as comp
 
         saved_list = []
@@ -141,11 +134,9 @@ class TestDoRefreshMerge:
         mock_config.load_local_drops.return_value = existing_drops
         mock_config.save_local_drops.side_effect = lambda drops: saved_list.extend(drops)
 
-        mock_session_file = MagicMock()
-
         with patch('requests.Session', return_value=mock_session):
             with patch('cli.session.load_session'):
-                comp._do_refresh(mock_config, mock_session_file)
+                comp._do_refresh(mock_config, MagicMock())
 
         return saved_list
 
@@ -153,13 +144,13 @@ class TestDoRefreshMerge:
         result = self._run_refresh(
             server_response={
                 'drops': [{'key': 'q3', 'ns': 'f', 'kind': 'file',
-                            'created_at': '2026-01-01T00:00:00+00:00', 'filename': 'q3.pdf'}],
+                            'created_at': '2026-01-01T00:00:00+00:00',
+                            'filename': 'q3.pdf'}],
                 'saved': [],
             },
             existing_drops=[],
         )
-        keys = [d['key'] for d in result]
-        assert 'q3' in keys
+        assert 'q3' in [d['key'] for d in result]
 
     def test_existing_local_drops_preserved(self):
         existing = _make_drops([('local-only', 'c')])
@@ -167,21 +158,21 @@ class TestDoRefreshMerge:
             server_response={'drops': [], 'saved': []},
             existing_drops=existing,
         )
-        keys = [d['key'] for d in result]
-        assert 'local-only' in keys
+        assert 'local-only' in [d['key'] for d in result]
 
     def test_server_entry_updates_existing(self):
         existing = _make_drops([('q3', 'f')])
         result = self._run_refresh(
             server_response={
                 'drops': [{'key': 'q3', 'ns': 'f', 'kind': 'file',
-                            'created_at': '2026-02-01T00:00:00+00:00', 'filename': 'updated.pdf'}],
+                            'created_at': '2026-02-01T00:00:00+00:00',
+                            'filename': 'updated.pdf'}],
                 'saved': [],
             },
             existing_drops=existing,
         )
         q3_entries = [d for d in result if d['key'] == 'q3']
-        assert len(q3_entries) == 1  # no duplicate
+        assert len(q3_entries) == 1
         assert q3_entries[0].get('filename') == 'updated.pdf'
 
     def test_saved_drops_added_if_not_present(self):
@@ -193,8 +184,7 @@ class TestDoRefreshMerge:
             },
             existing_drops=[],
         )
-        keys = [d['key'] for d in result]
-        assert 'shared' in keys
+        assert 'shared' in [d['key'] for d in result]
 
     def test_saved_drops_not_duplicated_if_already_owned(self):
         existing = _make_drops([('shared', 'c')])
@@ -206,40 +196,30 @@ class TestDoRefreshMerge:
             },
             existing_drops=existing,
         )
-        shared_entries = [d for d in result if d['key'] == 'shared']
-        assert len(shared_entries) == 1
+        assert len([d for d in result if d['key'] == 'shared']) == 1
 
     def test_no_crash_on_failed_request(self):
-        """_do_refresh must swallow network errors silently."""
         import cli.completion as comp
-
         mock_config = MagicMock()
         mock_config.load.return_value = {'host': 'https://example.com'}
-
         mock_session = MagicMock()
         mock_session.get.side_effect = Exception('network error')
-
         with patch('requests.Session', return_value=mock_session):
             with patch('cli.session.load_session'):
-                # Must not raise
-                comp._do_refresh(mock_config, MagicMock())
+                comp._do_refresh(mock_config, MagicMock())  # must not raise
 
     def test_no_crash_on_bad_json(self):
         import cli.completion as comp
-
         mock_res = MagicMock()
         mock_res.ok = True
         mock_res.json.side_effect = ValueError('bad json')
-
         mock_session = MagicMock()
         mock_session.get.return_value = mock_res
-
         mock_config = MagicMock()
         mock_config.load.return_value = {'host': 'https://example.com'}
-
         with patch('requests.Session', return_value=mock_session):
             with patch('cli.session.load_session'):
-                comp._do_refresh(mock_config, MagicMock())
+                comp._do_refresh(mock_config, MagicMock())  # must not raise
 
 
 # ── _trigger_background_refresh skips ────────────────────────────────────────
@@ -247,10 +227,8 @@ class TestDoRefreshMerge:
 class TestTriggerSkips:
     def test_skips_when_no_session_file(self):
         from cli.completion import _trigger_background_refresh
-
         mock_session_file = MagicMock()
         mock_session_file.exists.return_value = False
-
         with patch('cli.session.SESSION_FILE', mock_session_file):
             with patch('threading.Thread') as mock_thread:
                 _trigger_background_refresh()
@@ -258,15 +236,11 @@ class TestTriggerSkips:
 
     def test_skips_when_cache_is_fresh(self):
         from cli.completion import _trigger_background_refresh, REFRESH_INTERVAL_SECS
-
         mock_session_file = MagicMock()
         mock_session_file.exists.return_value = True
-
         mock_drops_file = MagicMock()
         mock_drops_file.exists.return_value = True
-        # mtime = now → age = 0 → fresh
         mock_drops_file.stat.return_value.st_mtime = time.time()
-
         with patch('cli.session.SESSION_FILE', mock_session_file):
             with patch('cli.config.DROPS_FILE', mock_drops_file):
                 with patch('threading.Thread') as mock_thread:
@@ -275,21 +249,18 @@ class TestTriggerSkips:
 
     def test_spawns_thread_when_cache_is_stale(self):
         from cli.completion import _trigger_background_refresh, REFRESH_INTERVAL_SECS
-
         mock_session_file = MagicMock()
         mock_session_file.exists.return_value = True
-
         mock_drops_file = MagicMock()
         mock_drops_file.exists.return_value = True
-        # mtime = old → stale
-        mock_drops_file.stat.return_value.st_mtime = time.time() - REFRESH_INTERVAL_SECS - 10
-
+        mock_drops_file.stat.return_value.st_mtime = (
+            time.time() - REFRESH_INTERVAL_SECS - 10
+        )
         mock_thread_instance = MagicMock()
-
         with patch('cli.session.SESSION_FILE', mock_session_file):
             with patch('cli.config.DROPS_FILE', mock_drops_file):
-                with patch('threading.Thread', return_value=mock_thread_instance) as mock_thread:
+                with patch('threading.Thread',
+                           return_value=mock_thread_instance) as mock_thread:
                     _trigger_background_refresh()
-
         mock_thread.assert_called_once()
         mock_thread_instance.start.assert_called_once()

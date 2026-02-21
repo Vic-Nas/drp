@@ -40,10 +40,14 @@ class TestScrub:
         assert '[url]' in _scrub('https://example.com/path')
 
     def test_scrubs_home_path_linux(self):
-        assert '[user]' in _scrub('/home/victorio/code')
+        result = _scrub('/home/victorio/code')
+        assert 'victorio' not in result
+        assert '[user]' in result
 
     def test_scrubs_home_path_mac(self):
-        assert '[user]' in _scrub('/Users/victorio/code')
+        result = _scrub('/Users/victorio/code')
+        assert 'victorio' not in result
+        assert '[user]' in result
 
     def test_scrubs_password(self):
         assert '[redacted]' in _scrub('password=secret123')
@@ -64,6 +68,13 @@ class TestScrubTraceback:
         result = _scrub_traceback(lines)
         assert 'File' in result[0]
 
+    def test_passes_through_exception_message_lines(self):
+        # Plain exception lines (not assignments, not "During handling")
+        # must survive unchanged
+        lines = ['ConnectionError: timed out\n']
+        result = _scrub_traceback(lines)
+        assert 'ConnectionError' in result[0]
+
     def test_redacts_assignment_lines(self):
         lines = ['    password = "secret"\n']
         result = _scrub_traceback(lines)
@@ -78,6 +89,15 @@ class TestScrubTraceback:
         lines = ['  File "/home/user@example.com/cli.py", line 1, in main\n']
         result = _scrub_traceback(lines)
         assert 'user@example.com' not in result[0]
+
+    def test_output_length_matches_input_length(self):
+        lines = [
+            '  File "cli/drp.py", line 42, in main\n',
+            '    x = secret_value\n',
+            'During handling of the above exception\n',
+        ]
+        result = _scrub_traceback(lines)
+        assert len(result) == len(lines)
 
 
 # ── _issue_title ──────────────────────────────────────────────────────────────
@@ -159,6 +179,55 @@ class TestIssueExists:
         mock_get.return_value = mock
         assert _issue_exists('ConnectionError', 'up') is False
 
+    # ── HTTP error deduplication (previously untested) ────────────────────────
+
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
+    def test_http_error_deduplicates_same_status_same_command(self, mock_get):
+        """HTTP403 in `drp up` already open -> don't file another HTTP403 in `drp up`."""
+        mock_get.return_value = _mock_gh_response([
+            _make_issue('[auto] HTTP403 in `drp up`'),
+        ])
+        assert _issue_exists('HTTP403', 'up') is True
+
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
+    def test_http_error_allows_different_status_same_command(self, mock_get):
+        """HTTP403 open for `drp up` should not block filing HTTP404 for `drp up`."""
+        mock_get.return_value = _mock_gh_response([
+            _make_issue('[auto] HTTP403 in `drp up`'),
+        ])
+        assert _issue_exists('HTTP404', 'up') is False
+
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
+    def test_http_error_allows_same_status_different_command(self, mock_get):
+        """HTTP403 in `drp up` should not block filing HTTP403 in `drp rm`."""
+        mock_get.return_value = _mock_gh_response([
+            _make_issue('[auto] HTTP403 in `drp up`'),
+        ])
+        assert _issue_exists('HTTP403', 'rm') is False
+
+    # ── SilentFailure deduplication (previously untested) ────────────────────
+
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
+    def test_silent_failure_deduplicates_by_command(self, mock_get):
+        """One open SilentFailure for `drp up` -> don't file another for `drp up`."""
+        mock_get.return_value = _mock_gh_response([
+            _make_issue('[auto] SilentFailure in `drp up`'),
+        ])
+        assert _issue_exists('SilentFailure', 'up') is True
+
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.get')
+    def test_silent_failure_allows_different_command(self, mock_get):
+        """SilentFailure open for `drp up` should not block filing for `drp ls`."""
+        mock_get.return_value = _mock_gh_response([
+            _make_issue('[auto] SilentFailure in `drp up`'),
+        ])
+        assert _issue_exists('SilentFailure', 'ls') is False
+
 
 # ── _create_issue ─────────────────────────────────────────────────────────────
 
@@ -188,6 +257,28 @@ class TestCreateIssue:
     def test_returns_false_on_network_error(self, mock_post):
         mock_post.side_effect = Exception('network error')
         assert _create_issue('title', 'body') is False
+
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.post')
+    def test_posts_correct_labels(self, mock_post):
+        mock = MagicMock()
+        mock.status_code = 201
+        mock_post.return_value = mock
+        _create_issue('title', 'body')
+        _, kwargs = mock_post.call_args
+        labels = kwargs['json']['labels']
+        assert 'bug' in labels
+        assert 'auto-reported' in labels
+
+    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
+    @patch('core.error_reporting_logic.http.post')
+    def test_posts_to_correct_repo(self, mock_post):
+        mock = MagicMock()
+        mock.status_code = 201
+        mock_post.return_value = mock
+        _create_issue('title', 'body')
+        url = mock_post.call_args[0][0]
+        assert 'vicnasdev/drp' in url
 
 
 # ── _build_body ───────────────────────────────────────────────────────────────
@@ -242,3 +333,8 @@ class TestBuildBody:
 
     def test_contains_privacy_notice(self):
         assert 'No user data included' in _build_body(self._data())
+
+    def test_missing_optional_fields_dont_crash(self):
+        # Only exc_type is truly required by the view; everything else has defaults
+        body = _build_body({'exc_type': 'ValueError'})
+        assert 'ValueError' in body
