@@ -24,10 +24,6 @@ def plans(request):
     return render(request, 'help/plans.html')
 
 
-def privacy(request):
-    return render(request, 'help/privacy.html')
-
-
 @cache
 def _get_readme_html():
     import markdown
