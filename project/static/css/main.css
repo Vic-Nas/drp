@@ -239,7 +239,7 @@ textarea:disabled { opacity: .4; }
 .upsell-list li { color: var(--text); }
 
 /* ── Drop page ── */
-.drop-page { max-width: 680px; margin: 0 auto; }
+.drop-page { max-width: 680px; }
 
 .drop-header { margin-bottom: 1.5rem; }
 .share-url {
@@ -365,7 +365,7 @@ textarea:disabled { opacity: .4; }
 .dashboard-actions { display: flex; gap: .4rem; margin-top: .8rem; flex-wrap: wrap; }
 
 /* ── Help page (legacy, for legal pages) ── */
-.help-page { max-width: 680px; margin: 0 auto; }
+.help-page { max-width: 680px; }
 .help-page h1 { font-size: 2rem; font-weight: 800; letter-spacing: -1px; margin-bottom: .4rem; }
 .help-page > .tagline { margin-bottom: 1.5rem; }
 
@@ -398,7 +398,7 @@ nav a { color: var(--muted); font-size: .88rem; transition: color .15s; }
 nav a:hover { color: var(--text); text-decoration: none; }
 
 /* ── Auth pages ── */
-.auth-page { max-width: 420px; margin: 0 auto; }
+.auth-page { max-width: 420px; }
 .auth-page h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -1px; margin-bottom: .4rem; }
 .auth-form { display: flex; flex-direction: column; gap: .8rem; margin: 1.2rem 0; }
 .field { display: flex; flex-direction: column; gap: .25rem; }
@@ -429,7 +429,7 @@ nav a:hover { color: var(--text); text-decoration: none; }
 .storage-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s; }
 
 /* ── Account page ── */
-.account-page { max-width: 760px; margin: 0 auto; }
+.account-page { max-width: 760px; }
 .account-header { margin-bottom: 2rem; }
 .account-header h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -1px; }
 .account-section { margin-bottom: 2rem; }
