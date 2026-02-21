@@ -9,6 +9,7 @@ so it can be unit tested without a Django setup.
 """
 
 import json
+import threading
 import traceback as tb
 
 from django.http import JsonResponse
@@ -57,4 +58,7 @@ def report_server_error(request, exc):
         'platform':       '',
     }
 
-    maybe_file_issue(data)
+    maybe_file_issue_thread = threading.Thread(
+        target=maybe_file_issue, args=(data,), daemon=True
+    )
+    maybe_file_issue_thread.start()
