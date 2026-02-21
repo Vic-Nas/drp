@@ -1,5 +1,6 @@
 [tool.pytest.ini_options]
-testpaths = ["cli/tests_unit.py", "cli/tests_completion.py", "core/tests_error_reporting.py"]
+testpaths = ["cli/tests", "core/tests"]
+DJANGO_SETTINGS_MODULE = "drp.settings"
 
 [build-system]
 requires = ["setuptools>=68.0"]
