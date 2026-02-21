@@ -132,6 +132,10 @@ class UserAdmin(BaseUserAdmin):
         return redirect('admin:auth_user_broadcast_email')
 
 
+admin.site.site_header = "drp"
+admin.site.site_title  = "drp"
+admin.site.index_title = ""
+
 admin.site.unregister(User)
 admin.site.register(User, UserAdmin)
 
