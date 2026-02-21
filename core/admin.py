@@ -134,7 +134,7 @@ class UserAdmin(BaseUserAdmin):
 
 admin.site.site_header = "drp"
 admin.site.site_title  = "drp"
-admin.site.index_title = ""
+admin.site.index_title = "Dashboard"
 
 admin.site.unregister(User)
 admin.site.register(User, UserAdmin)

@@ -5,3 +5,12 @@
   {{ block.super }}
   <link rel="icon" href="{% static 'favicon.ico' %}">
 {% endblock %}
+
+{% block nav-global %}
+  <div id="nav-global" style="background:#417690;padding:.4rem 1rem">
+    <a href="{% url 'admin:auth_user_broadcast_email' %}"
+       style="color:#fff;font-size:.85rem;text-decoration:none">
+      📧 Broadcast email
+    </a>
+  </div>
+{% endblock %}
