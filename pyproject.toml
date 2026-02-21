@@ -32,7 +32,15 @@ classifiers = [
 
 [project.optional-dependencies]
 completion = ["argcomplete>=3.1"]
-dev = ["pytest", "requests", "argcomplete>=3.1"]
+dev = [
+    "pytest",
+    "pytest-django",
+    "pytest-asyncio",
+    "pytest-cov",
+    "django",
+    "requests",
+    "argcomplete>=3.1"
+]
 
 [project.urls]
 Homepage  = "https://drp.vicnas.me"
