@@ -1,6 +1,6 @@
 [tool.pytest.ini_options]
 testpaths = ["cli/tests", "core/tests"]
-DJANGO_SETTINGS_MODULE = "drp.settings"
+DJANGO_SETTINGS_MODULE = "project.settings"
 
 [build-system]
 requires = ["setuptools>=68.0"]
