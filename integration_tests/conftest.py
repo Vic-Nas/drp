@@ -246,5 +246,11 @@ def run_drp(*args, input=None, env=None, check=False):
 
 
 @pytest.fixture(scope='session')
+def cli_env(cli_envs):
+    """Single CLI env for tests that don't need to vary by plan (uses free tier)."""
+    return cli_envs['free']
+
+
+@pytest.fixture(scope='session')
 def host():
     return HOST

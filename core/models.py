@@ -284,10 +284,10 @@ class Drop(models.Model):
         return True
 
     def can_edit(self, user):
-        if self.locked:
-            return getattr(user, "is_authenticated", False) and self.owner_id == user.pk
         if self.is_creation_locked():
             return False
+        if self.owner_id:
+            return getattr(user, "is_authenticated", False) and self.owner_id == user.pk
         return True
 
     def is_creation_locked(self):

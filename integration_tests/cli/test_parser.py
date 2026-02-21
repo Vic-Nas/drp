@@ -135,37 +135,37 @@ class TestInternalConsistency:
     """
 
     def test_examples_all_have_three_fields(self):
-        from drp import EXAMPLES
+        from cli.drp import EXAMPLES
         for entry in EXAMPLES:
             assert len(entry) == 3, f'Bad EXAMPLES entry: {entry!r}'
 
     def test_examples_no_empty_fields(self):
-        from drp import EXAMPLES
+        from cli.drp import EXAMPLES
         for cmd, arg, desc in EXAMPLES:
             assert cmd.strip(), f'Empty cmd in: {(cmd, arg, desc)}'
             assert arg.strip(), f'Empty arg in: {(cmd, arg, desc)}'
             assert desc.strip(), f'Empty desc in: {(cmd, arg, desc)}'
 
     def test_examples_contains_password(self):
-        from drp import EXAMPLES
+        from cli.drp import EXAMPLES
         all_text = ' '.join(f'{c} {a} {d}' for c, a, d in EXAMPLES)
         assert '--password' in all_text
 
     def test_command_groups_reference_only_known_commands(self):
-        from drp import COMMANDS, COMMAND_GROUPS
+        from cli.drp import COMMANDS, COMMAND_GROUPS
         known = {name for name, _, _ in COMMANDS}
         for label, names in COMMAND_GROUPS:
             for name in names:
                 assert name in known, f'Unknown command {name!r} in group {label!r}'
 
     def test_command_groups_cover_all_commands(self):
-        from drp import COMMANDS, COMMAND_GROUPS
+        from cli.drp import COMMANDS, COMMAND_GROUPS
         known = {name for name, _, _ in COMMANDS}
         grouped = {name for _, names in COMMAND_GROUPS for name in names}
         assert known == grouped, f'Commands not in any group: {known - grouped}'
 
     def test_build_epilog_contains_all_examples(self):
-        from drp import EXAMPLES, _build_epilog
+        from cli.drp import EXAMPLES, _build_epilog
         epilog = _build_epilog()
         for cmd, arg, desc in EXAMPLES:
             assert cmd in epilog, f'Missing cmd {cmd!r} in epilog'
@@ -173,7 +173,7 @@ class TestInternalConsistency:
 
     def test_build_epilog_columns_aligned(self):
         """Every example line should have consistent column alignment."""
-        from drp import _build_epilog
+        from cli.drp import _build_epilog
         epilog = _build_epilog()
         lines = [l for l in epilog.splitlines() if l.startswith('  drp ') or l.startswith('  echo')]
         if not lines:
@@ -187,7 +187,7 @@ class TestInternalConsistency:
         assert len(set(cols)) == 1, f'Misaligned columns: {set(cols)}'
 
     def test_color_help_action_registered(self):
-        from drp import build_parser, _ColorHelpAction
+        from cli.drp import build_parser, _ColorHelpAction
         parser = build_parser()
         actions = {a.option_strings[0]: a for a in parser._actions if a.option_strings}
         assert '-h' in actions
@@ -195,11 +195,11 @@ class TestInternalConsistency:
 
     def test_parser_add_help_is_false(self):
         """Ensure we disabled argparse's default help so ours takes over."""
-        from drp import build_parser
+        from cli.drp import build_parser
         parser = build_parser()
         # If add_help=True, argparse adds its own HelpAction; ours replaces it.
         help_actions = [a for a in parser._actions
                         if '-h' in getattr(a, 'option_strings', [])]
         assert len(help_actions) == 1
-        from drp import _ColorHelpAction
+        from cli.drp import _ColorHelpAction
         assert isinstance(help_actions[0], _ColorHelpAction)
