@@ -1,15 +1,17 @@
 """
 drp get — fetch a clipboard drop or download a file.
 
-  drp get <key>              print clipboard to stdout
-  drp get <key> --url        print the drop URL without fetching content
-  drp get -f <key>           download file (saves to current directory)
-  drp get -f <key> -o name   download with custom filename
-  drp get -f <key> --url     print the file drop URL without downloading
-  drp get <key> --timing     show per-phase timing breakdown
+  drp get <key>                  print clipboard to stdout
+  drp get <key> --url            print the drop URL without fetching content
+  drp get -f <key>               download file (saves to current directory)
+  drp get -f <key> -o name       download with custom filename
+  drp get -f <key> --url         print the file drop URL without downloading
+  drp get <key> --timing         show per-phase timing breakdown
+  drp get <key> --password PW    supply password for protected drops
 """
 
 import sys
+import getpass
 
 import requests
 
@@ -42,19 +44,38 @@ def cmd_get(args):
 
     t.checkpoint('load session')
 
+    # Password from flag or will be prompted on 401
+    password = getattr(args, 'password', None) or ''
+
     if getattr(args, 'file', False):
-        _get_file(args, host, session, t)
+        _get_file(args, host, session, t, password)
     else:
-        _get_clipboard(args, host, session, t)
+        _get_clipboard(args, host, session, t, password)
 
 
 # ── Clipboard ─────────────────────────────────────────────────────────────────
 
-def _get_clipboard(args, host, session, t):
+def _get_clipboard(args, host, session, t, password=''):
     from cli.spinner import Spinner
 
     with Spinner('fetching'):
-        kind, content = api.get_clipboard(host, session, args.key, timer=t)
+        kind, content = api.get_clipboard(host, session, args.key,
+                                          timer=t, password=password)
+
+    # Password required — prompt and retry once
+    if kind == 'password_required':
+        try:
+            password = getpass.getpass(f'  Password for /{args.key}/: ')
+        except (KeyboardInterrupt, EOFError):
+            print()
+            sys.exit(1)
+        with Spinner('fetching'):
+            kind, content = api.get_clipboard(host, session, args.key,
+                                              timer=t, password=password)
+        if kind == 'password_required':
+            print('  ✗ Wrong password.', file=sys.stderr)
+            t.print()
+            sys.exit(1)
 
     if kind == 'text':
         t.print()
@@ -82,13 +103,25 @@ def _get_clipboard(args, host, session, t):
 
 # ── File ──────────────────────────────────────────────────────────────────────
 
-def _get_file(args, host, session, t):
-    # Spinner covers the metadata fetch; the progress bar takes over once
-    # bytes start flowing, so there's no overlap.
+def _get_file(args, host, session, t, password=''):
     from cli.spinner import Spinner
 
     with Spinner('fetching'):
-        kind, result = api.get_file(host, session, args.key)
+        kind, result = api.get_file(host, session, args.key, password=password)
+
+    # Password required — prompt and retry once
+    if kind == 'password_required':
+        try:
+            password = getpass.getpass(f'  Password for /f/{args.key}/: ')
+        except (KeyboardInterrupt, EOFError):
+            print()
+            sys.exit(1)
+        with Spinner('fetching'):
+            kind, result = api.get_file(host, session, args.key, password=password)
+        if kind == 'password_required':
+            print('  ✗ Wrong password.', file=sys.stderr)
+            t.print()
+            sys.exit(1)
 
     if kind != 'file' or result is None:
         t.print()

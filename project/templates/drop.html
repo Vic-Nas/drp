@@ -37,6 +37,9 @@
       {% else %}
         🔓 anyone with the key can replace this content
       {% endif %}
+      {% if drop.is_password_protected %}
+        · 🔑 password protected
+      {% endif %}
     </p>
 
     {% if drop.expires_at %}
@@ -105,28 +108,51 @@
   </div>
   {% endif %}
 
+  <!-- Owner actions -->
   {% if can_edit %}
-  <div style="margin-top:1.5rem">
-    <button class="btn-sm danger" onclick="deleteDrop()">delete this drop</button>
+  <div style="margin-top:1.5rem;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center">
+    <button class="btn-sm danger" onclick="deleteDrop()">delete</button>
+    {% if is_paid_owner %}
+      <button class="btn-sm" id="pwToggleBtn" onclick="togglePwPanel()">
+        {% if drop.is_password_protected %}change password{% else %}set password{% endif %}
+      </button>
+    {% endif %}
   </div>
+
+  {% if is_paid_owner %}
+  <div id="pwPanel" class="pw-panel hidden">
+    <div class="field" style="margin-bottom:.5rem">
+      <label for="pwInput">
+        {% if drop.is_password_protected %}new password{% else %}password{% endif %}
+      </label>
+      <input type="password" id="pwInput" autocomplete="new-password"
+             placeholder="leave empty to remove"/>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center">
+      <button class="btn" id="pwSaveBtn" onclick="savePassword()">save</button>
+      {% if drop.is_password_protected %}
+      <button class="btn-sm danger" onclick="removePassword()">remove password</button>
+      {% endif %}
+      <span id="pwStatus" class="muted" style="font-size:.82rem"></span>
+    </div>
+  </div>
+  {% endif %}
   {% endif %}
 
 </div>
 {% endblock %}
 
 {% block scripts %}
-<!-- QR code: MIT licensed, no tracking, ~10KB -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<!-- Syntax highlighting: highlight.js, BSD licensed, loaded only for text drops -->
 {% if drop.kind == 'text' %}
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 {% endif %}
 
 <script>
-const KEY     = '{{ drop.key }}';
-const NS      = '{{ drop.ns }}';
-const BASE    = window.location.origin;
+const KEY      = '{{ drop.key }}';
+const NS       = '{{ drop.ns }}';
+const BASE     = window.location.origin;
 const CAN_EDIT = {{ can_edit|yesno:"true,false" }};
 const IS_OWNER = {{ is_owner|yesno:"true,false" }};
 const DROP_URL = '{{ request.build_absolute_uri }}';
@@ -164,11 +190,8 @@ function toggleQr() {
   const isHidden = panel.classList.toggle('hidden');
   if (!isHidden && !qrGenerated) {
     new QRCode(document.getElementById('qrCode'), {
-      text: DROP_URL,
-      width: 160,
-      height: 160,
-      colorDark: '#e8e8e8',
-      colorLight: '#1a1a1a',
+      text: DROP_URL, width: 160, height: 160,
+      colorDark: '#e8e8e8', colorLight: '#1a1a1a',
       correctLevel: QRCode.CorrectLevel.M,
     });
     qrGenerated = true;
@@ -180,10 +203,7 @@ function toggleQr() {
 {% if drop.kind == 'text' %}
 document.addEventListener('DOMContentLoaded', () => {
   const block = document.getElementById('clipContent');
-  if (block && typeof hljs !== 'undefined') {
-    // Let hljs auto-detect — works well for code, gracefully falls back to plain text
-    hljs.highlightElement(block);
-  }
+  if (block && typeof hljs !== 'undefined') hljs.highlightElement(block);
 });
 {% endif %}
 
@@ -215,11 +235,8 @@ if (CAN_EDIT) {
     fd.append('csrfmiddlewaretoken', getCookie('csrftoken'));
     const res  = await fetch(actionUrl('rename'), { method: 'POST', body: fd });
     const data = await res.json();
-    if (res.ok) {
-      window.location.href = data.url;
-    } else {
-      showToast(data.error || 'Rename failed.');
-    }
+    if (res.ok) window.location.href = data.url;
+    else showToast(data.error || 'Rename failed.');
   });
 }
 
@@ -246,8 +263,8 @@ if (editForm) {
 
 // ── Replace file ──────────────────────────────────────────────────────────────
 let newFile = null;
-const dropZone  = document.getElementById('dropZone');
-const fileInput = document.getElementById('fileInput');
+const dropZone   = document.getElementById('dropZone');
+const fileInput  = document.getElementById('fileInput');
 const replaceBtn = document.getElementById('replaceBtn');
 
 if (dropZone) {
@@ -272,9 +289,8 @@ if (replaceBtn) {
     replaceBtn.disabled = true;
     replaceBtn.textContent = 'replacing…';
     const res = await fetch('/save/', { method: 'POST', body: fd });
-    if (res.ok) {
-      window.location.reload();
-    } else {
+    if (res.ok) window.location.reload();
+    else {
       const data = await res.json().catch(() => ({}));
       showToast(data.error || 'Replace failed.');
       replaceBtn.disabled = false;
@@ -312,11 +328,54 @@ async function deleteDrop() {
     method: 'DELETE',
     headers: { 'X-CSRFToken': getCookie('csrftoken') },
   });
-  if (res.ok) {
-    window.location.href = '/';
-  } else {
+  if (res.ok) window.location.href = '/';
+  else {
     const data = await res.json().catch(() => ({}));
     showToast(data.error || 'Delete failed.');
+  }
+}
+
+// ── Password ──────────────────────────────────────────────────────────────────
+function togglePwPanel() {
+  document.getElementById('pwPanel').classList.toggle('hidden');
+}
+
+async function savePassword() {
+  const pw = document.getElementById('pwInput').value;
+  const status = document.getElementById('pwStatus');
+  const res = await fetch(actionUrl('set-password'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken'),
+    },
+    body: JSON.stringify({ password: pw }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast(data.message);
+    setTimeout(() => location.reload(), 800);
+  } else {
+    status.textContent = data.error || 'Failed.';
+  }
+}
+
+async function removePassword() {
+  if (!confirm('Remove password protection?')) return;
+  const res = await fetch(actionUrl('set-password'), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken'),
+    },
+    body: JSON.stringify({ password: '' }),
+  });
+  const data = await res.json();
+  if (res.ok) {
+    showToast(data.message);
+    setTimeout(() => location.reload(), 800);
+  } else {
+    showToast(data.error || 'Failed.');
   }
 }
 </script>

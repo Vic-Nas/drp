@@ -169,6 +169,12 @@ class Drop(models.Model):
 
     burn = models.BooleanField(default=False, help_text="Delete after first view")
 
+    # ── Password protection (paid accounts only) ──────────────────────────────
+    # Stored as a Django password hash (PBKDF2). Never stored in plaintext.
+    # None = no password. Set/change/remove only by the owner on a paid plan.
+    password_hash = models.CharField(max_length=256, blank=True, default="",
+                                     help_text="PBKDF2 hash. Empty = no password.")
+
     # ── View tracking ─────────────────────────────────────────────────────────
     view_count     = models.PositiveIntegerField(default=0)
     last_viewed_at = models.DateTimeField(null=True, blank=True, db_index=True)
@@ -179,6 +185,22 @@ class Drop(models.Model):
     def __str__(self):
         prefix = "f/" if self.ns == self.NS_FILE else ""
         return f"/{prefix}{self.key}/ ({self.kind})"
+
+    @property
+    def is_password_protected(self):
+        return bool(self.password_hash)
+
+    def check_password(self, raw_password: str) -> bool:
+        from django.contrib.auth.hashers import check_password
+        return check_password(raw_password, self.password_hash)
+
+    def set_password(self, raw_password: str | None) -> None:
+        """Set or clear the drop password. Call save() after."""
+        if raw_password:
+            from django.contrib.auth.hashers import make_password
+            self.password_hash = make_password(raw_password)
+        else:
+            self.password_hash = ""
 
     @property
     def owner_plan(self):
@@ -244,10 +266,6 @@ class Drop(models.Model):
                 self.save(update_fields=["expires_at"])
 
     def hard_delete(self):
-        """
-        Delete a file drop from B2 then remove the DB record.
-        Storage accounting is handled by the post_delete signal.
-        """
         if self.ns == self.NS_FILE and self.file_public_id:
             try:
                 from core.views.b2 import delete_object
@@ -265,7 +283,7 @@ class Drop(models.Model):
                 )
                 return False
 
-        self.delete()  # post_delete signal handles storage accounting
+        self.delete()
         return True
 
     def can_edit(self, user):
@@ -288,8 +306,8 @@ class Drop(models.Model):
         if self.ns != self.NS_FILE:
             raise ValueError("download_url() called on non-file drop")
         from core.views.b2 import presigned_get
-        return presigned_get(self.ns, self.key, filename=self.filename, expires_in=expires_in,
-                             b2_key=self.b2_object_key())
+        return presigned_get(self.ns, self.key, filename=self.filename,
+                             expires_in=expires_in, b2_key=self.b2_object_key())
 
 
 # ── post_delete signal — storage accounting ───────────────────────────────────

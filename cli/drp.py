@@ -58,6 +58,7 @@ examples:
   drp get hello                         print clipboard to stdout
   drp get hello --url                   print URL without fetching content
   drp get -f q3 -o my-report.pdf        download file with custom name
+  drp get secret --password mypass      supply password for protected drop
   drp edit notes                        open clipboard in $EDITOR, re-upload on save
   drp diff v1 v2                        unified diff of two clipboard drops
   drp cp notes notes-backup             duplicate clipboard drop
@@ -117,6 +118,8 @@ def _configure_subparsers(sub):
                       help='7d, 30d, 1y (paid accounts only)')
     p_up.add_argument('--burn', '-b', action='store_true',
                       help='Delete after first view (all plans)')
+    p_up.add_argument('--password', '-p', default=None, metavar='PASSWORD',
+                      help='Password-protect this drop (paid accounts only)')
 
     p_get = sub._name_parser_map['get']
     p_get.add_argument('-f', '--file', action='store_true')
@@ -124,6 +127,8 @@ def _configure_subparsers(sub):
     p_get.add_argument('--output', '-o', default=None)
     p_get.add_argument('--url', '-u', action='store_true')
     p_get.add_argument('--timing', action='store_true')
+    p_get.add_argument('--password', '-p', default=None, metavar='PASSWORD',
+                       help='Password for a protected drop (prompted if omitted)')
 
     p_edit = sub._name_parser_map['edit']
     _attach(p_edit.add_argument('key'), 'clip_key')
@@ -207,9 +212,11 @@ def _print_colored_help():
     print(f'  {dim("quick examples:")}')
     print(f'    {dim("drp up")} "hello"                  clipboard from string')
     print(f'    {dim("drp up")} "secret" --burn          delete after first view')
+    print(f'    {dim("drp up")} "secret" --password pw   password-protect (paid)')
     print(f'    {dim("drp up")} https://example.com/f    fetch URL and re-host')
     print(f'    {dim("drp up")} report.pdf               file upload')
     print(f'    {dim("drp get")} hello                   print clipboard to stdout')
+    print(f'    {dim("drp get")} secret --password pw    unlock protected drop')
     print(f'    {dim("drp serve")} ./dist/               upload dir, print URL table')
     print(f'    {dim("drp diff")} v1 v2                  unified diff of two drops')
     print()

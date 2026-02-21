@@ -521,3 +521,14 @@ nav a:hover { color: var(--text); text-decoration: none; }
 @media (max-width: 500px) {
   .plan-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Password panel (drop page, paid owners only) ── */
+.pw-panel {
+  margin-top: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  max-width: 360px;
+}
+.pw-panel .field { margin-bottom: .5rem; }

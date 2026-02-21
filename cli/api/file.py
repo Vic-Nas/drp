@@ -1,18 +1,5 @@
 """
 File drop API calls.
-
-Upload flow (CLI → B2 direct, never through Railway):
-  1. POST /upload/prepare/  → get presigned PUT URL + confirmed key
-  2. PUT  <presigned_url>   → stream file bytes directly to B2
-  3. POST /upload/confirm/  → Django verifies + creates Drop record
-
-Download flow:
-  GET /f/<key>/  → JSON with metadata including 'presigned_url' (direct B2 URL)
-                   Falls back to 'download' path if presigned_url absent.
-  Stream from presigned URL directly — Railway never proxies bytes.
-
-Both upload and download show a progress bar on stderr.
-Files are streamed in chunks — never fully loaded into memory.
 """
 
 import os
@@ -23,11 +10,10 @@ import requests as _requests
 from .auth import get_csrf
 from .helpers import err
 
-CHUNK = 256 * 1024  # 256 KB read/write chunks
+CHUNK = 256 * 1024
 
 
 def _report(command, msg):
-    """Fire-and-forget crash report for handled errors that should be tracked."""
     try:
         from cli.crash_reporter import report
         report(command, RuntimeError(msg))
@@ -36,7 +22,6 @@ def _report(command, msg):
 
 
 def _touch_session():
-    """Reset the session freshness clock after a successful API call."""
     try:
         from cli.session import SESSION_FILE
         SESSION_FILE.touch()
@@ -46,12 +31,10 @@ def _touch_session():
 
 # ── Upload ────────────────────────────────────────────────────────────────────
 
-def upload_file(host, session, filepath, key=None, expiry_days=None):
+def upload_file(host, session, filepath, key=None, expiry_days=None, password=None):
     """
     Upload a file using the prepare → direct-PUT → confirm flow.
-
     Returns the drop key string on success, None on failure.
-    Progress is shown on stderr.
     """
     from cli.progress import ProgressBar
 
@@ -142,6 +125,8 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
     }
     if expiry_days:
         confirm_payload["expiry_days"] = expiry_days
+    if password:
+        confirm_payload["password"] = password
 
     try:
         csrf = get_csrf(host, session)
@@ -166,26 +151,31 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
 
 # ── Download ──────────────────────────────────────────────────────────────────
 
-def get_file(host, session, key):
+def get_file(host, session, key, password=''):
     """
     Fetch a file drop.
 
-    Fast path: /f/<key>/ JSON response includes 'presigned_url' — stream
-    directly from B2 with no extra Railway round-trip.
-
-    Fallback: use the 'download' path which 302-redirects to B2 (one extra
-    RTT, kept for backwards compatibility with older server versions).
-
-    Returns ('file', (bytes_content, filename)) or (None, None).
+    Returns:
+      ('file', (bytes_content, filename)) — success
+      ('password_required', None)         — password needed / wrong password
+      (None, None)                        — not found, expired, or error
     """
     from cli.progress import ProgressBar
+
+    headers = {"Accept": "application/json"}
+    if password:
+        headers["X-Drop-Password"] = password
 
     try:
         res = session.get(
             f"{host}/f/{key}/",
-            headers={"Accept": "application/json"},
+            headers=headers,
             timeout=30,
         )
+
+        if res.status_code == 401:
+            return 'password_required', None
+
         if not res.ok:
             _handle_http_error(res, key)
             return None, None
@@ -197,13 +187,11 @@ def get_file(host, session, key):
             err(f"/f/{key}/ is not a file drop.")
             return None, None
 
-        filename  = data.get("filename", key)
-        filesize  = data.get("filesize", 0)
+        filename = data.get("filename", key)
+        filesize = data.get("filesize", 0)
 
-        # ── Fast path: presigned URL returned directly ────────────────────
         b2_url = data.get("presigned_url")
 
-        # ── Fallback: follow the /download/ redirect ──────────────────────
         if not b2_url:
             download_path = data.get("download")
             if not download_path:
@@ -216,6 +204,8 @@ def get_file(host, session, key):
                 timeout=10,
                 allow_redirects=False,
             )
+            if dl_res.status_code == 401:
+                return 'password_required', None
             if dl_res.status_code in (301, 302, 303, 307, 308):
                 b2_url = dl_res.headers["Location"]
             elif dl_res.ok:
@@ -226,7 +216,6 @@ def get_file(host, session, key):
                 _report("get", msg)
                 return None, None
 
-        # ── Stream from B2 ────────────────────────────────────────────────
         bar    = ProgressBar(max(filesize, 1), label="downloading")
         chunks = []
         with _requests.get(b2_url, stream=True, timeout=None) as stream:
@@ -247,8 +236,6 @@ def get_file(host, session, key):
         err(f"Get error: {e}")
         raise
 
-
-# ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _handle_error(res, prefix):
     try:

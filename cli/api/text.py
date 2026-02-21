@@ -7,7 +7,6 @@ from .helpers import err
 
 
 def _touch_session():
-    """Reset the session freshness clock after a successful API call."""
     try:
         from cli.session import SESSION_FILE
         SESSION_FILE.touch()
@@ -15,7 +14,8 @@ def _touch_session():
         pass
 
 
-def upload_text(host, session, text, key=None, timer=None, expiry_days=None, burn=False):
+def upload_text(host, session, text, key=None, timer=None, expiry_days=None,
+                burn=False, password=None):
     """
     Upload text content.
     Returns the key string on success, None on failure.
@@ -44,19 +44,31 @@ def upload_text(host, session, text, key=None, timer=None, expiry_days=None, bur
     return None
 
 
-def get_clipboard(host, session, key, timer=None):
+def get_clipboard(host, session, key, timer=None, password=''):
     """
     Fetch a clipboard drop.
-    Returns (kind='text', content_str) or (None, None).
+
+    Returns:
+      ('text', content_str)       — success
+      ('password_required', None) — drop is password-protected, no/wrong password
+      (None, None)                — not found, expired, or other error
     """
+    headers = {'Accept': 'application/json'}
+    if password:
+        headers['X-Drop-Password'] = password
+
     try:
         res = session.get(
             f'{host}/{key}/',
-            headers={'Accept': 'application/json'},
+            headers=headers,
             timeout=30,
         )
         if timer:
             timer.checkpoint('HTTP request')
+
+        if res.status_code == 401:
+            return 'password_required', None
+
         if res.ok:
             _touch_session()
             data = res.json()
@@ -65,6 +77,7 @@ def get_clipboard(host, session, key, timer=None):
             if data.get('kind') == 'text':
                 return 'text', data.get('content', '')
             return None, None
+
         _handle_http_error(res, key)
         if res.status_code not in (404, 410):
             _report_http('get', res.status_code, 'get_clipboard')

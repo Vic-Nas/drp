@@ -8,8 +8,7 @@
     <p class="muted">{{ user.email }}</p>
   </div>
 
-  <!-- Your drops (paid only — for expiry management) -->
-  {% if profile.is_paid %}
+  <!-- Drops — all plans see their drops -->
   <div class="account-section">
     <h2>your drops</h2>
     {% if drops %}
@@ -19,6 +18,7 @@
           <th>key</th>
           <th>type</th>
           <th>expires</th>
+          {% if profile.is_paid %}<th>pw</th>{% endif %}
           <th></th>
         </tr>
       </thead>
@@ -35,8 +35,14 @@
             {% else %}📋 {{ drop.content|truncatechars:20 }}{% endif %}
           </td>
           <td class="muted">
-            {% if drop.expires_at %}{{ drop.expires_at|date:"M j, Y" }}{% else %}—{% endif %}
+            {% if drop.expires_at %}{{ drop.expires_at|date:"M j, Y" }}
+            {% else %}<span title="idle-based">—</span>{% endif %}
           </td>
+          {% if profile.is_paid %}
+          <td class="muted" style="font-size:1rem">
+            {% if drop.is_password_protected %}🔑{% else %}—{% endif %}
+          </td>
+          {% endif %}
           <td><a href="{% if drop.ns == 'f' %}/f/{{ drop.key }}/{% else %}/{{ drop.key }}/{% endif %}" class="btn-sm">view →</a></td>
         </tr>
         {% endfor %}
@@ -46,7 +52,6 @@
       <p class="muted empty">no drops yet.</p>
     {% endif %}
   </div>
-  {% endif %}
 
   <!-- Saved drops -->
   {% if saved %}
@@ -82,66 +87,92 @@
   </div>
   {% endif %}
 
+  <!-- Storage (paid only) -->
+  {% if profile.is_paid %}
+  <div class="account-section">
+    <h2>storage</h2>
+    <div class="storage-bar-wrap">
+      <div class="storage-label">
+        {{ profile.storage_used_gb|floatformat:2 }} GB / {{ profile.storage_quota_gb }} GB used
+      </div>
+      <div class="storage-bar">
+        <div class="storage-bar-fill"
+             style="width:{% widthratio profile.storage_used_bytes profile.storage_quota_bytes 100 %}%">
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Plan -->
   <div class="account-section">
     <h2>plan</h2>
-    <div class="plan-status">
-      <span class="plan-badge plan-badge--{{ profile.plan }}">{{ profile.plan|capfirst }}</span>
-
-      {% if profile.is_paid %}
-        <span class="muted" style="font-size:.85rem">
-          ${{ plan_limits.price_monthly }}/mo ·
-          {{ plan_limits.max_file_mb }}MB per file ·
-          up to {{ plan_limits.max_expiry_days }} day expiry
-        </span>
-        {% if profile.ls_subscription_status == 'cancelled' %}
-          <span style="font-size:.82rem;color:var(--danger)">· cancels at period end</span>
-        {% endif %}
-      {% endif %}
-    </div>
 
     {% if profile.is_paid %}
-      <div class="storage-bar-wrap" style="margin-top:1rem">
-        <div class="storage-label">
-          {{ profile.storage_used_gb|floatformat:2 }} GB / {{ profile.storage_quota_gb }} GB used
-        </div>
-        <div class="storage-bar">
-          <div class="storage-bar-fill"
-               style="width:{% widthratio profile.storage_used_bytes profile.storage_quota_bytes 100 %}%">
-          </div>
-        </div>
-      </div>
-      <div style="margin-top:1rem">
-        <a href="/billing/portal/" class="btn-sm">manage subscription →</a>
-      </div>
+    <!-- Paid: show current plan details + management link -->
+    <div class="plan-status" style="margin-bottom:1rem">
+      <span class="plan-badge plan-badge--{{ profile.plan }}">{{ profile.plan|capfirst }}</span>
+      <span class="muted" style="font-size:.85rem">
+        ${{ plan_limits.price_monthly }}/mo ·
+        {{ plan_limits.max_file_mb }}MB per file ·
+        up to {{ plan_limits.max_expiry_days }} day expiry ·
+        {{ plan_limits.storage_gb }}GB storage
+      </span>
+      {% if profile.ls_subscription_status == 'cancelled' %}
+        <span style="font-size:.82rem;color:var(--danger)">· cancels at period end</span>
+      {% endif %}
+    </div>
+    <div class="paid-perks" style="margin-bottom:1rem">
+      <p class="muted" style="font-size:.82rem;margin-bottom:.4rem">your plan includes:</p>
+      <ul class="upsell-list">
+        <li>🔑 password-protect any drop</li>
+        <li>🔒 drops locked to your account</li>
+        <li>♻️ renewable drops</li>
+        <li>📅 explicit expiry dates</li>
+        <li>📦 {{ plan_limits.max_file_mb }}MB per file · {{ plan_limits.storage_gb }}GB total</li>
+      </ul>
+    </div>
+    <a href="/billing/portal/" class="btn-sm">manage subscription →</a>
 
     {% else %}
-      <div class="plan-grid" style="margin-top:1rem">
-        <div class="plan-card">
-          <div class="plan-name">Starter</div>
-          <div class="plan-price">$3<span>/mo</span></div>
-          <ul>
-            <li>1 GB per file</li>
-            <li>5 GB total storage</li>
-            <li>Up to 1 year expiry</li>
-            <li>Drops locked to your account</li>
-            <li>Renewable drops</li>
-          </ul>
-          <a href="/billing/checkout/starter/" class="btn" style="margin-top:1rem;display:inline-block;width:100%;text-align:center">upgrade →</a>
-        </div>
-        <div class="plan-card plan-card--pro">
-          <div class="plan-name">Pro</div>
-          <div class="plan-price">$8<span>/mo</span></div>
-          <ul>
-            <li>5 GB per file</li>
-            <li>20 GB total storage</li>
-            <li>Up to 3 years expiry</li>
-            <li>Drops locked to your account</li>
-            <li>Renewable drops</li>
-          </ul>
-          <a href="/billing/checkout/pro/" class="btn" style="margin-top:1rem;display:inline-block;width:100%;text-align:center">upgrade →</a>
-        </div>
+    <!-- Free: upgrade CTA with feature comparison -->
+    <div class="plan-status" style="margin-bottom:1rem">
+      <span class="plan-badge">Free</span>
+      <span class="muted" style="font-size:.85rem">200MB per file · idle-based expiry</span>
+    </div>
+    <p class="muted" style="font-size:.85rem;margin-bottom:1rem">
+      upgrade to unlock password protection, explicit expiry, renewable drops, and more.
+    </p>
+    <div class="plan-grid">
+      <div class="plan-card">
+        <div class="plan-name">Starter</div>
+        <div class="plan-price">$3<span>/mo</span></div>
+        <ul>
+          <li>1 GB per file</li>
+          <li>5 GB total storage</li>
+          <li>Up to 1 year expiry</li>
+          <li>Drops locked to your account</li>
+          <li>Renewable drops</li>
+          <li>🔑 Password-protect drops</li>
+        </ul>
+        <a href="/billing/checkout/starter/"
+           class="btn" style="margin-top:1rem;display:block;text-align:center">upgrade →</a>
       </div>
+      <div class="plan-card plan-card--pro">
+        <div class="plan-name">Pro</div>
+        <div class="plan-price">$8<span>/mo</span></div>
+        <ul>
+          <li>5 GB per file</li>
+          <li>20 GB total storage</li>
+          <li>Up to 3 years expiry</li>
+          <li>Drops locked to your account</li>
+          <li>Renewable drops</li>
+          <li>🔑 Password-protect drops</li>
+        </ul>
+        <a href="/billing/checkout/pro/"
+           class="btn" style="margin-top:1rem;display:block;text-align:center">upgrade →</a>
+      </div>
+    </div>
     {% endif %}
   </div>
 
@@ -160,7 +191,7 @@ async function unsave(ns, key, rowId) {
   });
   if (res.ok) {
     document.getElementById(rowId)?.remove();
-    showToast('Removed from saved.');
+    showToast('removed from saved.');
   }
 }
 </script>

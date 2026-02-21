@@ -1,32 +1,15 @@
 """
 Drop creation, retrieval, and download views.
 
-File storage is now Backblaze B2.
-
-Upload paths:
-  Web browser  → POST /save/           → Django streams to B2  (server-side)
-  CLI          → POST /upload/prepare/ → Django returns presigned PUT URL
-               → PUT  <presigned URL>  → client uploads direct to B2
-               → POST /upload/confirm/ → Django verifies + creates Drop
-
-Download path (both web and CLI):
-  GET /f/<key>/ → JSON includes a short-lived presigned GET URL
-  GET /f/<key>/download/ → 302 redirect to presigned GET URL
-  (Railway never proxies file bytes → no timeout risk)
-
-CLI fast-download path:
-  GET /f/<key>/ with Accept: application/json
-    → response now includes 'presigned_url' field with a ready-to-use B2 URL
-    → CLI streams directly from B2 in one fewer Railway round-trip
-
-Raw text path:
-  GET /raw/<key>/ → plain text response, no HTML
-  Useful for curl | bash workflows and embedding in scripts.
-
-Burn-after-read:
-  Drops created with burn=True are hard-deleted after the first view.
-  The deletion happens after the response is sent (for JSON) or rendered
-  (for HTML), so the viewer always receives the content.
+Password protection:
+  - Drops can be password-protected by paid account owners.
+  - Web: 401 renders password_prompt.html. On correct password a session
+    key is set so the browser isn't re-prompted on refresh.
+  - JSON/CLI: 401 returns {"error": "password_required"}. CLI prompts
+    interactively via getpass and retries with X-Drop-Password header.
+  - The owner is never prompted for their own drop's password.
+  - Privacy: wrong password and nonexistent drop both return 401 so
+    attackers can't enumerate whether a drop exists.
 """
 
 import secrets
@@ -34,6 +17,7 @@ from datetime import timedelta
 from functools import cache
 
 from django.conf import settings
+from django.contrib.auth.hashers import check_password as hash_check
 from django.http import JsonResponse, HttpResponse, Http404
 from django.shortcuts import render, redirect
 from django.utils import timezone
@@ -47,6 +31,32 @@ from .helpers import (
 )
 
 ANON_COOKIE = "drp_anon"
+
+# Session key prefix for unlocked password-protected drops
+_PW_SESSION_PREFIX = "drp_pw_ok:"
+
+
+def _drop_pw_session_key(ns: str, key: str) -> str:
+    return f"{_PW_SESSION_PREFIX}{ns}:{key}"
+
+
+def _is_password_unlocked(request, drop) -> bool:
+    """True if this browser session has already authenticated this drop."""
+    sk = _drop_pw_session_key(drop.ns, drop.key)
+    return request.session.get(sk, False)
+
+
+def _mark_password_unlocked(request, drop) -> None:
+    sk = _drop_pw_session_key(drop.ns, drop.key)
+    request.session[sk] = True
+
+
+def _is_owner(request, drop) -> bool:
+    return (
+        request.user.is_authenticated
+        and drop.owner_id is not None
+        and drop.owner_id == request.user.pk
+    )
 
 
 # ── Reserved keys ─────────────────────────────────────────────────────────────
@@ -236,7 +246,6 @@ def _save_text(request, ns, key, existing, paid, anon_token):
         limit = Plan.get(user_plan(request.user), "max_text_kb")
         return JsonResponse({"error": f"Text exceeds {limit} KB."}, status=400)
 
-    # burn flag — available to all plans
     burn = request.POST.get("burn") in ("1", "true", "True")
 
     if existing:
@@ -258,6 +267,12 @@ def _save_text(request, ns, key, existing, paid, anon_token):
             burn=burn,
         )
 
+    # Set password if provided and caller is owner on paid plan
+    password = request.POST.get("password", "").strip()
+    if password and paid and request.user.is_authenticated and drop.owner_id == request.user.pk:
+        drop.set_password(password)
+        drop.save(update_fields=["password_hash"])
+
     return JsonResponse({
         "key":  drop.key,
         "ns":   drop.ns,
@@ -265,6 +280,7 @@ def _save_text(request, ns, key, existing, paid, anon_token):
         "url":  f"/{drop.key}/",
         "new":  existing is None,
         "burn": drop.burn,
+        "password_protected": drop.is_password_protected,
     })
 
 
@@ -313,7 +329,8 @@ def upload_prepare(request):
 
     from core.views.b2 import presigned_put
     EXPIRES_IN = 3600
-    presigned_url = presigned_put(ns, key, content_type=content_type, size=size, expires_in=EXPIRES_IN)
+    presigned_url = presigned_put(ns, key, content_type=content_type,
+                                  size=size, expires_in=EXPIRES_IN)
 
     return JsonResponse({
         "presigned_url": presigned_url,
@@ -337,6 +354,7 @@ def upload_confirm(request):
     ns       = data.get("ns", Drop.NS_FILE)
     filename = (data.get("filename") or key).strip()
     burn     = bool(data.get("burn", False))
+    password = (data.get("password") or "").strip()
 
     if not key or ns not in (Drop.NS_CLIPBOARD, Drop.NS_FILE):
         return JsonResponse({"error": "key and valid ns required."}, status=400)
@@ -412,14 +430,73 @@ def upload_confirm(request):
         )
         add_storage(request.user, actual_size)
 
+    # Set password if provided and caller is owner on paid plan
+    if password and paid and request.user.is_authenticated and drop.owner_id == request.user.pk:
+        drop.set_password(password)
+        drop.save(update_fields=["password_hash"])
+
     return JsonResponse({
-        "key":  drop.key,
-        "ns":   drop.ns,
-        "kind": drop.kind,
-        "url":  f"/f/{drop.key}/",
-        "new":  existing is None,
-        "burn": drop.burn,
+        "key":               drop.key,
+        "ns":                drop.ns,
+        "kind":              drop.kind,
+        "url":               f"/f/{drop.key}/",
+        "new":               existing is None,
+        "burn":              drop.burn,
+        "password_protected": drop.is_password_protected,
     })
+
+
+# ── Password gate helpers ─────────────────────────────────────────────────────
+
+def _password_required_response(request, drop):
+    """
+    Return the appropriate 401 response when a password is needed.
+    JSON clients get {"error": "password_required"}.
+    Browser clients get a minimal password prompt page.
+    Never reveals whether the drop exists to unauthenticated requesters.
+    """
+    if "application/json" in request.headers.get("Accept", ""):
+        return JsonResponse(
+            {"error": "password_required", "key": drop.key, "ns": drop.ns},
+            status=401,
+        )
+    return render(request, "password_prompt.html", {
+        "drop": drop,
+        "next": request.get_full_path(),
+    }, status=401)
+
+
+def _check_drop_password(request, drop):
+    """
+    Returns None if access is granted, or a 401 response if not.
+    Access is granted when:
+      - Drop has no password
+      - Requester is the owner
+      - Browser session already unlocked this drop
+      - Correct password supplied via X-Drop-Password header (CLI) or POST
+    """
+    if not drop.is_password_protected:
+        return None
+
+    if _is_owner(request, drop):
+        return None
+
+    if _is_password_unlocked(request, drop):
+        return None
+
+    # CLI / JSON path: password in header
+    header_pw = request.headers.get("X-Drop-Password", "")
+    if header_pw and drop.check_password(header_pw):
+        return None
+
+    # Web POST path: password submitted via prompt form
+    if request.method == "POST":
+        form_pw = request.POST.get("drop_password", "")
+        if form_pw and drop.check_password(form_pw):
+            _mark_password_unlocked(request, drop)
+            return None
+
+    return _password_required_response(request, drop)
 
 
 # ── View drop ─────────────────────────────────────────────────────────────────
@@ -431,25 +508,29 @@ def _drop_response(request, drop):
             return JsonResponse({"error": "Drop has expired."}, status=410)
         return render(request, "expired.html", {"key": drop.key})
 
-    # Capture burn state before touch() so we know whether to delete after.
-    should_burn = drop.burn
+    # Password gate — owner bypasses automatically
+    pw_response = _check_drop_password(request, drop)
+    if pw_response is not None:
+        return pw_response
 
+    should_burn = drop.burn
     drop.touch()
 
     if "application/json" in request.headers.get("Accept", ""):
         data = {
-            "key":              drop.key,
-            "ns":               drop.ns,
-            "kind":             drop.kind,
-            "burn":             drop.burn,
-            "created_at":       drop.created_at.isoformat(),
-            "last_accessed_at": (drop.last_accessed_at.isoformat()
-                                 if drop.last_accessed_at else None),
-            "expires_at":       (drop.expires_at.isoformat()
-                                 if drop.expires_at else None),
-            "view_count":       drop.view_count,
-            "last_viewed_at":   (drop.last_viewed_at.isoformat()
-                                 if drop.last_viewed_at else None),
+            "key":               drop.key,
+            "ns":                drop.ns,
+            "kind":              drop.kind,
+            "burn":              drop.burn,
+            "password_protected": drop.is_password_protected,
+            "created_at":        drop.created_at.isoformat(),
+            "last_accessed_at":  (drop.last_accessed_at.isoformat()
+                                  if drop.last_accessed_at else None),
+            "expires_at":        (drop.expires_at.isoformat()
+                                  if drop.expires_at else None),
+            "view_count":        drop.view_count,
+            "last_viewed_at":    (drop.last_viewed_at.isoformat()
+                                  if drop.last_viewed_at else None),
         }
         if drop.kind == Drop.TEXT:
             data["content"] = drop.content
@@ -463,17 +544,17 @@ def _drop_response(request, drop):
                 pass
 
         response = JsonResponse(data)
-
         if should_burn:
             drop.hard_delete()
-
         return response
 
     plan = user_plan(request.user)
+    is_owner = _is_owner(request, drop)
     response = render(request, "drop.html", {
         "drop":            drop,
         "can_edit":        drop.can_edit(request.user),
-        "is_owner":        request.user.is_authenticated and drop.owner_id == request.user.pk,
+        "is_owner":        is_owner,
+        "is_paid_owner":   is_owner and request.user.profile.is_paid,
         "max_expiry_days": Plan.get(plan, "max_expiry_days"),
     })
 
@@ -484,6 +565,13 @@ def _drop_response(request, drop):
 
 
 def clipboard_view(request, key):
+    # Handle password prompt POST
+    if request.method == "POST" and "drop_password" in request.POST:
+        drop = Drop.objects.filter(ns=Drop.NS_CLIPBOARD, key=key).first()
+        if not drop:
+            raise Http404
+        return _drop_response(request, drop)
+
     drop = Drop.objects.filter(ns=Drop.NS_CLIPBOARD, key=key).first()
     if not drop:
         if "application/json" in request.headers.get("Accept", ""):
@@ -493,6 +581,13 @@ def clipboard_view(request, key):
 
 
 def file_view(request, key):
+    # Handle password prompt POST
+    if request.method == "POST" and "drop_password" in request.POST:
+        drop = Drop.objects.filter(ns=Drop.NS_FILE, key=key).first()
+        if not drop:
+            raise Http404
+        return _drop_response(request, drop)
+
     drop = Drop.objects.filter(ns=Drop.NS_FILE, key=key).first()
     if not drop:
         if "application/json" in request.headers.get("Accept", ""):
@@ -504,16 +599,6 @@ def file_view(request, key):
 # ── Raw text view ─────────────────────────────────────────────────────────────
 
 def raw_view(request, key):
-    """
-    GET /raw/<key>/
-
-    Returns clipboard content as plain text — no HTML, no JSON wrapper.
-    Ideal for: curl https://drp.vicnas.me/raw/key | bash
-               curl https://drp.vicnas.me/raw/key > config.yml
-
-    File drops are not supported (returns 400).
-    Respects expiry and burn-after-read.
-    """
     drop = Drop.objects.filter(ns=Drop.NS_CLIPBOARD, key=key).first()
     if not drop:
         return HttpResponse("not found\n", content_type="text/plain", status=404)
@@ -529,14 +614,19 @@ def raw_view(request, key):
             status=400,
         )
 
+    # Password gate for raw view — header only (no browser prompt)
+    if drop.is_password_protected and not _is_owner(request, drop):
+        header_pw = request.headers.get("X-Drop-Password", "")
+        if not header_pw or not drop.check_password(header_pw):
+            return HttpResponse(
+                "password required\n", content_type="text/plain", status=401
+            )
+
     should_burn = drop.burn
     drop.touch()
-
     response = HttpResponse(drop.content, content_type="text/plain; charset=utf-8")
-
     if should_burn:
         drop.hard_delete()
-
     return response
 
 
@@ -549,9 +639,63 @@ def download_drop(request, key):
     if drop.is_expired():
         drop.hard_delete()
         raise Http404
+
+    # Password gate for download
+    if drop.is_password_protected and not _is_owner(request, drop):
+        if not _is_password_unlocked(request, drop):
+            header_pw = request.headers.get("X-Drop-Password", "")
+            if not header_pw or not drop.check_password(header_pw):
+                if "application/json" in request.headers.get("Accept", ""):
+                    return JsonResponse({"error": "password_required"}, status=401)
+                return render(request, "password_prompt.html", {
+                    "drop": drop,
+                    "next": request.get_full_path(),
+                }, status=401)
+
     drop.touch()
     try:
         url = drop.download_url(expires_in=3600)
     except Exception:
         raise Http404
     return redirect(url)
+
+
+# ── Set / remove drop password ────────────────────────────────────────────────
+
+def set_drop_password(request, ns, key):
+    """
+    POST /key/set-password/ or /f/key/set-password/
+
+    Paid owners only. Body (JSON):
+      {"password": "new-password"}   — set/change password
+      {"password": ""}               — remove password
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required."}, status=405)
+
+    drop = Drop.objects.filter(ns=ns, key=key).first()
+    if not drop:
+        return JsonResponse({"error": "Drop not found."}, status=404)
+
+    if not _is_owner(request, drop):
+        return JsonResponse({"error": "Only the owner can set a password."}, status=403)
+
+    if not request.user.profile.is_paid:
+        return JsonResponse(
+            {"error": "Password protection is a paid feature."}, status=403
+        )
+
+    import json
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"error": "Invalid JSON."}, status=400)
+
+    password = (data.get("password") or "").strip()
+    drop.set_password(password if password else None)
+    drop.save(update_fields=["password_hash"])
+
+    return JsonResponse({
+        "password_protected": drop.is_password_protected,
+        "message": "Password set." if drop.is_password_protected else "Password removed.",
+    })

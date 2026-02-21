@@ -7,6 +7,7 @@ drp up — upload text or a file.
   drp up https://example.com/file.pdf   fetch URL and re-host
   drp up report.pdf --expires 7d
   drp up "secret" --burn      delete after first view
+  drp up "secret" --password pw  password-protect (paid accounts only)
 """
 
 import os
@@ -20,11 +21,6 @@ from cli.crash_reporter import report_outcome
 
 
 def _parse_expires(value: str) -> int | None:
-    """
-    Parse --expires value into days (int).
-    Accepts: 7d, 30d, 1y, or plain integer (days).
-    Returns None if unparseable.
-    """
     if not value:
         return None
     value = value.strip().lower()
@@ -39,11 +35,6 @@ def _parse_expires(value: str) -> int | None:
 
 
 def _copy_to_clipboard(text: str) -> bool:
-    """
-    Try to copy text to the system clipboard.
-    Returns True on success, False if no clipboard tool is available.
-    Silent — never raises.
-    """
     try:
         import pyperclip
         pyperclip.copy(text)
@@ -54,7 +45,8 @@ def _copy_to_clipboard(text: str) -> bool:
     import subprocess
     import shutil
 
-    for cmd in (['pbcopy'], ['xclip', '-selection', 'clipboard'], ['xsel', '--clipboard', '--input'], ['wl-copy']):
+    for cmd in (['pbcopy'], ['xclip', '-selection', 'clipboard'],
+                ['xsel', '--clipboard', '--input'], ['wl-copy']):
         if shutil.which(cmd[0]):
             try:
                 proc = subprocess.run(cmd, input=text.encode(), timeout=3)
@@ -75,9 +67,10 @@ def cmd_up(args):
     session = requests.Session()
     auto_login(cfg, host, session)
 
-    target = getattr(args, 'target', None)
-    key    = args.key
-    burn   = getattr(args, 'burn', False)
+    target   = getattr(args, 'target', None)
+    key      = args.key
+    burn     = getattr(args, 'burn', False)
+    password = getattr(args, 'password', None) or ''
 
     # stdin pipe
     if target is None or target == '-':
@@ -86,20 +79,18 @@ def cmd_up(args):
             sys.exit(1)
         target = sys.stdin.read()
 
-    # URL fetch — download then re-upload as file drop
     elif target.startswith('http://') or target.startswith('https://'):
-        _upload_url(host, session, target, key, cfg, args)
+        _upload_url(host, session, target, key, cfg, args, password)
         return
 
     elif os.path.isfile(target):
-        _upload_file(host, session, target, key, cfg, args)
+        _upload_file(host, session, target, key, cfg, args, password)
         return
 
-    _upload_text(host, session, target, key, cfg, args, burn=burn)
+    _upload_text(host, session, target, key, cfg, args, burn=burn, password=password)
 
 
-def _upload_url(host, session, url, key, cfg, args):
-    """Fetch a remote URL and re-upload as a file drop."""
+def _upload_url(host, session, url, key, cfg, args, password=''):
     from cli.progress import ProgressBar
     from cli.format import dim
     import mimetypes
@@ -114,12 +105,9 @@ def _upload_url(host, session, url, key, cfg, args):
         print(f'  ✗ Could not fetch URL: {e}')
         sys.exit(1)
 
-    # Derive filename from URL or Content-Disposition
     filename = _filename_from_response(r, url)
-    content_type = r.headers.get('Content-Type', 'application/octet-stream').split(';')[0]
     total = int(r.headers.get('Content-Length', 0))
 
-    # Stream to a temp file so we can get the size for progress
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1])
     bar = ProgressBar(max(total, 1), label='downloading')
     try:
@@ -139,7 +127,8 @@ def _upload_url(host, session, url, key, cfg, args):
     expiry_days = _parse_expires(getattr(args, 'expires', None))
 
     try:
-        result_key = api.upload_file(host, session, tmp_path, key=key, expiry_days=expiry_days)
+        result_key = api.upload_file(host, session, tmp_path, key=key,
+                                     expiry_days=expiry_days, password=password or None)
     finally:
         try:
             os.unlink(tmp_path)
@@ -156,13 +145,14 @@ def _upload_url(host, session, url, key, cfg, args):
     config.record_drop(result_key, 'file', ns='f', filename=filename, host=host)
 
 
-def _upload_file(host, session, path, key, cfg, args):
+def _upload_file(host, session, path, key, cfg, args, password=''):
     if not key:
         key = api.slug(os.path.basename(path))
 
     expiry_days = _parse_expires(getattr(args, 'expires', None))
 
-    result_key = api.upload_file(host, session, path, key=key, expiry_days=expiry_days)
+    result_key = api.upload_file(host, session, path, key=key,
+                                 expiry_days=expiry_days, password=password or None)
     if not result_key:
         report_outcome('up', 'upload_file returned None (prepare/confirm flow failed)')
         sys.exit(1)
@@ -174,13 +164,14 @@ def _upload_file(host, session, path, key, cfg, args):
                        filename=os.path.basename(path), host=host)
 
 
-def _upload_text(host, session, text, key, cfg, args, burn=False):
+def _upload_text(host, session, text, key, cfg, args, burn=False, password=''):
     expiry_days = _parse_expires(getattr(args, 'expires', None))
 
     result_key = api.upload_text(
         host, session, text, key=key,
         expiry_days=expiry_days,
         burn=burn,
+        password=password or None,
     )
     if not result_key:
         report_outcome('up', 'upload_text returned None for clipboard drop')
@@ -193,14 +184,12 @@ def _upload_text(host, session, text, key, cfg, args, burn=False):
 
 
 def _try_copy(url: str) -> None:
-    """Copy URL to clipboard and print a dim confirmation if successful."""
     from cli.format import dim
     if _copy_to_clipboard(url):
         print(f'  {dim("copied to clipboard")}')
 
 
 def _filename_from_response(r, url: str) -> str:
-    """Extract a clean filename from Content-Disposition or the URL path."""
     cd = r.headers.get('Content-Disposition', '')
     if 'filename=' in cd:
         for part in cd.split(';'):
