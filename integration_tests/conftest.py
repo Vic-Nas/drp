@@ -1,19 +1,21 @@
 """
 integration_tests/conftest.py
 
-Reads your existing .env — no new env vars, no extra files.
+Zero manual setup — everything derived from your existing .env.
 
-  Host   → derived from DOMAIN (DEBUG=True → localhost:8000)
-  Email/password → prompted once at session start (credentials live in
-                   the DB, not the env, so there's nowhere else to read them)
+Users are created automatically at session start via `manage.py shell -c`
+and deleted at session end. One user per plan tier + anonymous:
 
-Isolation:
-  - All test keys are prefixed drptest- and deleted at session end.
-  - Isolated /tmp/ config dir — ~/.config/drp/ is never touched.
-  - Safe against production DB: only the test account's drops are affected.
+    anon     — unauthenticated requests.Session
+    free     — test-free@{DOMAIN}     Plan.FREE
+    starter  — test-starter@{DOMAIN}  Plan.STARTER
+    pro      — test-pro@{DOMAIN}      Plan.PRO
+
+Host:
+    DEBUG=True (or no DOMAIN)  →  http://localhost:8000
+    otherwise                  →  https://{DOMAIN}
 """
 
-import getpass
 import json
 import os
 import secrets
@@ -44,25 +46,181 @@ _env  = _load_dotenv(_ROOT / '.env')
 def _get(key, default=None):
     return _env.get(key) or os.environ.get(key) or default
 
-# ── Host (from existing DOMAIN / DEBUG vars) ──────────────────────────────────
+# ── Host & domain ─────────────────────────────────────────────────────────────
+
+DOMAIN = _get('DOMAIN', 'localhost').rstrip('/')
 
 def _resolve_host():
-    domain = _get('DOMAIN', '').rstrip('/')
-    debug  = _get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
-    if debug or not domain:
+    debug = _get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
+    if debug or DOMAIN == 'localhost':
         return 'http://localhost:8000'
-    return f'https://{domain}'
+    return f'https://{DOMAIN}'
 
 HOST = _resolve_host()
 
-# ── Credentials (prompted once — they live in the DB, not the env) ────────────
+# ── User management via manage.py ─────────────────────────────────────────────
 
-print(f'\n  drp integration tests → {HOST}')
-EMAIL    = input('  Test account email: ').strip()
-PASSWORD = getpass.getpass('  Test account password: ')
+def _manage(code):
+    """Run a Python snippet in manage.py shell -c. Raises on non-zero exit."""
+    result = subprocess.run(
+        ['python', 'manage.py', 'shell', '-c', code],
+        capture_output=True, text=True, cwd=_ROOT,
+        env={**os.environ, **_env},
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f'manage.py shell failed:\n{result.stdout}\n{result.stderr}'
+        )
+    return result.stdout.strip()
 
-if not EMAIL or not PASSWORD:
-    pytest.exit('Email and password are required.', returncode=2)
+
+def _create_user(email, password, plan):
+    _manage(f"""
+from django.contrib.auth import get_user_model
+from core.models import UserProfile, Plan
+User = get_user_model()
+User.objects.filter(email='{email}').delete()
+u = User.objects.create_user(username='{email}', email='{email}', password='{password}')
+p = UserProfile.objects.get(user=u)
+p.plan = Plan.{plan}
+p.save(update_fields=['plan'])
+""")
+
+
+def _delete_user(email):
+    _manage(f"""
+from django.contrib.auth import get_user_model
+get_user_model().objects.filter(email='{email}').delete()
+""")
+
+
+# ── Test user definitions ─────────────────────────────────────────────────────
+
+_TEST_USERS = [
+    ('free',    f'test-free@{DOMAIN}',    'FREE'),
+    ('starter', f'test-starter@{DOMAIN}', 'STARTER'),
+    ('pro',     f'test-pro@{DOMAIN}',     'PRO'),
+]
+
+
+class TestUser:
+    """Credentials + authenticated session for one test user."""
+    def __init__(self, email, password, plan, session):
+        self.email    = email
+        self.password = password
+        self.plan     = plan
+        self.session  = session
+        self._keys    = []   # (ns, key) — cleaned up at session end
+
+    def track(self, key, ns='c'):
+        """Register a drop key for cleanup."""
+        self._keys.append((ns, key))
+        return key
+
+    def cleanup_drops(self, host):
+        from cli.api.actions import delete
+        for ns, key in self._keys:
+            try:
+                delete(host, self.session, key, ns=ns)
+            except Exception:
+                pass
+        self._keys.clear()
+
+
+def _login_session(email, password):
+    from cli.api.auth import login as api_login
+    s = requests.Session()
+    if not api_login(HOST, s, email, password):
+        raise RuntimeError(f'Login failed for {email} on {HOST}')
+    return s
+
+
+# ── Session-scoped fixtures ───────────────────────────────────────────────────
+
+@pytest.fixture(scope='session')
+def users():
+    """
+    Create all test users once, yield dict keyed by plan name, delete at end.
+    Access as: users['free'], users['starter'], users['pro']
+    """
+    password = secrets.token_urlsafe(16)
+    created  = {}
+
+    for name, email, plan in _TEST_USERS:
+        _create_user(email, password, plan)
+        session = _login_session(email, password)
+        created[name] = TestUser(email, password, plan, session)
+
+    yield created
+
+    for name, email, _ in _TEST_USERS:
+        created[name].cleanup_drops(HOST)
+        try:
+            _delete_user(email)
+        except Exception as e:
+            print(f'\n[teardown] WARNING: could not delete {email}: {e}')
+
+
+@pytest.fixture(scope='session')
+def anon():
+    """Unauthenticated requests.Session."""
+    return requests.Session()
+
+@pytest.fixture(scope='session')
+def free_user(users):
+    return users['free']
+
+@pytest.fixture(scope='session')
+def starter_user(users):
+    return users['starter']
+
+@pytest.fixture(scope='session')
+def pro_user(users):
+    return users['pro']
+
+
+# ── CLI env dicts (one per plan + anon) ──────────────────────────────────────
+
+@pytest.fixture(scope='session')
+def cli_config_root(tmp_path_factory):
+    d = tmp_path_factory.mktemp('drp-integration')
+    yield d
+    shutil.rmtree(d, ignore_errors=True)
+
+
+@pytest.fixture(scope='session')
+def cli_envs(cli_config_root, users):
+    """
+    Dict of subprocess env dicts, one per plan.
+    Each has its own isolated XDG_CONFIG_HOME with the right session cookies.
+    Usage: cli_envs['free'], cli_envs['starter'], cli_envs['pro']
+    """
+    envs = {}
+    for name, user in users.items():
+        drp_dir = cli_config_root / name / 'drp'
+        drp_dir.mkdir(parents=True, exist_ok=True)
+        (drp_dir / 'config.json').write_text(json.dumps(
+            {'host': HOST, 'email': user.email, 'ansi': False}
+        ))
+        (drp_dir / 'session.json').write_text(json.dumps(dict(user.session.cookies)))
+        env = {**os.environ, **_env}
+        env['XDG_CONFIG_HOME'] = str(cli_config_root / name)
+        env['NO_COLOR'] = '1'
+        envs[name] = env
+    return envs
+
+
+@pytest.fixture(scope='session')
+def anon_cli_env(cli_config_root):
+    """CLI env for an unauthenticated user."""
+    drp_dir = cli_config_root / 'anon' / 'drp'
+    drp_dir.mkdir(parents=True, exist_ok=True)
+    (drp_dir / 'config.json').write_text(json.dumps({'host': HOST, 'ansi': False}))
+    env = {**os.environ, **_env}
+    env['XDG_CONFIG_HOME'] = str(cli_config_root / 'anon')
+    env['NO_COLOR'] = '1'
+    return env
+
 
 # ── Key helpers ───────────────────────────────────────────────────────────────
 
@@ -72,41 +230,8 @@ def unique_key(label=''):
     suffix = secrets.token_urlsafe(6)
     return f'{PREFIX}{label}-{suffix}' if label else f'{PREFIX}{suffix}'
 
-# ── Isolated config dir ───────────────────────────────────────────────────────
 
-@pytest.fixture(scope='session')
-def config_dir(tmp_path_factory):
-    d = tmp_path_factory.mktemp('drp-integration')
-    drp_dir = d / 'drp'
-    drp_dir.mkdir()
-    yield drp_dir
-    shutil.rmtree(d, ignore_errors=True)
-
-@pytest.fixture(scope='session')
-def drp_config(config_dir):
-    cfg = {'host': HOST, 'email': EMAIL, 'ansi': False}
-    (config_dir / 'config.json').write_text(json.dumps(cfg))
-    return cfg
-
-# ── Authenticated requests.Session ───────────────────────────────────────────
-
-@pytest.fixture(scope='session')
-def drp_session(drp_config, config_dir):
-    from cli.api.auth import login as api_login
-    session = requests.Session()
-    if not api_login(HOST, session, EMAIL, PASSWORD):
-        pytest.exit(f'Login failed for {EMAIL} on {HOST}.', returncode=2)
-    (config_dir / 'session.json').write_text(json.dumps(dict(session.cookies)))
-    yield session
-
-# ── CLI environment ───────────────────────────────────────────────────────────
-
-@pytest.fixture(scope='session')
-def cli_env(config_dir, drp_session, drp_config):
-    env = os.environ.copy()
-    env['XDG_CONFIG_HOME'] = str(config_dir.parent)
-    env['NO_COLOR'] = '1'
-    return env
+# ── run_drp ───────────────────────────────────────────────────────────────────
 
 def run_drp(*args, input=None, env=None, check=False):
     result = subprocess.run(
@@ -114,51 +239,12 @@ def run_drp(*args, input=None, env=None, check=False):
     )
     if check and result.returncode != 0:
         raise AssertionError(
-            f'drp {" ".join(args)} exited {result.returncode}\n'
+            f'drp {" ".join(str(a) for a in args)} exited {result.returncode}\n'
             f'stdout: {result.stdout}\nstderr: {result.stderr}'
         )
     return result
 
-# ── Key tracker & cleanup ─────────────────────────────────────────────────────
-
-class KeyTracker:
-    def __init__(self, session, host):
-        self._session = session
-        self._host    = host
-        self._keys    = []
-
-    def add(self, key, ns='c'):
-        self._keys.append((ns, key))
-        return key
-
-    def cleanup(self):
-        from cli.api.actions import delete
-        failed = []
-        for ns, key in self._keys:
-            try:
-                delete(self._host, self._session, key, ns=ns)
-            except Exception:
-                failed.append((ns, key))
-        self._keys.clear()
-        if failed:
-            print(f'\n[tracker] WARNING: could not delete {len(failed)} key(s): {failed}')
-
-@pytest.fixture(scope='session')
-def tracker(drp_session):
-    t = KeyTracker(drp_session, HOST)
-    yield t
-    t.cleanup()
-
-@pytest.fixture
-def track(tracker):
-    return tracker.add
-
-# ── Expose constants ──────────────────────────────────────────────────────────
 
 @pytest.fixture(scope='session')
 def host():
     return HOST
-
-@pytest.fixture(scope='session')
-def credentials():
-    return {'email': EMAIL, 'password': PASSWORD}
