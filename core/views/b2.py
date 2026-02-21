@@ -47,57 +47,30 @@ def presigned_put(ns: str, drop_key: str, content_type: str = "application/octet
     )
 
 
-# ── Presigned GET — cached to avoid a B2 round trip on every download ─────────
-# URLs are valid for 3600s; we cache for 3000s to stay safely inside that window.
-_PRESIGNED_TTL    = 3600   # URL lifetime (seconds)
-_PRESIGNED_CACHE  = 3000   # cache TTL  (seconds) — 10 min safety margin
-
 def presigned_get(ns: str, drop_key: str, filename: str = "",
-                  expires_in: int = _PRESIGNED_TTL, b2_key: str = "") -> str:
+                  expires_in: int = 3600, b2_key: str = "") -> str:
     """
     Return a presigned GET URL for a B2 object.
-
-    Results are cached in Django's cache backend for _PRESIGNED_CACHE seconds
-    so repeated downloads of the same file don't each pay a B2 API round trip.
-    The cache key includes the filename so Content-Disposition changes bust it.
     """
-    from django.core.cache import cache
-
+    client, bucket = _b2()
     b2_obj_key = b2_key if b2_key else object_key(ns, drop_key)
     safe_name  = filename.replace('"', "") if filename else ""
-    cache_key  = f"b2_presigned:{b2_obj_key}:{safe_name}"
-
-    url = cache.get(cache_key)
-    if url:
-        return url
-
-    client, bucket = _b2()
-    params = {"Bucket": bucket, "Key": b2_obj_key}
+    params     = {"Bucket": bucket, "Key": b2_obj_key}
     if safe_name:
         params["ResponseContentDisposition"] = f'attachment; filename="{safe_name}"'
-
-    url = client.generate_presigned_url(
+    return client.generate_presigned_url(
         "get_object", Params=params, ExpiresIn=expires_in,
     )
-    cache.set(cache_key, url, timeout=_PRESIGNED_CACHE)
-    return url
 
 
 def invalidate_presigned(ns: str, drop_key: str, filename: str = "", b2_key: str = "") -> None:
-    """
-    Bust the cached presigned URL for a drop — call this after a file is
-    replaced, renamed, or deleted so stale URLs aren't served.
-    """
-    from django.core.cache import cache
-    b2_obj_key = b2_key if b2_key else object_key(ns, drop_key)
-    safe_name  = filename.replace('"', "") if filename else ""
-    cache.delete(f"b2_presigned:{b2_obj_key}:{safe_name}")
+    """No-op — kept so call sites in actions.py don't need updating."""
+    pass
 
 
 def copy_object(src_key: str, dst_key: str) -> bool:
     """
     Server-side copy within the same B2 bucket.
-    Used by the copy_drop action — no re-upload needed.
     Returns True on success.
     """
     import logging

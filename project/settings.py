@@ -96,17 +96,6 @@ STATIC_ROOT      = BASE_DIR / "project" / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # ── Backblaze B2 ──────────────────────────────────────────────────────────────
-# Files are stored in B2 and served via presigned GET URLs.
-# Railway never proxies file bytes — no timeout risk.
-#
-# Required env vars:
-#   B2_KEY_ID          Application key ID
-#   B2_APP_KEY         Application key secret
-#   B2_BUCKET_NAME     e.g. drp-files
-#   B2_ENDPOINT_URL    e.g. https://s3.us-east-005.backblazeb2.com
-#
-# The endpoint URL encodes the region; set it to match your bucket's region.
-# Find it in the B2 dashboard under Buckets → Endpoint.
 B2_KEY_ID       = os.environ.get("B2_KEY_ID", "")
 B2_APP_KEY      = os.environ.get("B2_APP_KEY", "")
 B2_BUCKET_NAME  = os.environ.get("B2_BUCKET_NAME", "drp-files")
@@ -135,22 +124,11 @@ else:
     )
 
 # ── Lemon Squeezy ─────────────────────────────────────────────────────────────
-LEMONSQUEEZY_API_KEY           = os.environ.get("LEMONSQUEEZY_API_KEY", "")
-LEMONSQUEEZY_SIGNING_SECRET    = os.environ.get("LEMONSQUEEZY_SIGNING_SECRET", "")
-LEMONSQUEEZY_STORE_ID          = os.environ.get("LEMONSQUEEZY_STORE_ID", "")
+LEMONSQUEEZY_API_KEY            = os.environ.get("LEMONSQUEEZY_API_KEY", "")
+LEMONSQUEEZY_SIGNING_SECRET     = os.environ.get("LEMONSQUEEZY_SIGNING_SECRET", "")
+LEMONSQUEEZY_STORE_ID           = os.environ.get("LEMONSQUEEZY_STORE_ID", "")
 LEMONSQUEEZY_STARTER_VARIANT_ID = os.environ.get("LEMONSQUEEZY_STARTER_VARIANT_ID", "")
-LEMONSQUEEZY_PRO_VARIANT_ID    = os.environ.get("LEMONSQUEEZY_PRO_VARIANT_ID", "")
-
-# ── Cache ─────────────────────────────────────────────────────────────────────
-# LocMemCache is per-process and instant — no DB or network round trip.
-# Safe with a single gunicorn worker (all requests share the same process).
-# If workers scale beyond 1, switch to DatabaseCache or Redis so the cache
-# is shared across processes.
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-    }
-}
+LEMONSQUEEZY_PRO_VARIANT_ID     = os.environ.get("LEMONSQUEEZY_PRO_VARIANT_ID", "")
 
 ANON_BIN_MAX_SIZE_MB  = 200
 CLIPBOARD_MAX_SIZE_KB = 500
@@ -158,7 +136,5 @@ CLIPBOARD_MAX_SIZE_KB = 500
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ── Advertising ───────────────────────────────────────────────────────────────
-# Set ADSENSE_CLIENT=ca-pub-xxxxxxxxxxxxxxxx in Railway to enable AdSense.
-# Leave unset to show the Railway referral card instead.
 ADSENSE_CLIENT = os.environ.get("ADSENSE_CLIENT", "")
 ADSENSE_SLOT   = os.environ.get("ADSENSE_SLOT", "")
