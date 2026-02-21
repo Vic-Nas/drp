@@ -8,3 +8,4 @@ psycopg2-binary>=2.9
 resend
 boto3
 markdown
+pytest-timeout

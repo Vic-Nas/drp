@@ -8,9 +8,17 @@ Real end-to-end tests against a live drp server and B2 bucket.
 No manual setup. Tests read your existing `.env` and create/delete
 test users automatically via `manage.py`.
 
+
+## Timeouts
+
+Integration tests can be slow due to real network and storage operations. All tests use pytest-timeout with a default timeout of 120 seconds per test. You can override this with the --timeout option:
+
 ```bash
-pytest integration_tests/ -v
+pytest integration_tests/ -v --timeout=120
 ```
+
+If you expect a specific test to take longer, use the @pytest.mark.timeout(N) decorator in that test file.
+
 
 Three users are created at session start and deleted at the end:
 
