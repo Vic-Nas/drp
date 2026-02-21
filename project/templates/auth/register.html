@@ -1,5 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}drp — create account{% endblock %}
+{% load static %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/auth.css' %}"/>{% endblock %}
 {% block content %}
 <div class="auth-page">
   <h1>create account</h1>

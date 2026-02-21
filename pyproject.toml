@@ -1,5 +1,16 @@
 [tool.pytest.ini_options]
-testpaths = ["cli/tests", "core/tests"]
+# ── Test layout ────────────────────────────────────────────────────────────────
+#
+#   tests/unit/         Fast unit tests — no server, no real DB.
+#                       Run with: pytest tests/unit/
+#
+#   tests/integration/  Integration tests against a real running server + DB.
+#                       Require the server to be running and .env to have DB_URL.
+#                       Run with: pytest tests/integration/
+#
+#   Run all:            pytest tests/
+#
+testpaths = ["tests/unit", "tests/integration"]
 DJANGO_SETTINGS_MODULE = "project.settings"
 
 [build-system]

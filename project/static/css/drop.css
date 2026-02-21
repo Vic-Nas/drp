@@ -1,0 +1,121 @@
+/* ── drop.css ──────────────────────────────────────────────────────────────────
+   Drop view page: share URL, QR panel, clip/file display, password panel.
+   Loaded by: drop.html, expired.html, password_prompt.html
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── Drop page container ── */
+.drop-page { max-width: 680px; }
+
+/* ── Header area ── */
+.drop-header { margin-bottom: 1.5rem; }
+.share-url {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .6rem .9rem;
+  font-family: monospace;
+  font-size: .88rem;
+  color: var(--accent);
+  margin-top: .5rem;
+}
+.share-url span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.share-hint { color: var(--muted); font-size: .78rem; margin-top: .35rem; }
+.lock-hint { font-size: .78rem; margin-top: .35rem; color: #f0a500; }
+.lock-hint.unlocked { color: var(--muted); }
+
+/* ── Key row (reused on drop page) ── */
+.key-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .5rem .8rem;
+  margin-bottom: 1rem;
+}
+.prefix { color: var(--muted); font-size: .9rem; white-space: nowrap; }
+.key-row input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: .95rem;
+  font-family: monospace;
+  font-weight: 600;
+}
+
+/* ── QR panel ── */
+.qr-panel {
+  margin-top: .75rem;
+  padding: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .5rem;
+  width: fit-content;
+}
+.qr-panel canvas,
+.qr-panel img { border-radius: 4px; display: block; }
+.qr-hint { font-size: .75rem; color: var(--muted); }
+
+/* ── Clipboard content display ── */
+.clip-existing pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: .88rem;
+  font-family: monospace;
+  background: none !important;
+  padding: 0;
+}
+.clip-existing pre code.hljs {
+  background: none !important;
+  padding: 0;
+  font-size: .88rem;
+}
+.clip-existing {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+.clip-actions { display: flex; align-items: center; gap: .5rem; margin-top: .7rem; }
+.clip-form { margin-top: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+
+/* ── File card ── */
+.file-card.big {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem;
+}
+.file-icon { font-size: 2rem; }
+.fname { font-weight: 600; }
+.fsize { font-size: .82rem; }
+
+/* ── Password panel (paid owners only) ── */
+.pw-panel {
+  margin-top: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  max-width: 360px;
+}
+.pw-panel .field { margin-bottom: .5rem; }
+
+/* ── Form field (shared on drop page) ── */
+.field { display: flex; flex-direction: column; gap: .25rem; }
+.field label { font-size: .82rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.field input { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); font-size: .95rem; padding: .55rem .8rem; outline: none; transition: border-color .15s; }
+.field input:focus { border-color: var(--accent); }

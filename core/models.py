@@ -19,40 +19,56 @@ class Plan:
 
     LIMITS = {
         ANON: {
-            "label": "Anonymous",
-            "price_monthly": 0,
-            "max_file_mb": 200,
-            "max_text_kb": 500,
-            "max_expiry_days": None,
-            "storage_gb": None,
-            "renewals": 0,
+            "label":                      "Anonymous",
+            "price_monthly":              0,
+            "max_file_mb":                200,
+            "max_text_kb":                500,
+            # No user-settable expiry date; clipboard drops expire by idle/max rules.
+            "max_expiry_days":            None,
+            # Clipboard drops: 24 h idle window, 7-day hard ceiling.
+            "clipboard_idle_hours":       24,
+            "clipboard_max_lifetime_days": 7,
+            "storage_gb":                 None,
+            "renewals":                   0,
+            "password_protection":        False,
         },
         FREE: {
-            "label": "Free",
-            "price_monthly": 0,
-            "max_file_mb": 200,
-            "max_text_kb": 500,
-            "max_expiry_days": None,
-            "storage_gb": None,
-            "renewals": 0,
+            "label":                      "Free",
+            "price_monthly":              0,
+            "max_file_mb":                200,
+            "max_text_kb":                500,
+            # No user-settable expiry date; clipboard drops expire by idle/max rules.
+            "max_expiry_days":            None,
+            # Clipboard drops: 48 h idle window, 30-day hard ceiling.
+            "clipboard_idle_hours":       48,
+            "clipboard_max_lifetime_days": 30,
+            "storage_gb":                 None,
+            "renewals":                   0,
+            "password_protection":        False,
         },
         STARTER: {
-            "label": "Starter",
-            "price_monthly": 3,
-            "max_file_mb": 1024,
-            "max_text_kb": 2048,
-            "max_expiry_days": 365,
-            "storage_gb": 5,
-            "renewals": None,
+            "label":                      "Starter",
+            "price_monthly":              3,
+            "max_file_mb":                1024,
+            "max_text_kb":                2048,
+            "max_expiry_days":            365,
+            "clipboard_idle_hours":       None,   # explicit expiry only
+            "clipboard_max_lifetime_days": None,  # explicit expiry only
+            "storage_gb":                 5,
+            "renewals":                   None,   # unlimited
+            "password_protection":        True,
         },
         PRO: {
-            "label": "Pro",
-            "price_monthly": 8,
-            "max_file_mb": 5120,
-            "max_text_kb": 10240,
-            "max_expiry_days": 365 * 3,
-            "storage_gb": 20,
-            "renewals": None,
+            "label":                      "Pro",
+            "price_monthly":              8,
+            "max_file_mb":                5120,
+            "max_text_kb":                10240,
+            "max_expiry_days":            365 * 3,
+            "clipboard_idle_hours":       None,
+            "clipboard_max_lifetime_days": None,
+            "storage_gb":                 20,
+            "renewals":                   None,   # unlimited
+            "password_protection":        True,
         },
     }
 
@@ -231,7 +247,8 @@ class Drop(models.Model):
                 return True
 
         if self.ns == self.NS_CLIPBOARD:
-            idle_hours = 24 if not self.owner_id else 48
+            plan = self.owner_plan if self.owner_id else Plan.ANON
+            idle_hours = Plan.get(plan, "clipboard_idle_hours") or 24
             ref = self.last_accessed_at or self.created_at
             return (now - ref) > timedelta(hours=idle_hours)
 

@@ -1,20 +1,20 @@
 """
-integration_tests/conftest.py
+tests/integration/conftest.py
 
-Zero manual setup — everything derived from your existing .env.
+Zero-setup integration test fixtures. Everything is derived from .env.
 
-Users are created automatically at session start via `manage.py shell -c`
-and left in the DB (marked is_test=True). Purged at next deploy via
-PURGE_TEST_DATA=true. One user per plan tier + anonymous:
+Users are created once per session via manage.py shell -c, marked is_test=True,
+and left in the DB (purged at next deploy with python manage.py purge_test_data).
 
-    anon     — unauthenticated requests.Session
-    free     — test-free@{DOMAIN}     Plan.FREE
-    starter  — test-starter@{DOMAIN}  Plan.STARTER
-    pro      — test-pro@{DOMAIN}      Plan.PRO
+Plan tiers available as fixtures:
+    anon          — unauthenticated requests.Session
+    free_user     — test-free@{DOMAIN}    Plan.FREE
+    starter_user  — test-starter@{DOMAIN} Plan.STARTER
+    pro_user      — test-pro@{DOMAIN}     Plan.PRO
 
-Host:
-    DEBUG=True (or no DOMAIN)  →  http://localhost:8000
-    otherwise                  →  https://{DOMAIN}
+Host resolution:
+    DEBUG=True or DOMAIN=localhost  →  http://localhost:8000
+    otherwise                       →  https://{DOMAIN}
 """
 
 import json
@@ -41,15 +41,19 @@ def _load_dotenv(path):
             vals[k.strip()] = v.strip().strip('"').strip("'")
     return vals
 
-_ROOT = Path(__file__).parent.parent
+
+_ROOT = Path(__file__).parent.parent.parent
 _env  = _load_dotenv(_ROOT / '.env')
+
 
 def _get(key, default=None):
     return _env.get(key) or os.environ.get(key) or default
 
-# ── Host & domain ─────────────────────────────────────────────────────────────
+
+# ── Host ──────────────────────────────────────────────────────────────────────
 
 DOMAIN = _get('DOMAIN', 'localhost').rstrip('/')
+
 
 def _resolve_host():
     debug = _get('DEBUG', 'False').lower() in ('1', 'true', 'yes')
@@ -57,21 +61,20 @@ def _resolve_host():
         return 'http://localhost:8000'
     return f'https://{DOMAIN}'
 
+
 HOST = _resolve_host()
 
-# ── User management via manage.py ─────────────────────────────────────────────
+
+# ── User management ───────────────────────────────────────────────────────────
 
 def _manage(code):
-    """Run a Python snippet in manage.py shell -c. Raises on non-zero exit."""
     result = subprocess.run(
         ['python', 'manage.py', 'shell', '-c', code],
         capture_output=True, text=True, cwd=_ROOT,
         env={**os.environ, **_env},
     )
     if result.returncode != 0:
-        raise RuntimeError(
-            f'manage.py shell failed:\n{result.stdout}\n{result.stderr}'
-        )
+        raise RuntimeError(f'manage.py shell failed:\n{result.stdout}\n{result.stderr}')
     return result.stdout.strip()
 
 
@@ -89,10 +92,6 @@ p.save(update_fields=['plan', 'is_test'])
 """)
 
 
-
-
-# ── Test user definitions ─────────────────────────────────────────────────────
-
 _TEST_USERS = [
     ('free',    f'test-free@{DOMAIN}',    'FREE'),
     ('starter', f'test-starter@{DOMAIN}', 'STARTER'),
@@ -109,7 +108,7 @@ class TestUser:
         self.session  = session
 
     def track(self, key, ns='c'):
-        """No-op — test data is purged at deploy via is_test flag."""
+        """No-op — is_test=True purges data at deploy."""
         return key
 
 
@@ -121,45 +120,43 @@ def _login_session(email, password):
     return s
 
 
-# ── Session-scoped fixtures ───────────────────────────────────────────────────
+# ── Fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope='session')
 def users():
-    """
-    Create all test users once and yield dict keyed by plan name.
-    Users are marked is_test=True and left in the DB — purged at next deploy.
-    Access as: users['free'], users['starter'], users['pro']
-    """
+    """Create all test users once, yield dict keyed by plan name."""
     password = secrets.token_urlsafe(16)
     created  = {}
-
     for name, email, plan in _TEST_USERS:
         _create_user(email, password, plan)
         session = _login_session(email, password)
         created[name] = TestUser(email, password, plan, session)
-
     yield created
 
 
 @pytest.fixture(scope='session')
 def anon():
-    """Unauthenticated requests.Session."""
     return requests.Session()
 
-@pytest.fixture(scope='session')
-def free_user(users):
-    return users['free']
 
 @pytest.fixture(scope='session')
-def starter_user(users):
-    return users['starter']
+def free_user(users):    return users['free']
+
 
 @pytest.fixture(scope='session')
-def pro_user(users):
-    return users['pro']
+def starter_user(users): return users['starter']
 
 
-# ── CLI env dicts (one per plan + anon) ──────────────────────────────────────
+@pytest.fixture(scope='session')
+def pro_user(users):     return users['pro']
+
+
+@pytest.fixture(scope='session')
+def host():
+    return HOST
+
+
+# ── CLI env dicts ─────────────────────────────────────────────────────────────
 
 @pytest.fixture(scope='session')
 def cli_config_root(tmp_path_factory):
@@ -170,11 +167,6 @@ def cli_config_root(tmp_path_factory):
 
 @pytest.fixture(scope='session')
 def cli_envs(cli_config_root, users):
-    """
-    Dict of subprocess env dicts, one per plan.
-    Each has its own isolated XDG_CONFIG_HOME with the right session cookies.
-    Usage: cli_envs['free'], cli_envs['starter'], cli_envs['pro']
-    """
     envs = {}
     for name, user in users.items():
         drp_dir = cli_config_root / name / 'drp'
@@ -192,7 +184,6 @@ def cli_envs(cli_config_root, users):
 
 @pytest.fixture(scope='session')
 def anon_cli_env(cli_config_root):
-    """CLI env for an unauthenticated user."""
     drp_dir = cli_config_root / 'anon' / 'drp'
     drp_dir.mkdir(parents=True, exist_ok=True)
     (drp_dir / 'config.json').write_text(json.dumps({'host': HOST, 'ansi': False}))
@@ -204,20 +195,18 @@ def anon_cli_env(cli_config_root):
 
 @pytest.fixture(scope='session')
 def cli_env(anon_cli_env):
-    """Alias for anon_cli_env — used by tests that only need a bare CLI env."""
     return anon_cli_env
 
 
-# ── Key helpers ───────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 PREFIX = 'drptest-'
+
 
 def unique_key(label=''):
     suffix = secrets.token_urlsafe(6)
     return f'{PREFIX}{label}-{suffix}' if label else f'{PREFIX}{suffix}'
 
-
-# ── run_drp ───────────────────────────────────────────────────────────────────
 
 def run_drp(*args, input=None, env=None, check=False):
     result = subprocess.run(
@@ -229,8 +218,3 @@ def run_drp(*args, input=None, env=None, check=False):
             f'stdout: {result.stdout}\nstderr: {result.stderr}'
         )
     return result
-
-
-@pytest.fixture(scope='session')
-def host():
-    return HOST

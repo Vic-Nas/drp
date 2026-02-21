@@ -1,0 +1,169 @@
+/* ── base.css ──────────────────────────────────────────────────────────────────
+   Global variables, reset, layout shell, nav, buttons, shared utilities.
+   Loaded by every template via base.html.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #e8e8e8;
+  --muted: #888;
+  --accent: #5b8dee;
+  --danger: #e05555;
+  --radius: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Header — sticky, always full viewport width ── */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.logo {
+  font-size: 1.4rem;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: var(--text);
+}
+
+/* ── Main — full width shell, no centering here ── */
+main {
+  flex: 1;
+  width: 100%;
+  padding: 0;
+}
+
+/* ── Footer — sticky at bottom, always full viewport width ── */
+footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 90;
+  width: 100%;
+  text-align: center;
+  padding: 1.2rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.8rem;
+}
+
+/* ── Page content — the centered column inside main ── */
+.page-content {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+}
+
+@media (min-width: 1000px) {
+  .page-content {
+    margin-left: calc(
+      min(300px, calc((100vw - 900px) / 2 - 16px)) / 2
+      + (100vw - 900px) / 2
+    );
+    margin-right: auto;
+  }
+}
+
+/* ── Nav ── */
+nav { display: flex; align-items: center; gap: 1.2rem; }
+nav a { color: var(--muted); font-size: .88rem; transition: color .15s; }
+nav a:hover { color: var(--text); text-decoration: none; }
+
+/* ── Buttons ── */
+.btn {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  padding: .6rem 1.4rem;
+  font-size: .95rem;
+  cursor: pointer;
+  font-weight: 600;
+  transition: opacity .2s;
+  display: inline-block;
+  text-decoration: none;
+}
+.btn:hover:not(:disabled) { opacity: .85; text-decoration: none; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+
+.btn-sm {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: .3rem .7rem;
+  font-size: .82rem;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color .2s;
+  white-space: nowrap;
+}
+.btn-sm:hover { border-color: var(--accent); text-decoration: none; }
+.btn-sm.danger { color: var(--danger); border-color: transparent; }
+.btn-sm.danger:hover { border-color: var(--danger); }
+
+.btn-nav { background: var(--accent); color: #fff !important; border-radius: 6px; padding: .35em .9em; font-size: .85rem; font-weight: 600; transition: opacity .15s; }
+.btn-nav:hover { opacity: .85; text-decoration: none; }
+
+.btn-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: inherit; padding: 0; text-decoration: underline; }
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--text);
+  color: var(--bg);
+  padding: .5rem 1.2rem;
+  border-radius: 20px;
+  font-size: .85rem;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity .2s;
+  pointer-events: none;
+  z-index: 999;
+}
+.toast.show { opacity: 1; }
+
+/* ── Misc utilities ── */
+.muted { color: var(--muted); }
+.hidden { display: none !important; }
+.error { color: var(--danger); font-size: .85rem; }
+.empty { font-size: .85rem; }
+.mono { font-family: monospace; font-weight: 600; }
+
+/* ── Plan badge ── */
+.plan-badge { display: inline-block; padding: .1em .5em; border-radius: 4px; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+.plan-badge[class*="starter"] { border-color: var(--accent); color: var(--accent); }
+.plan-badge[class*="pro"] { border-color: #b48aff; color: #b48aff; }
+
+/* ── Responsive base ── */
+@media (max-width: 700px) {
+  .page-content { padding: 1.5rem 1rem; }
+}

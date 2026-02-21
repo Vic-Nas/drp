@@ -1,0 +1,190 @@
+/* ── home.css ──────────────────────────────────────────────────────────────────
+   Home page: creator panel, key row, textarea, drop-zone, dashboard sidebar.
+   Loaded by: home.html
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── Home layout ── */
+.home-wrap {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 2rem;
+  align-items: start;
+}
+
+.creator h1 { font-size: 2.5rem; font-weight: 800; letter-spacing: -1.5px; margin-bottom: .3rem; }
+.tagline { color: var(--muted); margin-bottom: 1.2rem; }
+
+/* ── Key row ── */
+.key-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .5rem .8rem;
+  margin-bottom: 1rem;
+}
+.prefix { color: var(--muted); font-size: .9rem; white-space: nowrap; }
+.key-row input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: .95rem;
+  font-family: monospace;
+  font-weight: 600;
+}
+#keyStatus { font-size: .8rem; white-space: nowrap; }
+#keyStatus.ok { color: #5bc87a; }
+#keyStatus.taken { color: var(--danger); }
+
+/* ── Content area ── */
+.content-area { display: flex; flex-direction: column; gap: .8rem; margin-bottom: 1rem; }
+
+textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: .9rem;
+  padding: .8rem;
+  resize: vertical;
+  font-family: monospace;
+  outline: none;
+  width: 100%;
+}
+textarea:focus { border-color: var(--accent); }
+textarea:disabled { opacity: .4; }
+
+.or-divider { text-align: center; color: var(--muted); font-size: .85rem; }
+
+/* ── Drop zone ── */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 1.8rem 1rem;
+  text-align: center;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: rgba(91,141,238,.05); }
+.drop-zone.small { padding: 1rem; }
+.drop-zone.has-file { border-color: #5bc87a; }
+.link { color: var(--accent); cursor: pointer; }
+
+.file-preview {
+  display: flex;
+  align-items: center;
+  gap: .8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .6rem .9rem;
+  font-size: .88rem;
+}
+
+/* ── Dashboard ── */
+.dashboard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+.dashboard h3 { font-size: .9rem; color: var(--muted); margin-bottom: .8rem; text-transform: uppercase; letter-spacing: .05em; }
+.drop-list { display: flex; flex-direction: column; gap: .4rem; }
+.drop-item {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem .2rem;
+  border-bottom: 1px solid var(--border);
+  font-size: .88rem;
+}
+.drop-item:last-child { border-bottom: none; }
+.drop-key { font-family: monospace; font-weight: 600; flex: 1; }
+.drop-label { font-size: .78rem; color: var(--muted); max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drop-icon { font-size: .9rem; }
+
+/* ── Dashboard actions ── */
+.dashboard-actions { display: flex; gap: .4rem; margin-top: .8rem; flex-wrap: wrap; }
+
+/* ── Claim banner ── */
+.claim-banner {
+  background: rgba(91, 200, 122, .1);
+  border: 1px solid #5bc87a;
+  border-radius: var(--radius);
+  padding: .55rem .9rem;
+  font-size: .88rem;
+  color: #5bc87a;
+  margin-bottom: 1rem;
+}
+
+/* ── Anon nudge ── */
+.anon-nudge { font-size: .82rem; color: var(--muted); margin-top: .5rem; }
+.anon-nudge a { color: var(--accent); }
+
+/* ── Anon upsell ── */
+.anon-upsell { margin-top: 1rem; padding-top: .9rem; border-top: 1px solid var(--border); }
+.upsell-heading { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: .4rem; font-weight: 600; }
+.upsell-list { list-style: none; display: flex; flex-direction: column; gap: .2rem; font-size: .82rem; color: var(--muted); margin-bottom: .2rem; }
+.upsell-list li { color: var(--text); }
+
+/* ── Expiry row ── */
+.expiry-row { display: flex; align-items: center; gap: .6rem; font-size: .88rem; margin-bottom: .6rem; }
+.expiry-row label { color: var(--muted); }
+.expiry-row select { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: .3rem .6rem; font-size: .88rem; outline: none; }
+
+/* ── Home tabs (save / get) ── */
+.home-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+.home-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: .9rem;
+  font-weight: 600;
+  margin-bottom: -1px;
+  padding: .4rem .9rem;
+  transition: color .15s, border-color .15s;
+}
+.home-tab:hover { color: var(--text); }
+.home-tab.active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+/* ── Result box ── */
+.result-box {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  background: var(--surface);
+  border: 1px solid #5bc87a;
+  border-radius: var(--radius);
+  padding: .6rem .9rem;
+  margin-top: .8rem;
+  font-family: monospace;
+  font-size: .9rem;
+}
+.result-box a { color: var(--accent); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── Storage bar (also used in account, but lives here since home sidebar uses it) ── */
+.storage-label { font-size: .8rem; color: var(--muted); margin-bottom: .35rem; }
+.storage-bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.storage-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s; }
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .home-wrap { grid-template-columns: 1fr; }
+  .dashboard { order: -1; }
+  .creator h1 { font-size: 1.8rem; }
+}

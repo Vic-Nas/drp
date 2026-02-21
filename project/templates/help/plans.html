@@ -3,7 +3,7 @@
 
 {% block help_content %}
 <h1>plans</h1>
-<p class="lead">drp is free to use anonymously. Signing up for a free account unlocks more. Paid plans add storage, larger files, and locked drops.</p>
+<p class="lead">drp is free to use anonymously. A free account gives you longer-lived drops and cross-device sync. Paid plans add storage, larger uploads, locked drops, and explicit expiry you control.</p>
 
 <h2>comparison</h2>
 <table>
@@ -11,35 +11,82 @@
     <th></th>
     <th>Anonymous</th>
     <th>Free</th>
-    <th>Starter ($3/mo)</th>
-    <th>Pro ($8/mo)</th>
+    <th>Starter <small>$3/mo</small></th>
+    <th>Pro <small>$8/mo</small></th>
   </tr>
-  <tr><td>Max file size</td><td>200 MB</td><td>200 MB</td><td>1 GB</td><td>5 GB</td></tr>
-  <tr><td>Max clipboard</td><td>500 KB</td><td>500 KB</td><td>2 MB</td><td>10 MB</td></tr>
-  <tr><td>Storage quota</td><td>—</td><td>—</td><td>5 GB</td><td>20 GB</td></tr>
-  <tr><td>Clipboard idle</td><td>24h</td><td>48h</td><td>explicit</td><td>explicit</td></tr>
-  <tr><td>Clipboard max lifetime</td><td>7 days</td><td>30 days</td><td>up to 1 year</td><td>up to 3 years</td></tr>
-  <tr><td>File expiry</td><td>90 days</td><td>90 days</td><td>up to 1 year</td><td>up to 3 years</td></tr>
-  <tr><td>Locked drops</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td></tr>
-  <tr><td>Renewable drops</td><td>✗</td><td>✗</td><td>✓</td><td>✓</td></tr>
-  <tr><td>Saved drops</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td></tr>
-  <tr><td>Export / import</td><td>✗</td><td>✓</td><td>✓</td><td>✓</td></tr>
+  <tr>
+    <td>Max file size</td>
+    <td>200 MB</td><td>200 MB</td><td>1 GB</td><td>5 GB</td>
+  </tr>
+  <tr>
+    <td>Max clipboard size</td>
+    <td>500 KB</td><td>500 KB</td><td>2 MB</td><td>10 MB</td>
+  </tr>
+  <tr>
+    <td>Storage quota</td>
+    <td>—</td><td>—</td><td>5 GB</td><td>20 GB</td>
+  </tr>
+  <tr>
+    <td>Clipboard expiry</td>
+    <td>24 h idle, 7 d max</td>
+    <td>48 h idle, 30 d max</td>
+    <td>explicit (up to 1 year)</td>
+    <td>explicit (up to 3 years)</td>
+  </tr>
+  <tr>
+    <td>File expiry</td>
+    <td>90 days from upload</td>
+    <td>90 days from upload</td>
+    <td>explicit (up to 1 year)</td>
+    <td>explicit (up to 3 years)</td>
+  </tr>
+  <tr>
+    <td>Custom expiry date</td>
+    <td>✗</td><td>✗</td><td>✓</td><td>✓</td>
+  </tr>
+  <tr>
+    <td>Locked drops</td>
+    <td>✗</td><td>✗</td><td>✓</td><td>✓</td>
+  </tr>
+  <tr>
+    <td>Password protection</td>
+    <td>✗</td><td>✗</td><td>✓</td><td>✓</td>
+  </tr>
+  <tr>
+    <td>Renewable drops</td>
+    <td>✗</td><td>✗</td><td>✓</td><td>✓</td>
+  </tr>
+  <tr>
+    <td>Saved / bookmarked drops</td>
+    <td>✗</td><td>✓</td><td>✓</td><td>✓</td>
+  </tr>
+  <tr>
+    <td>Export / import</td>
+    <td>✗</td><td>✓</td><td>✓</td><td>✓</td>
+  </tr>
 </table>
 
+<h2>expiry in plain english</h2>
+<p><strong>Anonymous clipboard drops</strong> expire 24 hours after the last view, or after 7 days total — whichever comes first. No way to extend them.</p>
+<p><strong>Free account clipboard drops</strong> expire 48 hours after the last view, or after 30 days total. Still automatic — you cannot set a specific date.</p>
+<p><strong>Paid drops</strong> let you choose an explicit expiry date at upload time: up to 1 year for Starter, up to 3 years for Pro. They can also be renewed, pushing the expiry forward by the same duration again.</p>
+<p><strong>File drops</strong> (anon and free) expire 90 days after upload regardless of access.</p>
+
 <h2>what "locked" means</h2>
-<p>Anonymous and free drops are unlocked — after the 24h creation window, anyone who knows the key can replace the content. This is intentional for quick sharing, but means your drop isn't private.</p>
-<p>Paid drops are permanently locked to your account. Only you can edit, rename, delete, or renew them. Nobody else can overwrite a key you own.</p>
+<p>On anonymous and free plans, after the 24-hour post-creation window anyone who knows your key can overwrite its content. This is by design for quick ephemeral sharing.</p>
+<p>Paid drops are permanently locked to your account the moment you create them. Only you can edit, rename, delete, or renew them. No one can overwrite a key you own.</p>
 
 <h2>storage quota</h2>
-<p>Storage applies to files only — text clipboards don't count toward it. Your usage is shown on your account page and in the dashboard on the home page. Dropping a file that would exceed your quota is rejected at upload time.</p>
-<p>When a file drop is deleted (by you or by expiry), its storage is freed immediately.</p>
+<p>Storage counts file drops only — text clipboards are free. Your current usage is shown on your <a href="/auth/account/">account page</a>. If a file upload would push you over quota it is rejected immediately at upload time with a clear error. Deleting a file drop frees the storage instantly.</p>
+
+<h2>password protection</h2>
+<p>Paid accounts can add a password to any drop they own. The password is stored as a secure hash (PBKDF2) — it is never saved in plain text. Browsers remember unlocked drops for the session. The CLI prompts for passwords automatically when needed.</p>
 
 <h2>free accounts</h2>
-<p>Creating a free account requires only an email and password. No credit card. Free accounts get longer expiry, saved drops, export/import, and cross-device sync (your drops are attached to your account, not just your browser).</p>
+<p>Signing up needs only an email and password — no credit card. You get longer expiry, bookmarked drops, export/import, and cross-device sync (drops are attached to your account, not just your browser cookie).</p>
 
-<h2>upgrading & billing</h2>
-<p>Paid plans are billed monthly through Lemon Squeezy. You can upgrade from your <a href="/auth/account/">account page</a>. Downgrading or cancelling returns you to the free plan at the end of the billing period — your drops aren't immediately deleted, but the paid limits no longer apply to new drops.</p>
-<p>To manage or cancel your subscription, visit the <a href="/billing/portal/">billing portal</a>.</p>
+<h2>upgrading &amp; billing</h2>
+<p>Paid plans bill monthly through <a href="https://www.lemonsqueezy.com" rel="noopener">Lemon Squeezy</a>. Upgrade from your <a href="/auth/account/">account page</a>. Cancelling returns you to the free plan at the end of the billing period — your drops are not immediately deleted, but paid-only limits no longer apply to new uploads. Manage or cancel any time in the <a href="/billing/portal/">billing portal</a>.</p>
 
 <h2>getting started</h2>
 <p>
