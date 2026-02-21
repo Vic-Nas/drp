@@ -81,7 +81,15 @@ footer {
 
 @media (min-width: 1000px) {
   .page-content {
-    margin-left: min(300px, calc((100vw - 900px) / 2 - 16px));
+    /* Rail width = min(300px, (100vw - 900px) / 2 - 16px)
+       Center 900px in the space to the right of the rail:
+       margin-left = rail + (remaining - 900px) / 2
+                   = rail + (100vw - rail - 900px) / 2
+                   = rail/2 + (100vw - 900px) / 2 */
+    margin-left: calc(
+      min(300px, calc((100vw - 900px) / 2 - 16px)) / 2
+      + (100vw - 900px) / 2
+    );
     margin-right: auto;
   }
 }
