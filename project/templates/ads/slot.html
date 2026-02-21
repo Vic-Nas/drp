@@ -1,21 +1,21 @@
 {% comment %}
-ads/slot.html — sticky left-rail ad unit. Standard 160×600 Wide Skyscraper.
+ads/slot.html — sticky left-rail ad unit. Standard 300×600 Half Page.
 
-Only visible at 1300px+ (wide enough to have gutter beside the 900px main).
+Only visible at 1560px+ (wide enough to have gutter beside the 900px main).
 No layout shift on smaller screens — the rail is position:fixed and display:none
 below the breakpoint.
 
 Behaviour:
-  ADSENSE_CLIENT unset  → Railway referral card
-  ADSENSE_CLIENT set    → AdSense 160×600 Wide Skyscraper (fixed size)
+  ADSENSE_CLIENT unset  → Railway referral card (300×600)
+  ADSENSE_CLIENT set    → AdSense 300×600 Half Page (fixed size)
 
-AdSense setup: create a "160×600 Wide Skyscraper" ad unit in your AdSense
+AdSense setup: create a "300×600 Half Page" ad unit in your AdSense
 dashboard and set ADSENSE_SLOT to that unit's slot ID.
 {% endcomment %}
 {% if adsense_client %}
 <div class="ad-rail">
   <ins class="adsbygoogle ad-adsense"
-       style="display:block;width:160px;height:600px"
+       style="display:block;width:300px;height:600px"
        data-ad-client="{{ adsense_client }}"
        data-ad-slot="{{ adsense_slot|default:'' }}"
        data-ad-format="fixed"></ins>
@@ -25,7 +25,7 @@ dashboard and set ADSENSE_SLOT to that unit's slot ID.
 <div class="ad-rail">
   <a href="https://railway.com?referralCode=ZIdvo-" target="_blank" rel="noopener sponsored" class="ad-railway">
     <span class="ad-railway__logo">Railway</span>
-    <span class="ad-railway__tagline">The platform drp runs on</span>
+    <span class="ad-railway__tagline">The platform drp runs on — deploy your own instance in minutes</span>
     <span class="ad-railway__cta">Try it free →</span>
   </a>
 </div>
