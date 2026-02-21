@@ -136,7 +136,11 @@ def save_bookmark(host, session, key, ns='c'):
             _url(host, ns, key, 'save'),
             data={'csrfmiddlewaretoken': csrf},
             timeout=10,
+            allow_redirects=False,
         )
+        if res.status_code in (301, 302, 303):
+            err('drp save requires a logged-in account. Run: drp login')
+            return False
         if res.ok:
             return True
         if res.status_code == 403:

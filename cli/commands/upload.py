@@ -35,6 +35,10 @@ def _parse_expires(value: str) -> int | None:
 
 
 def _copy_to_clipboard(text: str) -> bool:
+    # Don't attempt clipboard copy in non-interactive environments (pipes, test subprocesses)
+    if not sys.stdout.isatty():
+        return False
+
     try:
         import pyperclip
         pyperclip.copy(text)

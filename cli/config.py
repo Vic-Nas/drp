@@ -6,10 +6,11 @@ Local drop history is stored in ~/.config/drp/drops.json for anonymous users.
 """
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-CONFIG_DIR = Path.home() / '.config' / 'drp'
+CONFIG_DIR = Path(os.environ.get('XDG_CONFIG_HOME', Path.home() / '.config')) / 'drp'
 CONFIG_FILE = CONFIG_DIR / 'config.json'
 DROPS_FILE = CONFIG_DIR / 'drops.json'
 
