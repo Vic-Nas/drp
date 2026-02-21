@@ -13,3 +13,14 @@ class CoreConfig(AppConfig):
             b2._b2()
         except Exception:
             pass  # never block startup if B2 credentials are missing
+
+        # Purge test data left by the integration suite.
+        # Only runs when PURGE_TEST_DATA=true is set — never in production
+        # unless you explicitly opt in.
+        import os
+        if os.environ.get('PURGE_TEST_DATA', '').lower() in ('1', 'true', 'yes'):
+            try:
+                from django.core.management import call_command
+                call_command('purge_test_data', verbosity=0)
+            except Exception:
+                pass  # never block startup

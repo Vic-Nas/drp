@@ -83,6 +83,9 @@ class UserProfile(models.Model):
     ls_subscription_status = models.CharField(max_length=32, blank=True, default="",
                                               help_text="active, cancelled, expired, etc.")
 
+    is_test = models.BooleanField(default=False, db_index=True,
+                                  help_text="Created by the integration test suite. Purged at deploy.")
+
     def __str__(self):
         return f"{self.user.username} [{self.plan}]"
 
@@ -168,6 +171,9 @@ class Drop(models.Model):
     renewal_count = models.PositiveIntegerField(default=0)
 
     burn = models.BooleanField(default=False, help_text="Delete after first view")
+
+    is_test = models.BooleanField(default=False, db_index=True,
+                                  help_text="Created by the integration test suite. Purged at deploy.")
 
     # ── Password protection (paid accounts only) ──────────────────────────────
     # Stored as a Django password hash (PBKDF2). Never stored in plaintext.
