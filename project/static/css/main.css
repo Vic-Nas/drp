@@ -53,12 +53,20 @@ main {
   padding: 2.5rem 1.5rem;
 }
 
-/* Rail is the left wall — push main right by the rail width so it
-   centers in the remaining space. Header and footer are unaffected. */
+/* Rail is the left wall. Pad body so everything centers in the
+   remaining space. Then explicitly cancel that padding on header
+   and footer so they stay full viewport width. */
 @media (min-width: 1000px) {
-  main {
-    margin-left: min(300px, calc((100vw - 900px) / 2 - 16px));
-    margin-right: auto;
+  body {
+    padding-left: min(300px, calc((100vw - 900px) / 2 - 16px));
+  }
+  header {
+    margin-left: calc(-1 * min(300px, calc((100vw - 900px) / 2 - 16px)));
+    width: 100vw;
+  }
+  footer {
+    margin-left: calc(-1 * min(300px, calc((100vw - 900px) / 2 - 16px)));
+    width: 100vw;
   }
 }
 
