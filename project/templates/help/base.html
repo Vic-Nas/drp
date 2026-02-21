@@ -14,7 +14,6 @@
       <a href="{% url 'help_index' %}"  {% if request.resolver_match.url_name == 'help_index'  %}class="active"{% endif %}>overview</a>
       <a href="{% url 'help_cli' %}"    {% if request.resolver_match.url_name == 'help_cli'    %}class="active"{% endif %}>CLI</a>
       <a href="{% url 'help_plans' %}"  {% if request.resolver_match.url_name == 'help_plans'  %}class="active"{% endif %}>plans</a>
-      <a href="{% url 'help_expiry' %}" {% if request.resolver_match.url_name == 'help_expiry' %}class="active"{% endif %}>expiry</a>
     </div>
   </nav>
 
