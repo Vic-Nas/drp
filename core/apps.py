@@ -1,3 +1,5 @@
+import os
+
 from django.apps import AppConfig
 
 
@@ -7,18 +9,22 @@ class CoreConfig(AppConfig):
 
     def ready(self):
         # Warm the B2 client once at worker startup so the first request
-        # doesn't pay the boto3 initialization cost (~800ms–1s).
+        # does not pay the boto3 initialization cost (~800ms-1s).
         try:
             from core.views import b2
             b2._b2()
         except Exception:
             pass  # never block startup if B2 credentials are missing
 
-        # Always purge test data on startup — is_test=True is only set by the
-        # integration suite, so this is a no-op in production unless tests ran
-        # against it directly. No env var gate needed.
-        try:
-            from django.core.management import call_command
-            call_command('purge_test_data', verbosity=0)
-        except Exception:
-            pass  # never block startup
+        # Purge test data once per deploy, not once per worker.
+        # RUN_MAIN=true is set by Django's dev reloader for the parent process.
+        # Under gunicorn it is not set at all — so we check for a PURGE_DONE
+        # sentinel file to ensure only one worker runs the purge.
+        sentinel = '/tmp/drp_purge_done'
+        if not os.path.exists(sentinel):
+            try:
+                open(sentinel, 'w').close()
+                from django.core.management import call_command
+                call_command('purge_test_data', verbosity=0)
+            except Exception:
+                pass  # never block startup
