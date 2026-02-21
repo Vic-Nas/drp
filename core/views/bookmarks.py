@@ -10,12 +10,14 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
-from core.models import SavedDrop
+from core.models import Drop, SavedDrop
 
 
 @login_required
 @require_POST
 def save_bookmark(request, ns, key):
+    if not Drop.objects.filter(ns=ns, key=key).exists():
+        return JsonResponse({'error': 'Drop not found.'}, status=404)
     _, created = SavedDrop.objects.get_or_create(
         user=request.user,
         ns=ns,

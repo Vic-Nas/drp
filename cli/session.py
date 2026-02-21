@@ -17,7 +17,7 @@ SESSION_FILE = config.CONFIG_DIR / 'session.json'
 # hitting the server to validate. Avoids a full Railway round-trip on every
 # command. When the session does expire, the next real API call returns 302
 # which auto_login already handles by re-prompting.
-SESSION_CACHE_SECS = 300  # 5 minutes
+SESSION_CACHE_SECS = 3600  # 1 hour — long enough to cover a full test suite run
 
 
 def load_session(session):

@@ -158,7 +158,7 @@ def _send(payload: dict) -> None:
         requests.post(
             f'{host}/api/report-error/',
             json=payload,
-            timeout=5,
+            timeout=3,
         )
     except Exception:
         pass  # never let the reporter interfere with the CLI

@@ -32,7 +32,11 @@ def cmd_serve(args):
         sys.exit(1)
 
     session = requests.Session()
-    auto_login(cfg, host, session)
+    authed = auto_login(cfg, host, session)
+
+    if not cfg.get('email') or not authed:
+        print('  ✗ drp serve requires a logged-in account. Run: drp login')
+        sys.exit(1)
 
     # ── Resolve file list ─────────────────────────────────────────────────────
     paths = _resolve_paths(args.targets)

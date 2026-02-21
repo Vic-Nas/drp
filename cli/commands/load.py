@@ -45,11 +45,13 @@ def cmd_load(args):
         print('  ✗ Not logged in. Run: drp login')
         sys.exit(1)
 
+    from cli.api.auth import get_csrf
+    csrf = get_csrf(host, session)
     try:
         res = session.post(
             f'{host}/auth/account/import/',
             json=data,
-            headers={'Content-Type': 'application/json'},
+            headers={'Content-Type': 'application/json', 'X-CSRFToken': csrf},
             timeout=15,
         )
     except Exception as e:

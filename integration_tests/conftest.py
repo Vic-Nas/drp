@@ -202,7 +202,9 @@ def cli_envs(cli_config_root, users):
         (drp_dir / 'config.json').write_text(json.dumps(
             {'host': HOST, 'email': user.email, 'ansi': False}
         ))
-        (drp_dir / 'session.json').write_text(json.dumps(dict(user.session.cookies)))
+        session_file = drp_dir / 'session.json'
+        session_file.write_text(json.dumps(dict(user.session.cookies)))
+        session_file.touch()  # ensure mtime is now so SESSION_CACHE_SECS fast path is taken
         env = {**os.environ, **_env}
         env['XDG_CONFIG_HOME'] = str(cli_config_root / name)
         env['NO_COLOR'] = '1'
