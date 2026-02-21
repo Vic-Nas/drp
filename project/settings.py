@@ -93,7 +93,14 @@ PASSWORD_RESET_TIMEOUT = 86400  # 24 hours
 STATIC_URL       = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "project" / "static"]
 STATIC_ROOT      = BASE_DIR / "project" / "staticfiles"
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # ── Backblaze B2 ──────────────────────────────────────────────────────────────
 B2_KEY_ID       = os.environ.get("B2_KEY_ID", "")
