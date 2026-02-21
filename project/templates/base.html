@@ -32,7 +32,8 @@
     </nav>
   </header>
 
-  {% include 'ads/slot.html' with placement="adbar" %}
+  {# Rail ad — position:fixed, lives in gutter beside main on wide viewports only #}
+  {% include 'ads/slot.html' %}
 
   <main>
     {% block content %}{% endblock %}

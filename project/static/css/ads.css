@@ -1,26 +1,53 @@
-/* ── Ad bar ──────────────────────────────────────────────────────────────────
-   Sits between <header> and <main>. Full width, slim, never competes
-   with content. Railway referral by default; AdSense when env var is set.
+/* ── Ad rail ─────────────────────────────────────────────────────────────────
+   Sits in the dead gutter to the LEFT of the centered 900px main column.
+   Only visible at 1200px+ where there's actually gutter space.
+   No layout shift on narrower viewports — display:none collapses it entirely.
    ────────────────────────────────────────────────────────────────────────── */
 
+/* Remove the old adbar strip between header and main */
 .ad-slot--adbar {
-  width: 100%;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  display: none;
 }
 
-/* ── Railway referral — adbar layout ── */
-.ad-slot--adbar .ad-railway {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  max-width: 900px;
-  margin: 0 auto;
-  padding: .55rem 1.5rem;
-  text-decoration: none;
-  transition: background .15s;
+/* ── Rail wrapper ── */
+.ad-rail {
+  display: none; /* hidden by default; shown only at wide viewports below */
+  position: fixed;
+  /* Align vertically: below sticky header (~57px) + comfortable gap */
+  top: 80px;
+  /* Push it into the left gutter.
+     main is max 900px centered, so left edge of main ≈ (100vw - 900px) / 2.
+     We want the rail to sit just inside that left gutter with 16px breathing room. */
+  left: calc((100vw - 900px) / 2 - 160px - 16px);
+  width: 140px;
+  z-index: 50;
 }
-.ad-slot--adbar .ad-railway:hover {
+
+/* Only show the rail when there's enough gutter space.
+   900px main + 2×(140px rail + 16px gap + 16px body pad) ≈ 1244px.
+   Using 1220px as the breakpoint gives a comfortable fit. */
+@media (min-width: 1220px) {
+  .ad-rail {
+    display: block;
+  }
+}
+
+/* ── Railway referral — rail layout ── */
+.ad-rail .ad-railway {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .5rem;
+  padding: .9rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-decoration: none;
+  text-align: center;
+  transition: border-color .15s, background .15s;
+}
+.ad-rail .ad-railway:hover {
+  border-color: #7c3aed;
   background: rgba(124, 58, 237, .06);
   text-decoration: none;
 }
@@ -29,40 +56,26 @@
   font-size: .82rem;
   font-weight: 800;
   color: #7c3aed;
-  white-space: nowrap;
   letter-spacing: -.01em;
+  white-space: nowrap;
 }
 
 .ad-railway__tagline {
-  font-size: .8rem;
+  font-size: .72rem;
   color: var(--muted);
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.45;
 }
 
 .ad-railway__cta {
-  font-size: .8rem;
+  font-size: .75rem;
   font-weight: 600;
   color: #7c3aed;
   white-space: nowrap;
 }
 
-/* ── AdSense — adbar layout ── */
-.ad-slot--adbar .ad-adsense {
+/* ── AdSense — rail layout ── */
+.ad-rail .ad-adsense {
   display: block;
-  max-width: 900px;
-  margin: 0 auto;
-  min-height: 60px;
-}
-
-@media (max-width: 700px) {
-  .ad-slot--adbar .ad-railway {
-    padding: .5rem 1rem;
-    gap: .6rem;
-  }
-  .ad-railway__tagline {
-    display: none;
-  }
+  width: 140px;
+  min-height: 300px; /* vertical slot */
 }

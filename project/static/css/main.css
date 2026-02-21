@@ -25,9 +25,17 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* ── Header — sticky so it stays visible while scrolling ── */
 header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 1rem 2rem;
   border-bottom: 1px solid var(--border);
+  background: var(--bg);          /* must be opaque so content scrolls under it */
 }
 
 .logo {
@@ -252,13 +260,12 @@ textarea:disabled { opacity: .4; }
 .qr-hint { font-size: .75rem; color: var(--muted); }
 
 /* ── Syntax highlighting overrides ── */
-/* Keep hljs inside our existing pre/code styling */
 .clip-existing pre {
   white-space: pre-wrap;
   word-break: break-all;
   font-size: .88rem;
   font-family: monospace;
-  background: none !important;  /* let hljs theme handle bg */
+  background: none !important;
   padding: 0;
 }
 .clip-existing pre code.hljs {
@@ -339,7 +346,7 @@ textarea:disabled { opacity: .4; }
 /* ── Dashboard actions ── */
 .dashboard-actions { display: flex; gap: .4rem; margin-top: .8rem; flex-wrap: wrap; }
 
-/* ── Help page ── */
+/* ── Help page (legacy, for legal pages) ── */
 .help-page { max-width: 680px; }
 .help-page h1 { font-size: 2rem; font-weight: 800; letter-spacing: -1px; margin-bottom: .4rem; }
 .help-page > .tagline { margin-bottom: 1.5rem; }
@@ -367,8 +374,7 @@ textarea:disabled { opacity: .4; }
 .help-page table td { padding: .4rem .6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
 .help-page table tr:last-child td { border-bottom: none; }
 
-/* ── Header nav ── */
-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 2rem; border-bottom: 1px solid var(--border); }
+/* ── Nav (already in header rule above, kept for specificity) ── */
 nav { display: flex; align-items: center; gap: 1.2rem; }
 nav a { color: var(--muted); font-size: .88rem; transition: color .15s; }
 nav a:hover { color: var(--text); text-decoration: none; }

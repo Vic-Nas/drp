@@ -6,16 +6,19 @@
   gap: 3.5rem;
   align-items: start;
   max-width: 900px;
+  /* No overflow:hidden, no fixed height — let the page scroll normally */
 }
 
 /* ── Side nav ─────────────────────────────────────────────────────────────── */
 
 .help-sidenav {
   position: sticky;
-  top: 2rem;
+  /* Offset by the sticky header height (~57px) + small breathing room */
+  top: calc(57px + 1rem);
   display: flex;
   flex-direction: column;
   gap: .15rem;
+  /* No height, no overflow — just sticks below the header */
 }
 
 .help-sidenav-title {
