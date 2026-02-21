@@ -2,6 +2,9 @@ from django.contrib import admin
 from django.urls import path, include
 from core import views
 
+handler400 = 'core.views.error_handler.bad_request'
+handler403 = 'core.views.error_handler.forbidden'
+handler404 = 'core.views.error_handler.not_found'
 handler500 = 'core.views.error_handler.server_error'
 
 urlpatterns = [

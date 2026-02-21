@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block title %}{{ code }} · drp{% endblock %}
+
+{% block content %}
+<div class="error-page">
+  <p class="error-code">{{ code }}</p>
+  <p class="error-message">{{ message }}</p>
+  <a href="/" class="error-home">Go home</a>
+</div>
+{% endblock %}
