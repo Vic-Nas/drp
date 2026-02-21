@@ -1,22 +1,24 @@
 {% comment %}
-ads/slot.html — sticky left-rail ad unit.
+ads/slot.html — sticky left-rail ad unit. Standard 160×600 Wide Skyscraper.
 
-Only visible at 1220px+ (wide enough to have gutter beside the 900px main).
+Only visible at 1300px+ (wide enough to have gutter beside the 900px main).
 No layout shift on smaller screens — the rail is position:fixed and display:none
 below the breakpoint.
 
 Behaviour:
-  ADSENSE_CLIENT unset  → Railway referral card (vertical layout)
-  ADSENSE_CLIENT set    → AdSense vertical slot (160×600 or responsive)
+  ADSENSE_CLIENT unset  → Railway referral card
+  ADSENSE_CLIENT set    → AdSense 160×600 Wide Skyscraper (fixed size)
+
+AdSense setup: create a "160×600 Wide Skyscraper" ad unit in your AdSense
+dashboard and set ADSENSE_SLOT to that unit's slot ID.
 {% endcomment %}
 {% if adsense_client %}
 <div class="ad-rail">
   <ins class="adsbygoogle ad-adsense"
-       style="display:block;width:140px;min-height:300px"
+       style="display:block;width:160px;height:600px"
        data-ad-client="{{ adsense_client }}"
        data-ad-slot="{{ adsense_slot|default:'' }}"
-       data-ad-format="auto"
-       data-full-width-responsive="false"></ins>
+       data-ad-format="fixed"></ins>
   <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
 </div>
 {% else %}

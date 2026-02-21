@@ -1,6 +1,6 @@
 /* ── Ad rail ─────────────────────────────────────────────────────────────────
-   Sits in the dead gutter to the LEFT of the centered 900px main column.
-   Only visible at 1200px+ where there's actually gutter space.
+   Standard 160×600 Wide Skyscraper in the left gutter beside the 900px main.
+   Only visible at 1300px+ where there's enough room.
    No layout shift on narrower viewports — display:none collapses it entirely.
    ────────────────────────────────────────────────────────────────────────── */
 
@@ -13,23 +13,23 @@
 .ad-rail {
   display: none; /* hidden by default; shown only at wide viewports below */
   position: fixed;
-  /* Align vertically: below sticky header (~57px) + comfortable gap */
+  /* Center vertically in viewport */
   top: 50%;
   transform: translateY(-50%);
   /* Center within the left gutter.
      Gutter width = (100vw - 900px) / 2
-     Rail width   = 140px
+     Rail width   = 160px
      Centered left offset = gutter/2 - rail/2
-                          = (100vw - 900px) / 4 - 70px            */
-  left: calc((100vw - 900px) / 4 - 70px);
-  width: 140px;
+                          = (100vw - 900px) / 4 - 80px            */
+  left: calc((100vw - 900px) / 4 - 80px);
+  width: 160px;
   z-index: 50;
 }
 
-/* Only show the rail when there's enough gutter space.
-   900px main + 2×(140px rail + 16px gap + 16px body pad) ≈ 1244px.
-   Using 1220px as the breakpoint gives a comfortable fit. */
-@media (min-width: 1220px) {
+/* Only show when gutter is wide enough:
+   900px main + 2×(160px rail + 20px gap) = 1260px minimum.
+   1300px gives ~20px breathing room each side. */
+@media (min-width: 1300px) {
   .ad-rail {
     display: block;
   }
@@ -41,6 +41,7 @@
   flex-direction: column;
   align-items: center;
   gap: .5rem;
+  width: 160px;
   padding: .9rem .7rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -76,9 +77,9 @@
   white-space: nowrap;
 }
 
-/* ── AdSense — rail layout ── */
+/* ── AdSense — standard 160×600 Wide Skyscraper (fixed, not responsive) ── */
 .ad-rail .ad-adsense {
   display: block;
-  width: 140px;
-  min-height: 300px; /* vertical slot */
+  width: 160px;
+  height: 600px;
 }
