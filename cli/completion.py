@@ -14,8 +14,8 @@ Background refresh rules:
   - Skips refresh if the cache was written within the last REFRESH_INTERVAL_SECS
   - One process at a time (lock file prevents pile-up on repeated tabs)
   - Silent — any error is swallowed; completions must never break the shell
-  - Prunes local-only entries whose host matches the server but are no longer
-    returned by the server (expired/deleted drops)
+  - Prunes drops that were previously confirmed from this server but are no
+    longer returned (expired/deleted). Pure local drops are never pruned.
 
 Usage (in drp.py):
     import argcomplete
@@ -137,7 +137,14 @@ def _refresh_worker() -> None:
 
 
 def _do_refresh(config, SESSION_FILE) -> None:
-    """Fetch server drop list, merge into local cache, and prune dead entries."""
+    """
+    Fetch server drop list, merge into local cache, and prune stale entries.
+
+    Pruning rule: only drops that were previously synced FROM the server
+    (marked with 'from_server': True) are candidates for pruning. Pure
+    local drops (created anonymously, never confirmed by server) are kept
+    unconditionally so they survive cache refreshes.
+    """
     import requests as req_lib
     from cli.session import load_session
 
@@ -189,28 +196,35 @@ def _do_refresh(config, SESSION_FILE) -> None:
         key = d.get('key', '')
         if not key:
             continue
-        drop_host = d.get('host', '')
 
-        # Prune: drop is from this host, logged-in session is active,
-        # but the server no longer lists it → expired or deleted.
-        if drop_host == host and (ns, key) not in server_keys:
-            continue  # omit — drop is gone from server
+        drop_host      = d.get('host', '')
+        from_server    = d.get('from_server', False)
+
+        # Only prune drops that:
+        #   1. came from this server in a previous sync (from_server=True), AND
+        #   2. are no longer returned by the server (expired/deleted).
+        # Pure local drops (anonymous uploads, never server-confirmed) are
+        # always kept — they will never appear in the server list.
+        if from_server and drop_host == host and (ns, key) not in server_keys:
+            continue  # drop is gone from server — prune it
 
         existing_by_key[(ns, key)] = d
 
     # Merge server drops in (server is authoritative for fields it returns).
+    # Mark them from_server=True so future refreshes can prune them correctly.
     for d in server_drops:
         ns  = d.get('ns', 'c')
         key = d.get('key', '')
         if not key:
             continue
         existing_by_key[(ns, key)] = {
-            'key':        key,
-            'ns':         ns,
-            'kind':       d.get('kind', 'text'),
-            'created_at': d.get('created_at', ''),
-            'host':       host,
-            'filename':   d.get('filename') or None,
+            'key':         key,
+            'ns':          ns,
+            'kind':        d.get('kind', 'text'),
+            'created_at':  d.get('created_at', ''),
+            'host':        host,
+            'filename':    d.get('filename') or None,
+            'from_server': True,
         }
 
     for s in saved_drops:
@@ -220,11 +234,12 @@ def _do_refresh(config, SESSION_FILE) -> None:
             continue
         if (ns, key) not in existing_by_key:
             existing_by_key[(ns, key)] = {
-                'key':        key,
-                'ns':         ns,
-                'kind':       'text' if ns == 'c' else 'file',
-                'created_at': s.get('saved_at', ''),
-                'host':       host,
+                'key':         key,
+                'ns':          ns,
+                'kind':        'text' if ns == 'c' else 'file',
+                'created_at':  s.get('saved_at', ''),
+                'host':        host,
+                'from_server': True,
             }
 
     merged = sorted(
