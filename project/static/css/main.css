@@ -60,6 +60,9 @@ main {
   body {
     padding-left: min(300px, calc((100vw - 900px) / 2 - 16px));
   }
+  header, footer {
+    padding-left: calc(min(300px, calc((100vw - 900px) / 2 - 16px)) + 2rem);
+  }
 }
 
 
