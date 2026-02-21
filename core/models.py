@@ -99,6 +99,11 @@ class UserProfile(models.Model):
     ls_subscription_status = models.CharField(max_length=32, blank=True, default="",
                                               help_text="active, cancelled, expired, etc.")
 
+    notify_bug_fix = models.BooleanField(
+        default=True,
+        help_text="Send an email when a bug the user reported is fixed (GitHub issue closed).",
+    )
+
     is_test = models.BooleanField(default=False, db_index=True,
                                   help_text="Created by the integration test suite. Purged at deploy.")
 

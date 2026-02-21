@@ -2,6 +2,7 @@ from django.urls import path, re_path
 from django.contrib.auth import views as auth_views
 from core import views
 from core.views.error_reporting import report_error
+from core.views.github_webhook import github_webhook
 from core.views.drops import raw_view, set_drop_password
 from core.views.legal import privacy_view, terms_view
 
@@ -9,6 +10,7 @@ KEY = r"(?P<key>[^/\s]+)"
 
 urlpatterns = [
     path("api/report-error/",   report_error,          name="report_error"),
+    path("api/github-webhook/", github_webhook,         name="github_webhook"),
     path("save/",               views.save_drop,        name="save_drop"),
     path("check-key/",          views.check_key,        name="check_key"),
     path("upload/prepare/",     views.upload_prepare,   name="upload_prepare"),
@@ -22,6 +24,7 @@ urlpatterns = [
     path("auth/account/",       views.account_view,     name="account"),
     path("auth/account/export/", views.export_drops,    name="export_drops"),
     path("auth/account/import/", views.import_drops,    name="import_drops"),
+    path("auth/account/settings/", views.update_account_settings, name="account_settings"),
     path("auth/verify/resend/", views.resend_verification_view, name="verify_resend"),
     re_path(r"^auth/verify/(?P<token>[^/]+)/$", views.verify_email_view, name="verify_email"),
     path("report-bug/",         views.report_bug_view,  name="report_bug"),

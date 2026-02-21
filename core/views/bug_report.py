@@ -104,7 +104,6 @@ def _create_github_issue(report: BugReport) -> str:
 
 @verified_required
 def report_bug_view(request):
-    site_key = getattr(settings, 'TURNSTILE_SITE_KEY', '')
     error = None
 
     if request.method == 'POST':
@@ -121,8 +120,6 @@ def report_bug_view(request):
             error = 'Description must be at least 20 characters.'
         elif len(description) > 3000:
             error = 'Description must be under 3000 characters.'
-        elif not _verify_turnstile(ts_token, request.META.get('REMOTE_ADDR', '')):
-            error = 'Bot check failed. Please try again.'
         elif not _rate_limit_ok(request.user):
             limit = getattr(settings, 'BUG_REPORT_DAILY_LIMIT', 3)
             error = f'You can submit up to {limit} reports per day. Try again tomorrow.'
@@ -144,6 +141,5 @@ def report_bug_view(request):
 
     return render(request, 'bug_report.html', {
         'categories': BugReport.CATEGORY_CHOICES,
-        'site_key': site_key,
         'error': error,
     })

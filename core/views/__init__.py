@@ -3,7 +3,7 @@ from .drops import (
     upload_prepare, upload_confirm, set_drop_password,
 )
 from .actions import rename_drop, delete_drop, renew_drop, copy_drop
-from .auth import register_view, login_view, logout_view, account_view, export_drops, import_drops
+from .auth import register_view, login_view, logout_view, account_view, export_drops, import_drops, update_account_settings
 from .bookmarks import save_bookmark, unsave_bookmark
 from .bug_report import report_bug_view
 from .legal import privacy_view, terms_view
@@ -14,7 +14,7 @@ __all__ = [
     "upload_prepare", "upload_confirm", "set_drop_password",
     "rename_drop", "delete_drop", "renew_drop", "copy_drop",
     "register_view", "login_view", "logout_view", "account_view",
-    "export_drops", "import_drops",
+    "export_drops", "import_drops", "update_account_settings",
     "save_bookmark", "unsave_bookmark",
     "privacy_view", "terms_view",
     "report_bug_view",

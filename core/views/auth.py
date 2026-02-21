@@ -27,53 +27,47 @@ def register_view(request):
         if not check_signup_rate(request):
             error = 'Too many signups from your location. Try again in an hour.'
         else:
-            from core.views.bug_report import _verify_turnstile
-            ts_token = request.POST.get('cf-turnstile-response', '')
-            if not _verify_turnstile(ts_token, request.META.get('REMOTE_ADDR', '')):
-                error = 'Bot check failed. Please try again.'
+            email = request.POST.get('email', '').strip().lower()
+            password = request.POST.get('password', '')
+            password2 = request.POST.get('password2', '')
+            plan_choice = request.POST.get('plan', 'free').strip().lower()
+
+            if not email or not password:
+                error = 'Email and password are required.'
+            elif password != password2:
+                error = 'Passwords do not match.'
+            elif len(password) < 8:
+                error = 'Password must be at least 8 characters.'
+            elif User.objects.filter(email=email).exists():
+                error = 'An account with that email already exists.'
             else:
-                email = request.POST.get('email', '').strip().lower()
-                password = request.POST.get('password', '')
-                password2 = request.POST.get('password2', '')
-                plan_choice = request.POST.get('plan', 'free').strip().lower()
+                user = User.objects.create_user(username=email, email=email, password=password)
+                login(request, user)
 
-                if not email or not password:
-                    error = 'Email and password are required.'
-                elif password != password2:
-                    error = 'Passwords do not match.'
-                elif len(password) < 8:
-                    error = 'Password must be at least 8 characters.'
-                elif User.objects.filter(email=email).exists():
-                    error = 'An account with that email already exists.'
+                # Send email verification — fire and forget, never block signup
+                try:
+                    from core.views.verify import _send_verification_email
+                    _send_verification_email(user)
+                except Exception:
+                    pass
+
+                token = request.COOKIES.get(ANON_COOKIE)
+                claimed = claim_anon_drops(user, token)
+                if claimed:
+                    request.session['claimed_drops'] = claimed
+
+                if plan_choice in ('starter', 'pro'):
+                    response = redirect(f'/billing/checkout/{plan_choice}/')
                 else:
-                    user = User.objects.create_user(username=email, email=email, password=password)
-                    login(request, user)
+                    response = redirect('home')
 
-                    # Send email verification — fire and forget, never block signup
-                    try:
-                        from core.views.verify import _send_verification_email
-                        _send_verification_email(user)
-                    except Exception:
-                        pass
-
-                    token = request.COOKIES.get(ANON_COOKIE)
-                    claimed = claim_anon_drops(user, token)
-                    if claimed:
-                        request.session['claimed_drops'] = claimed
-
-                    if plan_choice in ('starter', 'pro'):
-                        response = redirect(f'/billing/checkout/{plan_choice}/')
-                    else:
-                        response = redirect('home')
-
-                    if token:
-                        response.delete_cookie(ANON_COOKIE)
-                    return response
+                if token:
+                    response.delete_cookie(ANON_COOKIE)
+                return response
 
     return render(request, 'auth/register.html', {
         'error': error,
         'admin_email': settings.ADMIN_EMAIL,
-        'site_key': getattr(settings, 'TURNSTILE_SITE_KEY', ''),
     })
 
 
@@ -138,7 +132,13 @@ def account_view(request):
 
 
 @login_required
-def export_drops(request):
+@require_POST
+def update_account_settings(request):
+    """Update user account notification preferences."""
+    profile = request.user.profile
+    profile.notify_bug_fix = request.POST.get('notify_bug_fix') == '1'
+    profile.save(update_fields=['notify_bug_fix'])
+    return redirect('account')
     drops = Drop.objects.filter(owner=request.user).order_by('-created_at')
     saved = SavedDrop.objects.filter(user=request.user).order_by('-saved_at')
 
