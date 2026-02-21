@@ -21,9 +21,13 @@ def cmd_status(args):
         return
 
     from cli.format import dim, green, bold
+    from cli.spinner import Spinner
 
     cfg = config.load()
-    _sync_local_cache(cfg)
+
+    with Spinner('loading'):
+        _sync_local_cache(cfg)
+
     local_count = len(config.load_local_drops())
 
     print(bold('drp status'))

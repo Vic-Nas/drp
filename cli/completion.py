@@ -200,13 +200,12 @@ def _do_refresh(config, SESSION_FILE) -> None:
         drop_host      = d.get('host', '')
         from_server    = d.get('from_server', False)
 
-        # Only prune drops that:
-        #   1. came from this server in a previous sync (from_server=True), AND
-        #   2. are no longer returned by the server (expired/deleted).
-        # Pure local drops (anonymous uploads, never server-confirmed) are
-        # always kept — they will never appear in the server list.
-        if from_server and drop_host == host and (ns, key) not in server_keys:
-            continue  # drop is gone from server — prune it
+        # Prune if this drop belongs to the current host and the server
+        # no longer knows about it — covers both previously-synced drops
+        # and locally-cached drops that have since expired/been deleted.
+        # Drops from other hosts are always kept.
+        if drop_host == host and (ns, key) not in server_keys:
+            continue  # gone from server — prune it
 
         existing_by_key[(ns, key)] = d
 
