@@ -13,7 +13,7 @@ drp setup && drp up "hello world"
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.com?referralCode=ZIdvo-)
 
 1. Fork → Railway → connect repo → add PostgreSQL
-2. Set env vars (see [self-hosting docs](https://drp.vicnas.me/help/privacy/))
+2. Set env vars
 3. Start command:
    ```
    python manage.py createcachetable && python manage.py collectstatic --noinput && python manage.py migrate && gunicorn project.wsgi --bind 0.0.0.0:$PORT
