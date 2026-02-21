@@ -3,10 +3,17 @@ Check that the Python scripts directory is on PATH (mainly relevant on Windows).
 """
 
 import os
+import shutil
 import sys
 
 
 def check_scripts_in_path():
+    # If 'drp' is already findable on PATH (e.g. installed via pipx which
+    # symlinks into ~/.local/bin), there's nothing to warn about.
+    # Only fall back to sysconfig when the binary genuinely isn't on PATH.
+    if shutil.which('drp'):
+        return
+
     import sysconfig
     scripts_dir = sysconfig.get_path('scripts')
     if not scripts_dir:
