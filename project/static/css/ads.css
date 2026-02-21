@@ -91,26 +91,3 @@
   height: 600px;
   flex-shrink: 0;
 }
-
-/* ── Right spacer ────────────────────────────────────────────────────────────
-   Invisible mirror of the left rail. Forces optical centering of main content
-   by balancing the visual weight of the ad on the left.
-   ────────────────────────────────────────────────────────────────────────── */
-.ad-rail-spacer {
-  display: none;
-  position: fixed;
-  top: 50%;
-  transform: translateY(-50%);
-  /* Mirror of left rail: right edge sits at same distance from main as left rail */
-  right: 8px;
-  width: min(300px, calc((100vw - 900px) / 2 - 16px));
-  height: 600px;
-  z-index: 50;
-  pointer-events: none; /* invisible, no interaction */
-}
-
-@media (min-width: 1000px) {
-  .ad-rail-spacer {
-    display: block;
-  }
-}

@@ -6,6 +6,7 @@
   gap: 3.5rem;
   align-items: start;
   max-width: 900px;
+  margin: 0 auto;
   /* No overflow:hidden, no fixed height — let the page scroll normally */
 }
 
