@@ -66,3 +66,74 @@
 
 /* ── Lead paragraph (plans page) ── */
 .lead { color: var(--muted); margin-bottom: 1.5rem; }
+
+/* ── Help sidebar layout ── */
+.help-wrap {
+  display: flex;
+  gap: 2.5rem;
+  align-items: flex-start;
+}
+
+.help-sidenav {
+  flex-shrink: 0;
+  width: 130px;
+  position: sticky;
+  top: 1.5rem;
+}
+
+.help-sidenav-title {
+  display: block;
+  font-weight: 800;
+  font-size: .9rem;
+  color: var(--text);
+  text-decoration: none;
+  margin-bottom: .75rem;
+  letter-spacing: -.5px;
+}
+
+.help-sidenav-links {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+}
+
+.help-sidenav-links a {
+  font-size: .85rem;
+  color: var(--muted);
+  text-decoration: none;
+  padding: .3rem .6rem;
+  border-radius: 4px;
+  transition: background .15s, color .15s;
+}
+
+.help-sidenav-links a:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.help-sidenav-links a.active {
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.help-content {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 600px) {
+  .help-wrap {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .help-sidenav {
+    width: 100%;
+    position: static;
+  }
+  .help-sidenav-links {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: .3rem;
+  }
+}
