@@ -38,44 +38,90 @@ COMMANDS = [
     ('serve',   cmd_serve,   'Upload a directory or file list, print URL table'),
 ]
 
-EPILOG = """
-urls:
-  /key/      clipboard — activity-based expiry
-  /f/key/    file — expires 90 days after upload (anon)
-  /raw/key/  clipboard as plain text — for curl | bash workflows
+# ── Shared display data ───────────────────────────────────────────────────────
+# Single source of truth for command groups and examples.
+# Both EPILOG (plain text) and _print_colored_help() render from these.
 
-key format:
-  key        clipboard (default)
-  -f key     file drop
+COMMAND_GROUPS = [
+    ('upload / download',  ['up', 'get', 'edit', 'serve']),
+    ('manage',             ['rm', 'mv', 'cp', 'renew', 'diff']),
+    ('account',            ['save', 'ls', 'load']),
+    ('info',               ['status', 'ping']),
+    ('setup',              ['setup', 'login', 'logout']),
+]
 
-examples:
-  drp up "hello world" -k hello         clipboard at /hello/
-  echo "hello" | drp up -k hello        clipboard from stdin
-  drp up report.pdf -k q3              file at /f/q3/
-  drp up report.pdf --expires 30d       file with 30-day expiry
-  drp up "secret token" --burn          delete after first view
-  drp up https://example.com/file.pdf   fetch URL and re-host
-  drp get hello                         print clipboard to stdout
-  drp get hello --url                   print URL without fetching content
-  drp get -f q3 -o my-report.pdf        download file with custom name
-  drp get secret --password mypass      supply password for protected drop
-  drp edit notes                        open clipboard in $EDITOR, re-upload on save
-  drp diff v1 v2                        unified diff of two clipboard drops
-  drp cp notes notes-backup             duplicate clipboard drop
-  drp cp -f q3 q3-backup               duplicate file drop (server-side, no re-upload)
-  drp serve ./dist/                     upload all files in dir, print URL table
-  drp serve "*.log" --expires 7d        upload glob with expiry
-  drp status notes                      view count and last seen for a drop
-  drp save notes                        bookmark clipboard (appears in drp ls)
-  drp save -f report                    bookmark file
-  drp rm hello                          delete clipboard
-  drp rm -f report                      delete file
-  drp mv q3 quarter3                    rename clipboard key
-  drp mv -f q3 quarter3                 rename file key
-  drp ls -l                             list with sizes and times
-  drp ls --export > backup.json         export as JSON
-  drp load backup.json                  import shared export as saved drops
-"""
+# (command_prefix, argument, description)
+EXAMPLES = [
+    ('drp up',      '"hello world" -k hello',        'clipboard at /hello/'),
+    ('echo "hi" |', 'drp up -k hello',               'clipboard from stdin'),
+    ('drp up',      'report.pdf -k q3',               'file at /f/q3/'),
+    ('drp up',      'report.pdf --expires 30d',       'file with 30-day expiry'),
+    ('drp up',      '"secret token" --burn',          'delete after first view'),
+    ('drp up',      '"secret" --password pw',         'password-protect (paid)'),
+    ('drp up',      'https://example.com/file.pdf',   'fetch URL and re-host'),
+    ('drp get',     'hello',                          'print clipboard to stdout'),
+    ('drp get',     'hello --url',                    'print URL without fetching'),
+    ('drp get',     '-f q3 -o my-report.pdf',         'download file with custom name'),
+    ('drp get',     'secret --password mypass',       'supply password for protected drop'),
+    ('drp edit',    'notes',                          'open in $EDITOR, re-upload on save'),
+    ('drp diff',    'v1 v2',                          'unified diff of two clipboard drops'),
+    ('drp cp',      'notes notes-backup',             'duplicate clipboard drop'),
+    ('drp cp',      '-f q3 q3-backup',               'duplicate file drop (server-side)'),
+    ('drp serve',   './dist/',                        'upload all files in dir, print URLs'),
+    ('drp serve',   '"*.log" --expires 7d',           'upload glob with expiry'),
+    ('drp status',  'notes',                          'view count and last seen for a drop'),
+    ('drp save',    'notes',                          'bookmark clipboard (appears in drp ls)'),
+    ('drp save',    '-f report',                      'bookmark file'),
+    ('drp rm',      'hello',                          'delete clipboard'),
+    ('drp rm',      '-f report',                      'delete file'),
+    ('drp mv',      'q3 quarter3',                    'rename clipboard key'),
+    ('drp mv',      '-f q3 quarter3',                'rename file key'),
+    ('drp ls',      '-l',                             'list with sizes and times'),
+    ('drp ls',      '--export > backup.json',         'export as JSON'),
+    ('drp load',    'backup.json',                    'import shared export as saved drops'),
+]
+
+
+def _build_epilog():
+    lines = [
+        '',
+        'urls:',
+        '  /key/      clipboard — activity-based expiry',
+        '  /f/key/    file — expires 90 days after upload (anon)',
+        '  /raw/key/  clipboard as plain text — for curl | bash workflows',
+        '',
+        'key format:',
+        '  key        clipboard (default)',
+        '  -f key     file drop',
+        '',
+        'examples:',
+    ]
+    col = max(len(f'  {cmd} {arg}') for cmd, arg, _ in EXAMPLES) + 2
+    for cmd, arg, desc in EXAMPLES:
+        line = f'  {cmd} {arg}'
+        lines.append(f'{line:<{col}}{desc}')
+    return '\n'.join(lines) + '\n'
+
+
+EPILOG = _build_epilog()
+
+
+class _ColorHelpAction(argparse.Action):
+    """Intercept -h / --help and fire the colored drp help instead."""
+
+    def __init__(self, option_strings, dest=argparse.SUPPRESS,
+                 default=argparse.SUPPRESS, help=None):
+        super().__init__(
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help,
+        )
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        _print_colored_help()
+        parser.exit()
 
 
 def build_parser():
@@ -84,7 +130,11 @@ def build_parser():
         description='Drop clipboards and files — get a link instantly.',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=EPILOG,
+        add_help=False,          # we register our own -h / --help below
     )
+    parser.add_argument('-h', '--help', action=_ColorHelpAction,
+                        default=argparse.SUPPRESS,
+                        help='Show this help message and exit')
     parser.add_argument('--version', '-V', action='version', version=f'%(prog)s {__version__}')
     sub = parser.add_subparsers(dest='command')
     for name, _, help_str in COMMANDS:
@@ -186,42 +236,38 @@ _HANDLERS = {name: handler for name, handler, _ in COMMANDS}
 
 def _print_colored_help():
     from cli.format import bold, dim, cyan, green
+
     print(f'  {bold("drp")} {dim(__version__)}  — drop clipboards and files, get a link instantly.')
     print()
     print(f'  {dim("usage:")}  drp <command> [options]')
     print()
+
+    # ── Commands ──────────────────────────────────────────────────────────────
     print(f'  {dim("commands:")}')
-    groups = [
-        ('upload / download',  ['up', 'get', 'edit', 'serve']),
-        ('manage',             ['rm', 'mv', 'cp', 'renew', 'diff']),
-        ('account',            ['save', 'ls', 'load']),
-        ('info',               ['status', 'ping']),
-        ('setup',              ['setup', 'login', 'logout']),
-    ]
     cmd_map = {name: help_str for name, _, help_str in COMMANDS}
-    for group_label, names in groups:
+    for group_label, names in COMMAND_GROUPS:
         print(f'    {dim(group_label)}')
         for name in names:
             print(f'      {cyan(f"drp {name:<10}")}  {cmd_map.get(name, "")}')
         print()
+
+    # ── Key format ────────────────────────────────────────────────────────────
     print(f'  {dim("key format:")}')
     print(f'    {green("key")}       clipboard  →  /key/')
     print(f'    {green("-f key")}    file       →  /f/key/')
     print(f'    {dim("raw url")}    plain text →  /raw/key/')
     print()
-    print(f'  {dim("quick examples:")}')
-    print(f'    {dim("drp up")} "hello"                  clipboard from string')
-    print(f'    {dim("drp up")} "secret" --burn          delete after first view')
-    print(f'    {dim("drp up")} "secret" --password pw   password-protect (paid)')
-    print(f'    {dim("drp up")} https://example.com/f    fetch URL and re-host')
-    print(f'    {dim("drp up")} report.pdf               file upload')
-    print(f'    {dim("drp get")} hello                   print clipboard to stdout')
-    print(f'    {dim("drp get")} secret --password pw    unlock protected drop')
-    print(f'    {dim("drp serve")} ./dist/               upload dir, print URL table')
-    print(f'    {dim("drp diff")} v1 v2                  unified diff of two drops')
-    print()
-    print(f'  {dim("drp <command> --help for per-command options.")}')
 
+    # ── Examples — same data as EPILOG ────────────────────────────────────────
+    print(f'  {dim("examples:")}')
+    col = max(len(f'    {cmd} {arg}') for cmd, arg, _ in EXAMPLES) + 2
+    for cmd, arg, desc in EXAMPLES:
+        raw_len = len(f'    {cmd} {arg}')
+        padding = ' ' * (col - raw_len)
+        print(f'    {dim(cmd)} {arg}{padding}{dim(desc)}')
+    print()
+
+    print(f'  {dim("drp <command> --help for per-command options.")}')
 
 def main():
     parser = build_parser()
