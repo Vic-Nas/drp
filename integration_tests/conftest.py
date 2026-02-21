@@ -60,12 +60,13 @@ HOST = _resolve_host()
 
 # ── User management via manage.py ─────────────────────────────────────────────
 
-def _manage(code):
+def _manage(code, timeout=20):
     """Run a Python snippet in manage.py shell -c. Raises on non-zero exit."""
     result = subprocess.run(
         ['python', 'manage.py', 'shell', '-c', code],
         capture_output=True, text=True, cwd=_ROOT,
         env={**os.environ, **_env},
+        timeout=timeout,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -77,9 +78,13 @@ def _manage(code):
 def _create_user(email, password, plan):
     _manage(f"""
 from django.contrib.auth import get_user_model
-from core.models import UserProfile, Plan
+from core.models import UserProfile, Plan, Drop, SavedDrop
 User = get_user_model()
-User.objects.filter(email='{email}').delete()
+existing = User.objects.filter(email='{email}').first()
+if existing:
+    SavedDrop.objects.filter(user=existing).delete()
+    Drop.objects.filter(owner=existing).delete()
+    existing.delete()
 u = User.objects.create_user(username='{email}', email='{email}', password='{password}')
 p = UserProfile.objects.get(user=u)
 p.plan = Plan.{plan}
@@ -202,9 +207,7 @@ def cli_envs(cli_config_root, users):
         (drp_dir / 'config.json').write_text(json.dumps(
             {'host': HOST, 'email': user.email, 'ansi': False}
         ))
-        session_file = drp_dir / 'session.json'
-        session_file.write_text(json.dumps(dict(user.session.cookies)))
-        session_file.touch()  # ensure mtime is now so SESSION_CACHE_SECS fast path is taken
+        (drp_dir / 'session.json').write_text(json.dumps(dict(user.session.cookies)))
         env = {**os.environ, **_env}
         env['XDG_CONFIG_HOME'] = str(cli_config_root / name)
         env['NO_COLOR'] = '1'
@@ -245,12 +248,6 @@ def run_drp(*args, input=None, env=None, check=False):
             f'stdout: {result.stdout}\nstderr: {result.stderr}'
         )
     return result
-
-
-@pytest.fixture(scope='session')
-def cli_env(cli_envs):
-    """Single CLI env for tests that don't need to vary by plan (uses free tier)."""
-    return cli_envs['free']
 
 
 @pytest.fixture(scope='session')
