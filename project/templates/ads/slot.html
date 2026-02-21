@@ -1,20 +1,17 @@
 {% comment %}
 ads/slot.html — reusable ad slot.
 
-Usage:
-  {% include 'ads/slot.html' with placement="below-drop" %}
-
-Placements: below-drop, help-bottom
+Placements:
+  adbar   — full-width bar between header and main (base.html)
 
 Behaviour:
-  ADSENSE_CLIENT unset  → Railway referral card (default)
-  ADSENSE_CLIENT set    → AdSense responsive unit
+  ADSENSE_CLIENT unset  → Railway referral card
+  ADSENSE_CLIENT set    → AdSense leaderboard (728×90 / responsive)
 
-To go live with AdSense: set ADSENSE_CLIENT=ca-pub-xxxxxxxxxxxxxxxx
-in Railway env vars. No code changes needed.
+To enable AdSense: set ADSENSE_CLIENT=ca-pub-xxxxxxxxxxxxxxxx in Railway.
 {% endcomment %}
 {% if adsense_client %}
-<div class="ad-slot ad-slot--{{ placement|default:'below-drop' }}">
+<div class="ad-slot ad-slot--{{ placement|default:'adbar' }}">
   <ins class="adsbygoogle ad-adsense"
        style="display:block"
        data-ad-client="{{ adsense_client }}"
@@ -24,11 +21,11 @@ in Railway env vars. No code changes needed.
   <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
 </div>
 {% else %}
-<div class="ad-slot ad-slot--{{ placement|default:'below-drop' }}">
+<div class="ad-slot ad-slot--{{ placement|default:'adbar' }}">
   <a href="https://railway.com?referralCode=ZIdvo-" target="_blank" rel="noopener sponsored" class="ad-railway">
-    <span class="ad-railway__eyebrow">hosted on</span>
     <span class="ad-railway__logo">Railway</span>
-    <span class="ad-railway__cta">Deploy your own →</span>
+    <span class="ad-railway__tagline">The platform drp runs on — deploy your own instance in minutes</span>
+    <span class="ad-railway__cta">Try it free →</span>
   </a>
 </div>
 {% endif %}

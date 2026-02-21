@@ -31,6 +31,9 @@
       {% endif %}
     </nav>
   </header>
+
+  {% include 'ads/slot.html' with placement="adbar" %}
+
   <main>
     {% block content %}{% endblock %}
   </main>

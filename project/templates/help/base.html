@@ -16,7 +16,6 @@
       <a href="{% url 'help_plans' %}"  {% if request.resolver_match.url_name == 'help_plans'  %}class="active"{% endif %}>plans</a>
       <a href="{% url 'help_expiry' %}" {% if request.resolver_match.url_name == 'help_expiry' %}class="active"{% endif %}>expiry</a>
     </div>
-    {% include 'ads/slot.html' with placement="help-bottom" %}
   </nav>
 
   <article class="help-content">
