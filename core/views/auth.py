@@ -27,40 +27,53 @@ def register_view(request):
         if not check_signup_rate(request):
             error = 'Too many signups from your location. Try again in an hour.'
         else:
-            email = request.POST.get('email', '').strip().lower()
-            password = request.POST.get('password', '')
-            password2 = request.POST.get('password2', '')
-            plan_choice = request.POST.get('plan', 'free').strip().lower()
-
-            if not email or not password:
-                error = 'Email and password are required.'
-            elif password != password2:
-                error = 'Passwords do not match.'
-            elif len(password) < 8:
-                error = 'Password must be at least 8 characters.'
-            elif User.objects.filter(email=email).exists():
-                error = 'An account with that email already exists.'
+            from core.views.bug_report import _verify_turnstile
+            ts_token = request.POST.get('cf-turnstile-response', '')
+            if not _verify_turnstile(ts_token, request.META.get('REMOTE_ADDR', '')):
+                error = 'Bot check failed. Please try again.'
             else:
-                user = User.objects.create_user(username=email, email=email, password=password)
-                login(request, user)
+                email = request.POST.get('email', '').strip().lower()
+                password = request.POST.get('password', '')
+                password2 = request.POST.get('password2', '')
+                plan_choice = request.POST.get('plan', 'free').strip().lower()
 
-                token = request.COOKIES.get(ANON_COOKIE)
-                claimed = claim_anon_drops(user, token)
-                if claimed:
-                    request.session['claimed_drops'] = claimed
-
-                if plan_choice in ('starter', 'pro'):
-                    response = redirect(f'/billing/checkout/{plan_choice}/')
+                if not email or not password:
+                    error = 'Email and password are required.'
+                elif password != password2:
+                    error = 'Passwords do not match.'
+                elif len(password) < 8:
+                    error = 'Password must be at least 8 characters.'
+                elif User.objects.filter(email=email).exists():
+                    error = 'An account with that email already exists.'
                 else:
-                    response = redirect('home')
+                    user = User.objects.create_user(username=email, email=email, password=password)
+                    login(request, user)
 
-                if token:
-                    response.delete_cookie(ANON_COOKIE)
-                return response
+                    # Send email verification — fire and forget, never block signup
+                    try:
+                        from core.views.verify import _send_verification_email
+                        _send_verification_email(user)
+                    except Exception:
+                        pass
+
+                    token = request.COOKIES.get(ANON_COOKIE)
+                    claimed = claim_anon_drops(user, token)
+                    if claimed:
+                        request.session['claimed_drops'] = claimed
+
+                    if plan_choice in ('starter', 'pro'):
+                        response = redirect(f'/billing/checkout/{plan_choice}/')
+                    else:
+                        response = redirect('home')
+
+                    if token:
+                        response.delete_cookie(ANON_COOKIE)
+                    return response
 
     return render(request, 'auth/register.html', {
         'error': error,
         'admin_email': settings.ADMIN_EMAIL,
+        'site_key': getattr(settings, 'TURNSTILE_SITE_KEY', ''),
     })
 
 
