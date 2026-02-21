@@ -22,6 +22,9 @@ urlpatterns = [
     path("auth/account/",       views.account_view,     name="account"),
     path("auth/account/export/", views.export_drops,    name="export_drops"),
     path("auth/account/import/", views.import_drops,    name="import_drops"),
+    path("auth/verify/resend/", views.resend_verification_view, name="verify_resend"),
+    re_path(r"^auth/verify/(?P<token>[^/]+)/$", views.verify_email_view, name="verify_email"),
+    path("report-bug/",         views.report_bug_view,  name="report_bug"),
     path("auth/forgot-password/",
          auth_views.PasswordResetView.as_view(
              template_name="registration/password_reset_form.html",

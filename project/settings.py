@@ -151,3 +151,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ── Advertising ───────────────────────────────────────────────────────────────
 ADSENSE_CLIENT = os.environ.get("ADSENSE_CLIENT", "")
 ADSENSE_SLOT   = os.environ.get("ADSENSE_SLOT", "")
+# ── Cloudflare Turnstile ──────────────────────────────────────────────────────
+TURNSTILE_SITE_KEY   = os.environ.get('TURNSTILE_SITE_KEY', '')
+TURNSTILE_SECRET_KEY = os.environ.get('TURNSTILE_SECRET_KEY', '')
+
+# ── Bug reports ───────────────────────────────────────────────────────────────
+BUG_REPORT_DAILY_LIMIT = 3   # max reports per user per day

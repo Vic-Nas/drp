@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}drp — link expired{% endblock %}
+{% block content %}
+<div style="max-width:420px">
+  <h1 style="font-size:1.8rem;font-weight:800;letter-spacing:-1px;margin-bottom:.6rem">link expired</h1>
+  <p class="muted" style="margin-bottom:1.2rem">
+    Verification links expire after 24 hours. Request a new one for <strong>{{ email }}</strong>.
+  </p>
+  {% if user.is_authenticated %}
+  <form method="post" action="{% url 'verify_resend' %}">
+    {% csrf_token %}
+    <button type="submit" class="btn">resend verification email</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

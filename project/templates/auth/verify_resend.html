@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}drp — verification email{% endblock %}
+{% block content %}
+<div style="max-width:420px">
+  {% if sent %}
+  <h1 style="font-size:1.8rem;font-weight:800;letter-spacing:-1px;margin-bottom:.6rem">email sent</h1>
+  <p class="muted">A new verification link has been sent to <strong>{{ email }}</strong>. Check your inbox.</p>
+  {% else %}
+  <h1 style="font-size:1.8rem;font-weight:800;letter-spacing:-1px;margin-bottom:.6rem">something went wrong</h1>
+  <p class="muted">We couldn't send the email. Please try again in a moment.</p>
+  <form method="post" action="{% url 'verify_resend' %}" style="margin-top:1.2rem">
+    {% csrf_token %}
+    <button type="submit" class="btn">try again</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

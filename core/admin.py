@@ -7,7 +7,7 @@ from django.shortcuts import render, redirect
 from django.urls import path
 from django.utils.html import format_html
 
-from .models import UserProfile, Drop
+from .models import UserProfile, Drop, BugReport, EmailVerification
 
 
 # ── Broadcast email form ──────────────────────────────────────────────────────
@@ -182,3 +182,32 @@ class UserProfileAdmin(admin.ModelAdmin):
     def downgrade_to_free(self, request, queryset):
         from .models import Plan
         queryset.update(plan=Plan.FREE, plan_since=None)
+
+# ── BugReport admin ───────────────────────────────────────────────────────────
+
+@admin.register(BugReport)
+class BugReportAdmin(admin.ModelAdmin):
+    list_display  = ('created_at', 'category', 'user', 'hide_identity', 'short_desc', 'github_link')
+    list_filter   = ('category', 'hide_identity')
+    search_fields = ('description', 'user__email')
+    readonly_fields = ('created_at', 'github_issue_url', 'user', 'category',
+                       'description', 'hide_identity')
+
+    @admin.display(description='description')
+    def short_desc(self, obj):
+        return obj.description[:60] + ('…' if len(obj.description) > 60 else '')
+
+    @admin.display(description='issue')
+    def github_link(self, obj):
+        if obj.github_issue_url:
+            return format_html('<a href="{}" target="_blank">view →</a>', obj.github_issue_url)
+        return '—'
+
+
+# ── EmailVerification admin ───────────────────────────────────────────────────
+
+@admin.register(EmailVerification)
+class EmailVerificationAdmin(admin.ModelAdmin):
+    list_display  = ('user', 'created_at', 'is_expired')
+    search_fields = ('user__email',)
+    readonly_fields = ('user', 'token', 'created_at')

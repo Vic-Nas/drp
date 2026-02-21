@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}drp — invalid link{% endblock %}
+{% block content %}
+<div style="max-width:420px">
+  <h1 style="font-size:1.8rem;font-weight:800;letter-spacing:-1px;margin-bottom:.6rem">invalid link</h1>
+  <p class="muted">This verification link is invalid. It may have already been used.</p>
+  {% if user.is_authenticated %}
+  <form method="post" action="{% url 'verify_resend' %}" style="margin-top:1.2rem">
+    {% csrf_token %}
+    <button type="submit" class="btn">send a new link</button>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -10,6 +10,16 @@
     <p class="muted">{{ user.email }}</p>
   </div>
 
+  {% if not profile.email_verified %}
+  <div style="background:#2a1f00;border:1px solid #6b4f00;border-radius:var(--radius);padding:.8rem 1rem;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+    <span style="font-size:.88rem;color:#f0c040">⚠ Your email address hasn't been verified yet.</span>
+    <form method="post" action="{% url 'verify_resend' %}" style="margin:0">
+      {% csrf_token %}
+      <button type="submit" style="font-size:.82rem;padding:.3rem .7rem;background:transparent;border:1px solid #6b4f00;border-radius:4px;color:#f0c040;cursor:pointer">resend link</button>
+    </form>
+  </div>
+  {% endif %}
+
   <!-- Drops — all plans see their drops -->
   <div class="account-section">
     <h2>your drops</h2>

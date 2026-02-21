@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}drp — report a bug{% endblock %}
+{% load static %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/auth.css' %}"/>{% endblock %}
+
+{% block content %}
+<div class="auth-page" style="max-width:560px">
+  <h1>report a bug</h1>
+  <p class="muted" style="margin:.4rem 0 1.5rem">
+    Found something broken? Let us know. Reports go straight to our issue tracker.
+  </p>
+
+  {% if error %}<p class="error" style="margin-bottom:1rem;color:var(--danger)">{{ error }}</p>{% endif %}
+
+  <form method="post" class="auth-form">
+    {% csrf_token %}
+
+    <div class="field">
+      <label for="category">Category <span style="color:var(--danger)">*</span></label>
+      <select name="category" id="category" required
+              style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+                     color:var(--text);font-size:.95rem;padding:.55rem .8rem;outline:none;
+                     transition:border-color .15s;width:100%">
+        <option value="" disabled selected>— choose one —</option>
+        {% for value, label in categories %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label for="description">Description <span style="color:var(--danger)">*</span></label>
+      <textarea name="description" id="description" required minlength="20" maxlength="3000" rows="6"
+                placeholder="What happened? What did you expect? Steps to reproduce if it's a bug."
+                style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+                       color:var(--text);font-size:.95rem;padding:.55rem .8rem;outline:none;
+                       transition:border-color .15s;width:100%;resize:vertical;font-family:inherit"></textarea>
+      <span id="charCount" style="font-size:.75rem;color:var(--muted);margin-top:.25rem;display:block">0 / 3000</span>
+    </div>
+
+    <div class="field" style="flex-direction:row;align-items:center;gap:.6rem">
+      <input type="checkbox" name="hide_identity" id="hide_identity" value="1" checked
+             style="width:1rem;height:1rem;accent-color:var(--accent);flex-shrink:0"/>
+      <label for="hide_identity" style="font-size:.85rem;color:var(--muted);text-transform:none;letter-spacing:0;cursor:pointer">
+        Hide my identity — don't include my email in the report
+      </label>
+    </div>
+
+    {% if site_key %}
+    <div class="cf-turnstile" data-sitekey="{{ site_key }}" data-theme="dark"></div>
+    {% endif %}
+
+    <button type="submit" class="btn">submit report</button>
+  </form>
+</div>
+
+{% if site_key %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+{% endif %}
+
+<script>
+const desc = document.getElementById('description');
+const counter = document.getElementById('charCount');
+desc.addEventListener('input', () => {
+  counter.textContent = `${desc.value.length} / 3000`;
+});
+</script>
+{% endblock %}

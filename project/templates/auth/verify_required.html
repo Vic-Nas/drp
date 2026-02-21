@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}drp — verify your email{% endblock %}
+{% load static %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'css/auth.css' %}"/>{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <h1>verify your email</h1>
+  <p class="muted" style="margin:.6rem 0 1.5rem">
+    We sent a verification link to <strong>{{ email }}</strong> when you signed up.
+    You need to verify your email before you can submit bug reports.
+  </p>
+  <form method="post" action="{% url 'verify_resend' %}">
+    {% csrf_token %}
+    <button type="submit" class="btn">resend verification email</button>
+  </form>
+</div>
+{% endblock %}

@@ -52,8 +52,16 @@
       </p>
     </div>
 
+    {% if site_key %}
+    <div class="cf-turnstile" data-sitekey="{{ site_key }}" data-theme="dark"></div>
+    {% endif %}
+
     <button type="submit" class="btn" id="submitBtn">create account</button>
   </form>
+
+  {% if site_key %}
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  {% endif %}
 
   <p class="auth-alt muted">already have an account? <a href="/auth/login/">log in</a></p>
 </div>
