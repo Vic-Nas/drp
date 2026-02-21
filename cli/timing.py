@@ -19,8 +19,12 @@ import sys
 
 class Timer:
     """
-    Collects named checkpoints and optionally HTTP TTFB splits.
+    Collects named checkpoints and optionally HTTP timing splits.
     When enabled=False every method is a no-op.
+
+    instrument() accumulates elapsed time across ALL responses on the session
+    so that auto_login's network round-trip is included in the total, not
+    silently dropped.
     """
 
     def __init__(self, enabled: bool = False):
@@ -28,9 +32,8 @@ class Timer:
         self._start = time.perf_counter()
         self._last  = self._start
         self._steps: list[tuple[str, float]] = []
-
-        self._connect_ms: float | None = None
-        self._ttfb_ms:    float | None = None
+        self._total_rtt_ms: float = 0.0
+        self._rtt_count: int = 0
 
     # ── Checkpoints ──────────────────────────────────────────────────────────
 
@@ -44,13 +47,20 @@ class Timer:
     # ── HTTP instrumentation ─────────────────────────────────────────────────
 
     def instrument(self, session) -> None:
+        """
+        Hook all responses on this session.  Accumulates elapsed time so
+        that multiple round-trips (e.g. auto_login + the real request) are
+        all visible in the timing output.
+        """
         if not self.enabled:
             return
 
         timer = self
 
         def on_response(res, *args, **kwargs):
-            timer._ttfb_ms = res.elapsed.total_seconds() * 1000
+            ms = res.elapsed.total_seconds() * 1000
+            timer._total_rtt_ms += ms
+            timer._rtt_count += 1
 
         session.hooks['response'].append(on_response)
 
@@ -65,8 +75,12 @@ class Timer:
         total_ms = (time.perf_counter() - self._start) * 1000
 
         rows: list[tuple[str, float]] = list(self._steps)
-        if self._ttfb_ms is not None:
-            rows.append(('server (TTFB)', self._ttfb_ms))
+
+        if self._rtt_count == 1:
+            rows.append(('server (TTFB)', self._total_rtt_ms))
+        elif self._rtt_count > 1:
+            rows.append((f'server ({self._rtt_count} RTTs)', self._total_rtt_ms))
+
         rows.append(('total', total_ms))
 
         col_w = max(len(r[0]) for r in rows) + 2

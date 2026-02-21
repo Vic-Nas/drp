@@ -35,6 +35,15 @@ def _report(command, msg):
         pass
 
 
+def _touch_session():
+    """Reset the session freshness clock after a successful API call."""
+    try:
+        from cli.session import SESSION_FILE
+        SESSION_FILE.touch()
+    except Exception:
+        pass
+
+
 # ── Upload ────────────────────────────────────────────────────────────────────
 
 def upload_file(host, session, filepath, key=None, expiry_days=None):
@@ -76,6 +85,7 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
             _report("up", msg)
             return None
         prep = res.json()
+        _touch_session()
     except Exception as e:
         err(f"Prepare error: {e}")
         raise
@@ -142,6 +152,7 @@ def upload_file(host, session, filepath, key=None, expiry_days=None):
             timeout=30,
         )
         if res.ok:
+            _touch_session()
             return res.json().get("key")
         msg = f"Confirm failed (HTTP {res.status_code})"
         _handle_error(res, "Confirm failed")
@@ -178,6 +189,8 @@ def get_file(host, session, key):
         if not res.ok:
             _handle_http_error(res, key)
             return None, None
+
+        _touch_session()
 
         data = res.json()
         if data.get("kind") != "file":

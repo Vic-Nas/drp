@@ -6,6 +6,15 @@ from .auth import get_csrf
 from .helpers import err
 
 
+def _touch_session():
+    """Reset the session freshness clock after a successful API call."""
+    try:
+        from cli.session import SESSION_FILE
+        SESSION_FILE.touch()
+    except Exception:
+        pass
+
+
 def upload_text(host, session, text, key=None, timer=None, expiry_days=None, burn=False):
     """
     Upload text content.
@@ -26,6 +35,7 @@ def upload_text(host, session, text, key=None, timer=None, expiry_days=None, bur
         if timer:
             timer.checkpoint('upload request')
         if res.ok:
+            _touch_session()
             return res.json().get('key')
         _handle_error(res, 'Upload failed')
         _report_http('up', res.status_code, 'upload_text')
@@ -48,6 +58,7 @@ def get_clipboard(host, session, key, timer=None):
         if timer:
             timer.checkpoint('HTTP request')
         if res.ok:
+            _touch_session()
             data = res.json()
             if timer:
                 timer.checkpoint('parse JSON')

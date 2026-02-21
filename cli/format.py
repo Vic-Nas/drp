@@ -2,7 +2,8 @@
 Formatting helpers: human-readable sizes, times, and minimal ANSI color.
 
 Color is gated on the 'ansi' key in config (set by drp setup) and
-sys.stdout.isatty() / sys.stderr.isatty() so nothing leaks into pipes or logs.
+os.isatty() on the underlying file descriptor so nothing leaks into pipes
+or logs — and argcomplete wrapping doesn't break TTY detection.
 
 Override with FORCE_COLOR=1 env var for terminals that don't report isatty()
 correctly (some tmux, screen, VS Code, SSH setups).
@@ -52,37 +53,35 @@ def human_time(iso_str):
 
 # ── ANSI color ─────────────────────────────────────────────────────────────────
 #
-# Emits escape codes when ANY of these are true:
-#   1. FORCE_COLOR env var is set (user override for broken TTY detection)
+# Uses os.isatty(fd) on the underlying file descriptor rather than
+# stream.isatty() so that argcomplete's stdout wrapper (which returns
+# isatty()=False) doesn't suppress colors on bare `drp`.
 #
-# And NONE of these are true:
-#   1. NO_COLOR env var is set  (no-color.org)
-#   2. config has ansi=false
-#
-# Without FORCE_COLOR, also requires the target stream to be a real TTY.
-#
-# Use the stream= kwarg to check stderr instead of stdout (e.g. progress bar).
+# Priority:
+#   NO_COLOR env var → always off
+#   FORCE_COLOR env var → on if config ansi=true (skips TTY check)
+#   Normal → config ansi=true AND underlying fd is a real TTY
 
 def _ansi_on(stream=None) -> bool:
     # NO_COLOR always wins
     if os.environ.get('NO_COLOR'):
         return False
-    # FORCE_COLOR overrides TTY detection (but still respects NO_COLOR and config)
-    if os.environ.get('FORCE_COLOR'):
-        try:
-            from cli import config as _cfg
-            return bool(_cfg.load().get('ansi', False))
-        except Exception:
-            return True
-    # Normal path: check config then TTY
+    # Config gate — must be explicitly enabled by drp setup
     try:
         from cli import config as _cfg
         if not _cfg.load().get('ansi', False):
             return False
     except Exception:
         return False
+    # FORCE_COLOR skips TTY detection (useful for tmux/screen/VS Code/SSH)
+    if os.environ.get('FORCE_COLOR'):
+        return True
+    # Check the real underlying fd — immune to argcomplete wrapper
     target = stream if stream is not None else sys.stdout
-    return getattr(target, 'isatty', lambda: False)()
+    try:
+        return os.isatty(target.fileno())
+    except Exception:
+        return getattr(target, 'isatty', lambda: False)()
 
 
 def _c(code: str, text: str, stream=None) -> str:
@@ -91,10 +90,13 @@ def _c(code: str, text: str, stream=None) -> str:
     return text
 
 
-# Public helpers — import these wherever you want color.
+# ── Color palette ─────────────────────────────────────────────────────────────
+# Brighter variants (bold+color) so output is visible on both dark and light
+# terminals without being garish. dim() stays subtle intentionally.
 
-def green(text, stream=None):  return _c('32', text, stream)
-def red(text, stream=None):    return _c('31', text, stream)
-def dim(text, stream=None):    return _c('2',  text, stream)
-def bold(text, stream=None):   return _c('1',  text, stream)
-def cyan(text, stream=None):   return _c('36', text, stream)
+def green(text, stream=None):  return _c('1;32', text, stream)   # bold green
+def red(text, stream=None):    return _c('1;31', text, stream)   # bold red
+def dim(text, stream=None):    return _c('2',    text, stream)   # faint/dim
+def bold(text, stream=None):   return _c('1',    text, stream)   # bold white
+def cyan(text, stream=None):   return _c('1;36', text, stream)   # bold cyan
+def yellow(text, stream=None): return _c('1;33', text, stream)   # bold yellow
