@@ -1,3 +1,4 @@
+from cli.spinner import Spinner
 """
 Session persistence for the drp CLI.
 Saves/loads cookies so users aren't prompted for a password on every command.

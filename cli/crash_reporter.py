@@ -53,7 +53,9 @@ def _scrub(text: str) -> str:
 
 def _safe_traceback(exc) -> list[str]:
     """Return scrubbed traceback lines — file paths + line numbers only."""
-    lines = tb.format_tb(exc.__traceback__ or [])
+    if exc.__traceback__ is None:
+        return []
+    lines = tb.format_tb(exc.__traceback__)
     cleaned = []
     for chunk in lines:
         for line in chunk.splitlines(keepends=True):

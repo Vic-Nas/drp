@@ -19,7 +19,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 from django.contrib.auth.models import User
-from django.test import TestCase, RequestFactory, Client
+from django.test import TestCase, RequestFactory, Client, override_settings
 from django.utils import timezone
 
 from core.models import Drop, Plan
@@ -52,6 +52,9 @@ def _req(factory, method, path, user=None, accept_json=False,
     return req
 
 
+@override_settings(
+    STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage'
+)
 class PasswordGateClipboardTests(TestCase):
     """clipboard_view must gate JSON and web access with a password."""
 
@@ -223,6 +226,9 @@ class SetDropPasswordTests(TestCase):
         self.assertEqual(resp.status_code, 405)
 
 
+@override_settings(
+    STATICFILES_STORAGE='django.contrib.staticfiles.storage.StaticFilesStorage'
+)
 class PasswordEnumerationTests(TestCase):
     """Both wrong password and missing drop must return 401 on web path
     so attackers cannot tell whether a drop exists."""

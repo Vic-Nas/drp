@@ -199,5 +199,7 @@ def _filename_from_response(r, url: str) -> str:
 
     from urllib.parse import urlparse
     path = urlparse(url).path
-    name = os.path.basename(path.rstrip('/'))
+    if path.endswith('/'):
+        return 'download'          # trailing slash = directory listing, no meaningful filename
+    name = os.path.basename(path)
     return name if name else 'download'
