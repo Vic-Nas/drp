@@ -4,7 +4,8 @@ integration_tests/conftest.py
 Zero manual setup — everything derived from your existing .env.
 
 Users are created automatically at session start via `manage.py shell -c`
-and deleted at session end. One user per plan tier + anonymous:
+and left in the DB (marked is_test=True). Purged at next deploy via
+PURGE_TEST_DATA=true. One user per plan tier + anonymous:
 
     anon     — unauthenticated requests.Session
     free     — test-free@{DOMAIN}     Plan.FREE
@@ -83,15 +84,11 @@ User.objects.filter(email='{email}').delete()
 u = User.objects.create_user(username='{email}', email='{email}', password='{password}')
 p = UserProfile.objects.get(user=u)
 p.plan = Plan.{plan}
-p.save(update_fields=['plan'])
+p.is_test = True
+p.save(update_fields=['plan', 'is_test'])
 """)
 
 
-def _delete_user(email):
-    _manage(f"""
-from django.contrib.auth import get_user_model
-get_user_model().objects.filter(email='{email}').delete()
-""")
 
 
 # ── Test user definitions ─────────────────────────────────────────────────────
@@ -110,21 +107,10 @@ class TestUser:
         self.password = password
         self.plan     = plan
         self.session  = session
-        self._keys    = []   # (ns, key) — cleaned up at session end
 
     def track(self, key, ns='c'):
-        """Register a drop key for cleanup."""
-        self._keys.append((ns, key))
+        """No-op — test data is purged at deploy via is_test flag."""
         return key
-
-    def cleanup_drops(self, host):
-        from cli.api.actions import delete
-        for ns, key in self._keys:
-            try:
-                delete(host, self.session, key, ns=ns)
-            except Exception:
-                pass
-        self._keys.clear()
 
 
 def _login_session(email, password):
@@ -140,7 +126,8 @@ def _login_session(email, password):
 @pytest.fixture(scope='session')
 def users():
     """
-    Create all test users once, yield dict keyed by plan name, delete at end.
+    Create all test users once and yield dict keyed by plan name.
+    Users are marked is_test=True and left in the DB — purged at next deploy.
     Access as: users['free'], users['starter'], users['pro']
     """
     password = secrets.token_urlsafe(16)
@@ -152,12 +139,6 @@ def users():
         created[name] = TestUser(email, password, plan, session)
 
     yield created
-
-    for name, email, _ in _TEST_USERS:
-        try:
-            _delete_user(email)
-        except Exception as e:
-            print(f'\n[teardown] WARNING: could not delete {email}: {e}')
 
 
 @pytest.fixture(scope='session')
