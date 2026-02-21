@@ -37,8 +37,16 @@ dev = [
     "pytest-django",
     "pytest-asyncio",
     "pytest-cov",
-    "django",
+    "django>=5.0",
+    "python-dotenv",
+    "dj-database-url",
+    "whitenoise",
+    "gunicorn",
     "requests",
+    "psycopg2-binary>=2.9",
+    "resend",
+    "boto3",
+    "markdown",
     "argcomplete>=3.1"
 ]
 
