@@ -65,6 +65,12 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": BASE_DIR / "db.sqlite3",
+        # Prevents "database is locked" OperationalError when multiple Gunicorn
+        # workers write concurrently. Workers wait up to 20 s instead of crashing
+        # (which propagates as a 500 -> 502 from the upstream proxy).
+        "OPTIONS": {
+            "timeout": 20,
+        },
     }
 }
 

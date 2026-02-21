@@ -131,7 +131,21 @@ def save_drop(request):
         existing.hard_delete()
         existing = None
 
-    if existing and not existing.can_edit(request.user):
+    # Allow the original anon uploader to overwrite their own creation-locked drop.
+    # The 24-hour lock is meant to block *other* users from hijacking a key,
+    # not to prevent the creator from updating their own content.
+    anon_token = None
+    if not request.user.is_authenticated:
+        anon_token = request.COOKIES.get(ANON_COOKIE) or secrets.token_urlsafe(32)
+
+    _anon_owns_existing = (
+        existing
+        and not request.user.is_authenticated
+        and existing.anon_token
+        and existing.anon_token == request.COOKIES.get(ANON_COOKIE)
+    )
+
+    if existing and not _anon_owns_existing and not existing.can_edit(request.user):
         if existing.is_creation_locked():
             return JsonResponse({
                 "error": (
@@ -142,10 +156,6 @@ def save_drop(request):
         return JsonResponse({"error": "This drop is locked to its owner."}, status=403)
 
     paid = is_paid_user(request.user)
-
-    anon_token = None
-    if not request.user.is_authenticated:
-        anon_token = request.COOKIES.get(ANON_COOKIE) or secrets.token_urlsafe(32)
 
     if f:
         response = _save_file(request, f, ns, key, existing, paid, anon_token)
