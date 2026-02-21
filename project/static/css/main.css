@@ -25,7 +25,7 @@ body {
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* ── Header — sticky so it stays visible while scrolling ── */
+/* ── Header — sticky, always full viewport width ── */
 header {
   position: sticky;
   top: 0;
@@ -35,7 +35,7 @@ header {
   justify-content: space-between;
   padding: 1rem 2rem;
   border-bottom: 1px solid var(--border);
-  background: var(--bg);          /* must be opaque so content scrolls under it */
+  background: var(--bg);
 }
 
 .logo {
@@ -45,35 +45,18 @@ header {
   color: var(--text);
 }
 
+/* ── Main — full width shell, no centering here ── */
 main {
   flex: 1;
-  max-width: 900px;
   width: 100%;
-  margin: 0 auto;
-  padding: 2.5rem 1.5rem;
+  padding: 0;
 }
 
-/* Rail is the left wall. Pad body so everything centers in the
-   remaining space. Then explicitly cancel that padding on header
-   and footer so they stay full viewport width. */
-@media (min-width: 1000px) {
-  body {
-    padding-left: min(300px, calc((100vw - 900px) / 2 - 16px));
-  }
-  header {
-    margin-left: calc(-1 * min(300px, calc((100vw - 900px) / 2 - 16px)));
-    width: 100vw;
-  }
-  footer {
-    margin-left: calc(-1 * min(300px, calc((100vw - 900px) / 2 - 16px)));
-    width: 100vw;
-  }
-}
-
-
+/* ── Footer — sticky at bottom, always full viewport width ── */
 footer {
   position: sticky;
   bottom: 0;
+  z-index: 90;
   width: 100%;
   text-align: center;
   padding: 1.2rem;
@@ -81,8 +64,26 @@ footer {
   border-top: 1px solid var(--border);
   background: var(--bg);
   font-size: 0.8rem;
-  z-index: 90;
-  margin-top: auto;
+}
+
+/* ── Page content — the actual centered column inside main ──────────────────
+   This is the only element that knows about the rail. On wide viewports
+   it treats the rail as its left wall by pushing its left margin right
+   by the rail width, then auto-centers in what remains.
+   Header and footer are outside this and stay full width.
+   ────────────────────────────────────────────────────────────────────────── */
+.page-content {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+}
+
+@media (min-width: 1000px) {
+  .page-content {
+    margin-left: min(300px, calc((100vw - 900px) / 2 - 16px));
+    margin-right: auto;
+  }
 }
 
 /* ── Home layout ── */
@@ -91,8 +92,6 @@ footer {
   grid-template-columns: 1fr 280px;
   gap: 2rem;
   align-items: start;
-  max-width: 900px;
-  margin: 0 auto;
 }
 
 .creator h1 { font-size: 2.5rem; font-weight: 800; letter-spacing: -1.5px; margin-bottom: .3rem; }
@@ -299,7 +298,6 @@ textarea:disabled { opacity: .4; }
   padding: 0;
   font-size: .88rem;
 }
-
 .clip-existing {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -347,13 +345,6 @@ textarea:disabled { opacity: .4; }
 }
 .toast.show { opacity: 1; }
 
-@media (max-width: 700px) {
-  .home-wrap { grid-template-columns: 1fr; }
-  .dashboard { order: -1; }
-  main { padding: 1.5rem 1rem; }
-  .creator h1 { font-size: 1.8rem; }
-}
-
 /* ── Result box ── */
 .result-box {
   display: flex;
@@ -372,11 +363,10 @@ textarea:disabled { opacity: .4; }
 /* ── Dashboard actions ── */
 .dashboard-actions { display: flex; gap: .4rem; margin-top: .8rem; flex-wrap: wrap; }
 
-/* ── Help page (legacy, for legal pages) ── */
+/* ── Help page (used by privacy/terms) ── */
 .help-page { max-width: 680px; }
 .help-page h1 { font-size: 2rem; font-weight: 800; letter-spacing: -1px; margin-bottom: .4rem; }
 .help-page > .tagline { margin-bottom: 1.5rem; }
-
 .help-nav {
   display: flex;
   gap: .3rem;
@@ -387,7 +377,6 @@ textarea:disabled { opacity: .4; }
 }
 .help-nav a { font-size: .82rem; color: var(--muted); padding: .25rem .6rem; border-radius: 4px; transition: background .15s, color .15s; text-decoration: none; }
 .help-nav a:hover { background: var(--surface); color: var(--text); }
-
 .help-page section { margin-bottom: 2.5rem; scroll-margin-top: 1rem; }
 .help-page section h2 { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-bottom: 1rem; padding-bottom: .35rem; border-bottom: 1px solid var(--border); }
 .help-page section h3 { font-size: .85rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 1.1rem 0 .4rem; }
@@ -400,7 +389,7 @@ textarea:disabled { opacity: .4; }
 .help-page table td { padding: .4rem .6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
 .help-page table tr:last-child td { border-bottom: none; }
 
-/* ── Nav (already in header rule above, kept for specificity) ── */
+/* ── Nav ── */
 nav { display: flex; align-items: center; gap: 1.2rem; }
 nav a { color: var(--muted); font-size: .88rem; transition: color .15s; }
 nav a:hover { color: var(--text); text-decoration: none; }
@@ -443,7 +432,6 @@ nav a:hover { color: var(--text); text-decoration: none; }
 .account-section { margin-bottom: 2rem; }
 .account-section h2 { font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .8rem; }
 .plan-status { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
-
 .drops-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
 .drops-table th { text-align: left; color: var(--muted); font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; padding: .4rem .6rem; border-bottom: 1px solid var(--border); }
 .drops-table td { padding: .5rem .6rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
@@ -461,10 +449,6 @@ nav a:hover { color: var(--text); text-decoration: none; }
 
 /* ── Btn link ── */
 .btn-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: inherit; padding: 0; text-decoration: underline; }
-
-@media (max-width: 500px) {
-  .plan-grid { grid-template-columns: 1fr; }
-}
 
 /* ── Home tabs (save / get) ── */
 .home-tabs {
@@ -498,7 +482,6 @@ nav a:hover { color: var(--text); text-decoration: none; }
   border-bottom: 1px solid var(--border);
 }
 .cmd-block:last-child { border-bottom: none; }
-
 .cmd-header {
   display: flex;
   align-items: baseline;
@@ -506,73 +489,27 @@ nav a:hover { color: var(--text); text-decoration: none; }
   margin-bottom: .75rem;
   flex-wrap: wrap;
 }
-.cmd-name {
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--accent);
-  background: none;
-  padding: 0;
-}
-.cmd-help {
-  color: var(--muted);
-  font-size: .88rem;
-}
-
-.cmd-args {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: .84rem;
-  margin-bottom: .6rem;
-}
-.cmd-args th {
-  text-align: left;
-  color: var(--muted);
-  font-weight: 600;
-  font-size: .75rem;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  padding: .3rem .6rem;
-  border-bottom: 1px solid var(--border);
-}
-.cmd-args td {
-  padding: .35rem .6rem;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-}
+.cmd-name { font-size: 1rem; font-weight: 700; color: var(--accent); background: none; padding: 0; }
+.cmd-help { color: var(--muted); font-size: .88rem; }
+.cmd-args { width: 100%; border-collapse: collapse; font-size: .84rem; margin-bottom: .6rem; }
+.cmd-args th { text-align: left; color: var(--muted); font-weight: 600; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; padding: .3rem .6rem; border-bottom: 1px solid var(--border); }
+.cmd-args td { padding: .35rem .6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
 .cmd-args tr:last-child td { border-bottom: none; }
 .cmd-args td:first-child { white-space: nowrap; }
-.cmd-args code {
-  background: var(--surface);
-  padding: .1em .35em;
-  border-radius: 3px;
-  font-size: .85em;
+.cmd-args code { background: var(--surface); padding: .1em .35em; border-radius: 3px; font-size: .85em; }
+.arg-optional { font-size: .72rem; color: var(--muted); margin-left: .35rem; border: 1px solid var(--border); border-radius: 3px; padding: .05em .3em; vertical-align: middle; }
+.arg-default { display: block; font-size: .78rem; color: var(--muted); margin-top: .15rem; }
+.cmd-epilog { margin-top: .5rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: .6rem .8rem; }
+.cmd-epilog code { background: none; padding: 0; font-size: .82rem; }
+
+/* ── Responsive ── */
+@media (max-width: 700px) {
+  .home-wrap { grid-template-columns: 1fr; }
+  .dashboard { order: -1; }
+  .page-content { padding: 1.5rem 1rem; }
+  .creator h1 { font-size: 1.8rem; }
 }
 
-.arg-optional {
-  font-size: .72rem;
-  color: var(--muted);
-  margin-left: .35rem;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  padding: .05em .3em;
-  vertical-align: middle;
-}
-.arg-default {
-  display: block;
-  font-size: .78rem;
-  color: var(--muted);
-  margin-top: .15rem;
-}
-
-.cmd-epilog {
-  margin-top: .5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: .6rem .8rem;
-}
-.cmd-epilog code {
-  background: none;
-  padding: 0;
-  font-size: .82rem;
+@media (max-width: 500px) {
+  .plan-grid { grid-template-columns: 1fr; }
 }
