@@ -276,7 +276,10 @@ class Drop(models.Model):
         if not self.expires_at:
             return
         duration = self.expires_at - self.created_at
-        self.expires_at = timezone.now() + duration
+        # Extend from whichever is later — the current expiry or now.
+        # Using max() guarantees the new expiry is always strictly greater
+        # than the old one, even when the drop was just created.
+        self.expires_at = max(self.expires_at, timezone.now()) + duration
         self.renewal_count += 1
         self.save(update_fields=["expires_at", "renewal_count"])
 
