@@ -371,7 +371,7 @@ class TestCmdCp:
         args = MagicMock(key='src', new_key='dst', file=False, clip=False)
         import cli.commands.cp as cp
         with patch('builtins.print'):
-            with patch('cli.commands.cp.Spinner'):
+            with patch('cli.spinner.Spinner'):
                 cp.cmd_cp(args)
         mock_session.post.assert_called_once()
         call_url = mock_session.post.call_args[0][0]

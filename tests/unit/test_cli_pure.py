@@ -294,8 +294,8 @@ class TestParseKey:
 class TestSetupHelpers:
     def test_activation_line_contains_eval(self):
         from cli.commands.setup import _activation_line
-        line = _activation_line('/usr/local/bin/drp', 'bash')
-        assert 'eval' in line.lower() or 'register' in line.lower() or 'drp' in line
+        line = _activation_line('bash')
+        assert line and ('eval' in line.lower() or 'register' in line.lower() or 'drp' in line)
 
     def test_profile_has_activation_false_when_absent(self):
         from cli.commands.setup import _profile_has_activation
@@ -303,7 +303,8 @@ class TestSetupHelpers:
             f.write('# empty profile\n')
             path = f.name
         try:
-            assert not _profile_has_activation(Path(path))
+            activation = 'eval "$(register-python-argcomplete drp)"'
+            assert not _profile_has_activation(Path(path), activation)
         finally:
             os.unlink(path)
 

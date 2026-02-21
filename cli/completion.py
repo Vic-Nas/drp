@@ -204,7 +204,7 @@ def _do_refresh(config, SESSION_FILE) -> None:
         # no longer knows about it — covers both previously-synced drops
         # and locally-cached drops that have since expired/been deleted.
         # Drops from other hosts are always kept.
-        if drop_host == host and (ns, key) not in server_keys:
+        if drop_host == host and from_server and (ns, key) not in server_keys:
             continue  # gone from server — prune it
 
         existing_by_key[(ns, key)] = d
