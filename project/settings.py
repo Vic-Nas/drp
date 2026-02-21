@@ -142,10 +142,13 @@ LEMONSQUEEZY_STARTER_VARIANT_ID = os.environ.get("LEMONSQUEEZY_STARTER_VARIANT_I
 LEMONSQUEEZY_PRO_VARIANT_ID    = os.environ.get("LEMONSQUEEZY_PRO_VARIANT_ID", "")
 
 # ── Cache ─────────────────────────────────────────────────────────────────────
+# LocMemCache is per-process and instant — no DB or network round trip.
+# Safe with a single gunicorn worker (all requests share the same process).
+# If workers scale beyond 1, switch to DatabaseCache or Redis so the cache
+# is shared across processes.
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
-        "LOCATION": "drp_cache",
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
     }
 }
 
