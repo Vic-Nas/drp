@@ -15,10 +15,12 @@
   position: fixed;
   /* Align vertically: below sticky header (~57px) + comfortable gap */
   top: 80px;
-  /* Push it into the left gutter.
-     main is max 900px centered, so left edge of main ≈ (100vw - 900px) / 2.
-     We want the rail to sit just inside that left gutter with 16px breathing room. */
-  left: calc((100vw - 900px) / 2 - 160px - 16px);
+  /* Center within the left gutter.
+     Gutter width = (100vw - 900px) / 2
+     Rail width   = 140px
+     Centered left offset = gutter/2 - rail/2
+                          = (100vw - 900px) / 4 - 70px            */
+  left: calc((100vw - 900px) / 4 - 70px);
   width: 140px;
   z-index: 50;
 }
