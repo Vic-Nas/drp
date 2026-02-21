@@ -71,10 +71,12 @@ def cmd_up(args):
     session = requests.Session()
     auto_login(cfg, host, session)
 
-    target   = getattr(args, 'target', None)
-    key      = args.key
-    burn     = getattr(args, 'burn', False)
-    password = getattr(args, 'password', None) or ''
+    target    = getattr(args, 'target', None)
+    key       = args.key
+    burn      = getattr(args, 'burn', False)
+    password  = getattr(args, 'password', None) or ''
+    force_file = getattr(args, 'file', False)
+    force_clip = getattr(args, 'clip', False)
 
     # stdin pipe
     if target is None or target == '-':
@@ -83,11 +85,11 @@ def cmd_up(args):
             sys.exit(1)
         target = sys.stdin.read()
 
-    elif target.startswith('http://') or target.startswith('https://'):
+    elif not force_clip and (target.startswith('http://') or target.startswith('https://')):
         _upload_url(host, session, target, key, cfg, args, password)
         return
 
-    elif os.path.isfile(target):
+    elif not force_clip and (force_file or os.path.isfile(target)):
         _upload_file(host, session, target, key, cfg, args, password)
         return
 

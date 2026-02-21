@@ -163,6 +163,10 @@ def _configure_subparsers(sub):
     p_up = sub._name_parser_map['up']
     p_up.add_argument('target', nargs='?', default=None,
                       help='File path, text string, or https:// URL (omit to read stdin)')
+    p_up.add_argument('-f', '--file', action='store_true',
+                      help='Force upload as a file drop (e.g. when piping binary data)')
+    p_up.add_argument('-c', '--clip', action='store_true',
+                      help='Force upload as clipboard text')
     p_up.add_argument('--key', '-k', default=None)
     p_up.add_argument('--expires', '-e', default=None, metavar='DURATION',
                       help='7d, 30d, 1y (paid accounts only)')
@@ -173,6 +177,7 @@ def _configure_subparsers(sub):
 
     p_get = sub._name_parser_map['get']
     p_get.add_argument('-f', '--file', action='store_true')
+    p_get.add_argument('-c', '--clip', action='store_true')
     _attach(p_get.add_argument('key'), 'key')
     p_get.add_argument('--output', '-o', default=None)
     p_get.add_argument('--url', '-u', action='store_true')
@@ -185,29 +190,35 @@ def _configure_subparsers(sub):
 
     p_cp = sub._name_parser_map['cp']
     p_cp.add_argument('-f', '--file', action='store_true')
+    p_cp.add_argument('-c', '--clip', action='store_true')
     _attach(p_cp.add_argument('key', help='Source key'), 'key')
     p_cp.add_argument('new_key')
 
     p_rm = sub._name_parser_map['rm']
     p_rm.add_argument('-f', '--file', action='store_true')
+    p_rm.add_argument('-c', '--clip', action='store_true')
     _attach(p_rm.add_argument('key'), 'key')
 
     p_mv = sub._name_parser_map['mv']
     p_mv.add_argument('-f', '--file', action='store_true')
+    p_mv.add_argument('-c', '--clip', action='store_true')
     _attach(p_mv.add_argument('key', help='Current key'), 'key')
     p_mv.add_argument('new_key')
 
     p_renew = sub._name_parser_map['renew']
     p_renew.add_argument('-f', '--file', action='store_true')
+    p_renew.add_argument('-c', '--clip', action='store_true')
     _attach(p_renew.add_argument('key'), 'key')
 
     p_save = sub._name_parser_map['save']
     p_save.add_argument('-f', '--file', action='store_true')
+    p_save.add_argument('-c', '--clip', action='store_true')
     _attach(p_save.add_argument('key'), 'key')
 
     p_status = sub._name_parser_map['status']
     p_status.add_argument('key', nargs='?', default=None)
     p_status.add_argument('-f', '--file', action='store_true')
+    p_status.add_argument('-c', '--clip', action='store_true')
 
     p_ls = sub._name_parser_map['ls']
     p_ls.add_argument('-l', '--long', action='store_true')

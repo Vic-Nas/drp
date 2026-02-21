@@ -31,7 +31,7 @@ def cmd_cp(args):
     session = requests.Session()
     auto_login(cfg, host, session)
 
-    ns = 'f' if getattr(args, 'file', False) else 'c'
+    ns = 'f' if getattr(args, 'file', False) and not getattr(args, 'clip', False) else 'c'
 
     from cli.spinner import Spinner
     with Spinner('copying'):

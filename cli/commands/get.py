@@ -32,7 +32,7 @@ def cmd_get(args):
     t.checkpoint('load config')
 
     if getattr(args, 'url', False):
-        if getattr(args, 'file', False):
+        if getattr(args, 'file', False) and not getattr(args, 'clip', False):
             print(f'{host}/f/{args.key}/')
         else:
             print(f'{host}/{args.key}/')
@@ -47,7 +47,7 @@ def cmd_get(args):
     # Password from flag or will be prompted on 401
     password = getattr(args, 'password', None) or ''
 
-    if getattr(args, 'file', False):
+    if getattr(args, 'file', False) and not getattr(args, 'clip', False):
         _get_file(args, host, session, t, password)
     else:
         _get_clipboard(args, host, session, t, password)

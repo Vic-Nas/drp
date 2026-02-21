@@ -52,7 +52,7 @@ def _drop_status(args, key):
         print('  ✗ Not configured. Run: drp setup')
         sys.exit(1)
 
-    ns = 'f' if getattr(args, 'file', False) else 'c'
+    ns = 'f' if getattr(args, 'file', False) and not getattr(args, 'clip', False) else 'c'
     url = f'{host}/f/{key}/' if ns == 'f' else f'{host}/{key}/'
 
     from cli.spinner import Spinner

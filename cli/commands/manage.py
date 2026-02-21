@@ -16,9 +16,9 @@ from cli.format import human_time
 from cli.crash_reporter import report_outcome
 
 
-def _parse_key(raw, is_file=False):
-    """Return (ns, key). Pass is_file=True for file drops."""
-    return ('f', raw) if is_file else ('c', raw)
+def _parse_key(raw, is_file=False, is_clip=False):
+    """Return (ns, key). -f → file ns, -c → clipboard ns, default → clipboard."""
+    return ('f', raw) if is_file and not is_clip else ('c', raw)
 
 
 def cmd_rm(args):
@@ -31,7 +31,7 @@ def cmd_rm(args):
     session = requests.Session()
     auto_login(cfg, host, session)
 
-    ns, key = _parse_key(args.key, args.file)
+    ns, key = _parse_key(args.key, args.file, getattr(args, 'clip', False))
 
     if api.delete(host, session, key, ns=ns):
         prefix = 'f/' if ns == 'f' else ''
@@ -57,7 +57,7 @@ def cmd_mv(args):
     session = requests.Session()
     auto_login(cfg, host, session)
 
-    ns, key = _parse_key(args.key, args.file)
+    ns, key = _parse_key(args.key, args.file, getattr(args, 'clip', False))
     result = api.rename(host, session, key, args.new_key, ns=ns)
 
     if isinstance(result, str):
@@ -91,7 +91,7 @@ def cmd_renew(args):
     session = requests.Session()
     auto_login(cfg, host, session)
 
-    ns, key = _parse_key(args.key, args.file)
+    ns, key = _parse_key(args.key, args.file, getattr(args, 'clip', False))
     expires_at, renewals = api.renew(host, session, key, ns=ns)
 
     if expires_at:
