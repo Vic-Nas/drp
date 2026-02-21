@@ -1,25 +1,23 @@
 {% comment %}
-ads/slot.html — sticky left-rail ad unit. Standard 300×600 Half Page.
+ads/slot.html — responsive left-rail ad.
 
-Only visible at 1560px+ (wide enough to have gutter beside the 900px main).
-No layout shift on smaller screens — the rail is position:fixed and display:none
-below the breakpoint.
+Rail width is fluid (fills gutter up to 300px), height fixed at 600px.
+Hidden below 1000px (phones/small tablets) where there's no gutter.
 
 Behaviour:
-  ADSENSE_CLIENT unset  → Railway referral card (300×600)
-  ADSENSE_CLIENT set    → AdSense 300×600 Half Page (fixed size)
-
-AdSense setup: create a "300×600 Half Page" ad unit in your AdSense
-dashboard and set ADSENSE_SLOT to that unit's slot ID.
+  ADSENSE_CLIENT unset  → Railway referral card (fluid)
+  ADSENSE_CLIENT set    → AdSense 300×600 centered inside the fluid rail
 {% endcomment %}
 {% if adsense_client %}
 <div class="ad-rail">
-  <ins class="adsbygoogle ad-adsense"
-       style="display:block;width:300px;height:600px"
-       data-ad-client="{{ adsense_client }}"
-       data-ad-slot="{{ adsense_slot|default:'' }}"
-       data-ad-format="fixed"></ins>
-  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  <div class="ad-adsense-wrap">
+    <ins class="adsbygoogle ad-adsense"
+         style="display:block;width:300px;height:600px"
+         data-ad-client="{{ adsense_client }}"
+         data-ad-slot="{{ adsense_slot|default:'' }}"
+         data-ad-format="fixed"></ins>
+    <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+  </div>
 </div>
 {% else %}
 <div class="ad-rail">

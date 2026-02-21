@@ -1,54 +1,54 @@
 /* ── Ad rail ─────────────────────────────────────────────────────────────────
-   Standard 300×600 Half Page in the left gutter beside the 900px main.
-   Only visible at 1560px+ where there's enough room.
-   No layout shift on narrower viewports — display:none collapses it entirely.
+   Responsive left-rail ad in the gutter beside the 900px main column.
+   - Fluid width: fills available gutter space up to 300px max
+   - Fixed height: 600px (standard Half Page)
+   - Hidden only on mobile where there's no gutter at all (< 1000px)
    ────────────────────────────────────────────────────────────────────────── */
 
-/* Remove the old adbar strip between header and main */
+/* Remove the old adbar strip */
 .ad-slot--adbar {
   display: none;
 }
 
 /* ── Rail wrapper ── */
 .ad-rail {
-  display: none; /* hidden by default; shown only at wide viewports below */
+  display: none; /* hidden on mobile, shown below */
   position: fixed;
-  /* Center vertically in viewport */
   top: 50%;
   transform: translateY(-50%);
-  /* Center within the left gutter.
-     Gutter width = (100vw - 900px) / 2
-     Rail width   = 300px
-     Centered left offset = gutter/2 - rail/2
-                          = (100vw - 900px) / 4 - 150px           */
-  left: calc((100vw - 900px) / 4 - 150px);
-  width: 300px;
+  /* Sit in the left gutter with a small margin from the main column edge */
+  left: 8px;
+  /* Fill the gutter up to 300px.
+     Right edge must not overlap main: main left edge = (100vw - 900px) / 2
+     So max right = that edge - 8px gap
+     width = min(300px, (100vw - 900px) / 2 - 16px)               */
+  width: min(300px, calc((100vw - 900px) / 2 - 16px));
+  height: 600px;
   z-index: 50;
 }
 
-/* Only show when gutter is wide enough:
-   900px main + 2×(300px rail + 20px gap) = 1540px minimum.
-   1560px gives ~10px breathing room each side. */
-@media (min-width: 1560px) {
+/* Show whenever there's meaningful gutter space (roughly 1000px+) */
+@media (min-width: 1000px) {
   .ad-rail {
     display: block;
   }
 }
 
-/* ── Railway referral — rail layout ── */
+/* ── Railway referral — fills the rail fully ── */
 .ad-rail .ad-railway {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: .75rem;
-  width: 300px;
-  height: 600px;
+  width: 100%;
+  height: 100%;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
   text-decoration: none;
   text-align: center;
+  padding: 1rem .5rem;
   transition: border-color .15s, background .15s;
 }
 .ad-rail .ad-railway:hover {
@@ -58,28 +58,36 @@
 }
 
 .ad-railway__logo {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 800;
   color: #7c3aed;
   letter-spacing: -.01em;
 }
 
 .ad-railway__tagline {
-  font-size: .82rem;
+  font-size: .75rem;
   color: var(--muted);
   line-height: 1.5;
-  max-width: 200px;
 }
 
 .ad-railway__cta {
-  font-size: .85rem;
+  font-size: .8rem;
   font-weight: 600;
   color: #7c3aed;
 }
 
-/* ── AdSense — standard 300×600 Half Page (fixed, not responsive) ── */
+/* ── AdSense — fixed 300×600, centered in the fluid rail ── */
+.ad-rail .ad-adsense-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
 .ad-rail .ad-adsense {
   display: block;
   width: 300px;
   height: 600px;
+  flex-shrink: 0;
 }
