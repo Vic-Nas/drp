@@ -378,3 +378,53 @@ class SavedDrop(models.Model):
         if self.ns == Drop.NS_FILE:
             return f"/f/{self.key}/"
         return f"/{self.key}/"
+
+
+# ── EmailVerification ─────────────────────────────────────────────────────────
+
+class EmailVerification(models.Model):
+    user       = models.OneToOneField(User, on_delete=models.CASCADE, related_name='email_verification')
+    token      = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def is_expired(self):
+        return (timezone.now() - self.created_at).total_seconds() > 86400  # 24h
+
+    def __str__(self):
+        return f'EmailVerification for {self.user.email}'
+
+
+# ── BugReport ─────────────────────────────────────────────────────────────────
+
+class BugReport(models.Model):
+    CATEGORY_CHOICES = [
+        ('bug',      'Bug — something is broken'),
+        ('ui',       'UI — visual or layout issue'),
+        ('perf',     'Performance — it\'s slow'),
+        ('feature',  'Feature request'),
+        ('security', 'Security concern'),
+        ('other',    'Other'),
+    ]
+
+    # GitHub label to apply per category
+    CATEGORY_LABELS = {
+        'bug':      'bug',
+        'ui':       'ui',
+        'perf':     'performance',
+        'feature':  'enhancement',
+        'security': 'security',
+        'other':    'question',
+    }
+
+    user        = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    category    = models.CharField(max_length=16, choices=CATEGORY_CHOICES)
+    description = models.TextField()
+    hide_identity = models.BooleanField(default=True)
+    github_issue_url = models.URLField(blank=True, default='')
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'[{self.category}] by {self.user.email if self.user else "anon"} @ {self.created_at:%Y-%m-%d}'
