@@ -26,7 +26,7 @@ drp setup && drp up "hello world"
 | Variable | Required | Description |
 |---|---|---|
 | `SECRET_KEY` | ✓ | Django secret key |
-| `DOMAIN` | ✓ | e.g. `drp.vicnas.me` |
+| `DOMAIN` | ✓ | e.g. `hello.me` |
 | `DB_URL` | ✓ | PostgreSQL connection string (Railway injects this) |
 | `B2_KEY_ID` | ✓ | Backblaze B2 application key ID |
 | `B2_APP_KEY` | ✓ | Backblaze B2 application key secret |
