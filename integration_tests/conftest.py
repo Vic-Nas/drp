@@ -60,13 +60,12 @@ HOST = _resolve_host()
 
 # ── User management via manage.py ─────────────────────────────────────────────
 
-def _manage(code, timeout=20):
+def _manage(code):
     """Run a Python snippet in manage.py shell -c. Raises on non-zero exit."""
     result = subprocess.run(
         ['python', 'manage.py', 'shell', '-c', code],
         capture_output=True, text=True, cwd=_ROOT,
         env={**os.environ, **_env},
-        timeout=timeout,
     )
     if result.returncode != 0:
         raise RuntimeError(
@@ -78,13 +77,9 @@ def _manage(code, timeout=20):
 def _create_user(email, password, plan):
     _manage(f"""
 from django.contrib.auth import get_user_model
-from core.models import UserProfile, Plan, Drop, SavedDrop
+from core.models import UserProfile, Plan
 User = get_user_model()
-existing = User.objects.filter(email='{email}').first()
-if existing:
-    SavedDrop.objects.filter(user=existing).delete()
-    Drop.objects.filter(owner=existing).delete()
-    existing.delete()
+User.objects.filter(email='{email}').delete()
 u = User.objects.create_user(username='{email}', email='{email}', password='{password}')
 p = UserProfile.objects.get(user=u)
 p.plan = Plan.{plan}
@@ -159,7 +154,6 @@ def users():
     yield created
 
     for name, email, _ in _TEST_USERS:
-        created[name].cleanup_drops(HOST)
         try:
             _delete_user(email)
         except Exception as e:
@@ -225,6 +219,12 @@ def anon_cli_env(cli_config_root):
     env['XDG_CONFIG_HOME'] = str(cli_config_root / 'anon')
     env['NO_COLOR'] = '1'
     return env
+
+
+@pytest.fixture(scope='session')
+def cli_env(anon_cli_env):
+    """Alias for anon_cli_env — used by tests that only need a bare CLI env."""
+    return anon_cli_env
 
 
 # ── Key helpers ───────────────────────────────────────────────────────────────
