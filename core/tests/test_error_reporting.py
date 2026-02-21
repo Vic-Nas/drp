@@ -14,13 +14,14 @@ from core.error_reporting_logic import (
     _issue_exists,
     _create_issue,
     _build_body,
+    _fingerprint,
 )
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _make_issue(title):
-    return {'title': title, 'state': 'open'}
+def _make_issue(title, body=''):
+    return {'title': title, 'state': 'open', 'body': body}
 
 
 def _mock_gh_response(issues):
@@ -28,6 +29,25 @@ def _mock_gh_response(issues):
     mock.ok = True
     mock.json.return_value = issues
     return mock
+
+
+def _data(**kwargs):
+    """Minimal valid data dict; override fields via kwargs."""
+    base = {
+        'exc_type':    'ConnectionError',
+        'exc_message': 'timed out',
+        'traceback':   [],
+        'command':     'up',
+        'cli_version': '0.1.12',
+    }
+    base.update(kwargs)
+    return base
+
+
+def _issue_with_fp(data, title='[auto] some issue'):
+    """Return a mock GitHub issue whose body contains the fingerprint for data."""
+    fp = _fingerprint(data)
+    return _make_issue(title, body=f'some body\n<!-- drp-fingerprint: {fp} -->\n')
 
 
 # ── _scrub ────────────────────────────────────────────────────────────────────
@@ -69,8 +89,6 @@ class TestScrubTraceback:
         assert 'File' in result[0]
 
     def test_passes_through_exception_message_lines(self):
-        # Plain exception lines (not assignments, not "During handling")
-        # must survive unchanged
         lines = ['ConnectionError: timed out\n']
         result = _scrub_traceback(lines)
         assert 'ConnectionError' in result[0]
@@ -107,69 +125,102 @@ class TestIssueTitle:
         assert _issue_title('ConnectionError', 'up') == '[auto] ConnectionError in `drp up`'
 
 
+# ── _fingerprint ──────────────────────────────────────────────────────────────
+
+class TestFingerprint:
+    def test_same_data_produces_same_fingerprint(self):
+        d = _data(traceback=['  File "cli/drp.py", line 42, in main\n'])
+        assert _fingerprint(d) == _fingerprint(d)
+
+    def test_different_exc_type_produces_different_fingerprint(self):
+        a = _data(exc_type='ConnectionError')
+        b = _data(exc_type='ValueError')
+        assert _fingerprint(a) != _fingerprint(b)
+
+    def test_command_does_not_affect_fingerprint(self):
+        # Same bug from two different commands must share a fingerprint.
+        a = _data(command='up')
+        b = _data(command='serve')
+        assert _fingerprint(a) == _fingerprint(b)
+
+    def test_line_number_does_not_affect_fingerprint(self):
+        # Same bug after a version bump (line numbers shift) must still match.
+        a = _data(traceback=['  File "cli/drp.py", line 42, in main\n'])
+        b = _data(traceback=['  File "cli/drp.py", line 99, in main\n'])
+        assert _fingerprint(a) == _fingerprint(b)
+
+    def test_different_traceback_produces_different_fingerprint(self):
+        a = _data(traceback=['  File "cli/drp.py", line 1, in main\n'])
+        b = _data(traceback=['  File "cli/api/text.py", line 1, in upload\n'])
+        assert _fingerprint(a) != _fingerprint(b)
+
+    def test_returns_12_char_hex(self):
+        fp = _fingerprint(_data())
+        assert len(fp) == 12
+        assert all(c in '0123456789abcdef' for c in fp)
+
+
 # ── _issue_exists ─────────────────────────────────────────────────────────────
 
 class TestIssueExists:
     @patch('core.error_reporting_logic.GITHUB_TOKEN', '')
     def test_returns_false_when_no_token(self):
-        assert _issue_exists('ConnectionError', 'up') is False
+        assert _issue_exists(_data()) is False
 
     @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
     @patch('core.error_reporting_logic.http.get')
-    def test_returns_true_on_exact_duplicate(self, mock_get):
-        mock_get.return_value = _mock_gh_response([
-            _make_issue('[auto] ConnectionError in `drp up`'),
-        ])
-        assert _issue_exists('ConnectionError', 'up') is True
+    def test_returns_true_on_fingerprint_match(self, mock_get):
+        d = _data()
+        mock_get.return_value = _mock_gh_response([_issue_with_fp(d)])
+        assert _issue_exists(d) is True
 
     @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
     @patch('core.error_reporting_logic.http.get')
-    def test_returns_false_when_no_matching_issue(self, mock_get):
-        mock_get.return_value = _mock_gh_response([
-            _make_issue('[auto] TimeoutError in `drp ls`'),
-        ])
-        assert _issue_exists('ConnectionError', 'up') is False
+    def test_returns_false_when_no_matching_fingerprint(self, mock_get):
+        # Open issue has a different exc_type, so fingerprint won't match.
+        existing = _data(exc_type='TimeoutError')
+        incoming = _data(exc_type='ConnectionError')
+        mock_get.return_value = _mock_gh_response([_issue_with_fp(existing)])
+        assert _issue_exists(incoming) is False
 
     @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
     @patch('core.error_reporting_logic.http.get')
-    def test_flood_guard_triggers_at_five(self, mock_get):
-        mock_get.return_value = _mock_gh_response([
-            _make_issue('[auto] ConnectionError in `drp up`'),
-            _make_issue('[auto] TimeoutError in `drp up`'),
-            _make_issue('[auto] ValueError in `drp up`'),
-            _make_issue('[auto] KeyError in `drp up`'),
-            _make_issue('[auto] RuntimeError in `drp up`'),
-        ])
-        assert _issue_exists('OSError', 'up') is True
+    def test_same_bug_different_command_is_deduplicated(self, mock_get):
+        # Bug reported from `drp serve` should match an issue filed from `drp up`.
+        filed_from_up   = _data(command='up')
+        filed_from_serve = _data(command='serve')
+        mock_get.return_value = _mock_gh_response([_issue_with_fp(filed_from_up)])
+        assert _issue_exists(filed_from_serve) is True
 
     @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
     @patch('core.error_reporting_logic.http.get')
-    def test_flood_guard_does_not_trigger_at_four(self, mock_get):
-        mock_get.return_value = _mock_gh_response([
-            _make_issue('[auto] ConnectionError in `drp up`'),
-            _make_issue('[auto] TimeoutError in `drp up`'),
-            _make_issue('[auto] ValueError in `drp up`'),
-            _make_issue('[auto] KeyError in `drp up`'),
-        ])
-        assert _issue_exists('OSError', 'up') is False
+    def test_flood_guard_triggers_at_limit(self, mock_get):
+        from core.error_reporting_logic import _FLOOD_LIMIT
+        # Fill up to the limit with issues that won't fingerprint-match incoming.
+        issues = [
+            _issue_with_fp(_data(exc_type=f'Error{i}'))
+            for i in range(_FLOOD_LIMIT)
+        ]
+        mock_get.return_value = _mock_gh_response(issues)
+        # A brand-new error type should still be blocked by the flood guard.
+        assert _issue_exists(_data(exc_type='BrandNewError')) is True
 
     @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
     @patch('core.error_reporting_logic.http.get')
-    def test_flood_guard_is_per_command(self, mock_get):
-        mock_get.return_value = _mock_gh_response([
-            _make_issue('[auto] ConnectionError in `drp up`'),
-            _make_issue('[auto] TimeoutError in `drp up`'),
-            _make_issue('[auto] ValueError in `drp up`'),
-            _make_issue('[auto] KeyError in `drp up`'),
-            _make_issue('[auto] RuntimeError in `drp up`'),
-        ])
-        assert _issue_exists('KeyError', 'get') is False
+    def test_flood_guard_does_not_trigger_below_limit(self, mock_get):
+        from core.error_reporting_logic import _FLOOD_LIMIT
+        issues = [
+            _issue_with_fp(_data(exc_type=f'Error{i}'))
+            for i in range(_FLOOD_LIMIT - 1)
+        ]
+        mock_get.return_value = _mock_gh_response(issues)
+        assert _issue_exists(_data(exc_type='BrandNewError')) is False
 
     @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
     @patch('core.error_reporting_logic.http.get')
     def test_returns_false_on_network_error(self, mock_get):
         mock_get.side_effect = Exception('network error')
-        assert _issue_exists('ConnectionError', 'up') is False
+        assert _issue_exists(_data()) is False
 
     @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
     @patch('core.error_reporting_logic.http.get')
@@ -177,56 +228,16 @@ class TestIssueExists:
         mock = MagicMock()
         mock.ok = False
         mock_get.return_value = mock
-        assert _issue_exists('ConnectionError', 'up') is False
-
-    # ── HTTP error deduplication (previously untested) ────────────────────────
+        assert _issue_exists(_data()) is False
 
     @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
     @patch('core.error_reporting_logic.http.get')
-    def test_http_error_deduplicates_same_status_same_command(self, mock_get):
-        """HTTP403 in `drp up` already open -> don't file another HTTP403 in `drp up`."""
+    def test_issue_with_no_body_does_not_crash(self, mock_get):
+        # GitHub issues can have a null body.
         mock_get.return_value = _mock_gh_response([
-            _make_issue('[auto] HTTP403 in `drp up`'),
+            {'title': '[auto] something', 'state': 'open', 'body': None},
         ])
-        assert _issue_exists('HTTP403', 'up') is True
-
-    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
-    @patch('core.error_reporting_logic.http.get')
-    def test_http_error_allows_different_status_same_command(self, mock_get):
-        """HTTP403 open for `drp up` should not block filing HTTP404 for `drp up`."""
-        mock_get.return_value = _mock_gh_response([
-            _make_issue('[auto] HTTP403 in `drp up`'),
-        ])
-        assert _issue_exists('HTTP404', 'up') is False
-
-    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
-    @patch('core.error_reporting_logic.http.get')
-    def test_http_error_allows_same_status_different_command(self, mock_get):
-        """HTTP403 in `drp up` should not block filing HTTP403 in `drp rm`."""
-        mock_get.return_value = _mock_gh_response([
-            _make_issue('[auto] HTTP403 in `drp up`'),
-        ])
-        assert _issue_exists('HTTP403', 'rm') is False
-
-    # ── SilentFailure deduplication (previously untested) ────────────────────
-
-    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
-    @patch('core.error_reporting_logic.http.get')
-    def test_silent_failure_deduplicates_by_command(self, mock_get):
-        """One open SilentFailure for `drp up` -> don't file another for `drp up`."""
-        mock_get.return_value = _mock_gh_response([
-            _make_issue('[auto] SilentFailure in `drp up`'),
-        ])
-        assert _issue_exists('SilentFailure', 'up') is True
-
-    @patch('core.error_reporting_logic.GITHUB_TOKEN', 'fake-token')
-    @patch('core.error_reporting_logic.http.get')
-    def test_silent_failure_allows_different_command(self, mock_get):
-        """SilentFailure open for `drp up` should not block filing for `drp ls`."""
-        mock_get.return_value = _mock_gh_response([
-            _make_issue('[auto] SilentFailure in `drp up`'),
-        ])
-        assert _issue_exists('SilentFailure', 'ls') is False
+        assert _issue_exists(_data()) is False
 
 
 # ── _create_issue ─────────────────────────────────────────────────────────────
@@ -286,25 +297,36 @@ class TestCreateIssue:
 class TestBuildBody:
     def _data(self, **kwargs):
         base = {
-            'exc_type': 'ConnectionError',
-            'exc_message': 'timed out',
-            'traceback': ['  File "cli/drp.py", line 42, in main\n'],
-            'cli_version': '0.1.12',
+            'exc_type':       'ConnectionError',
+            'exc_message':    'timed out',
+            'traceback':      ['  File "cli/drp.py", line 42, in main\n'],
+            'cli_version':    '0.1.12',
             'python_version': '3.12.0',
-            'platform': 'Linux',
-            'command': 'up',
+            'platform':       'Linux',
+            'command':        'up',
         }
         base.update(kwargs)
         return base
 
+    def test_returns_title_and_body_tuple(self):
+        result = _build_body(self._data())
+        assert isinstance(result, tuple) and len(result) == 2
+
+    def test_title_contains_exc_type_and_command(self):
+        title, _ = _build_body(self._data())
+        assert 'ConnectionError' in title
+        assert 'drp up' in title
+
     def test_contains_exc_type(self):
-        assert 'ConnectionError' in _build_body(self._data())
+        _, body = _build_body(self._data())
+        assert 'ConnectionError' in body
 
     def test_contains_command(self):
-        assert 'drp up' in _build_body(self._data())
+        _, body = _build_body(self._data())
+        assert 'drp up' in body
 
     def test_contains_versions(self):
-        body = _build_body(self._data())
+        _, body = _build_body(self._data())
         assert '0.1.12' in body
         assert '3.12.0' in body
         assert 'Linux' in body
@@ -314,27 +336,40 @@ class TestBuildBody:
             '  File "cli/drp.py", line 42, in main',
             '  File "cli/api/text.py", line 10, in upload',
         ])
-        body = _build_body(data)
+        _, body = _build_body(data)
         lines = body.split('\n')
         assert len([l for l in lines if 'cli/drp.py' in l]) == 1
         assert len([l for l in lines if 'cli/api/text.py' in l]) == 1
 
     def test_empty_traceback_shows_none(self):
-        assert '(none)' in _build_body(self._data(traceback=[]))
+        _, body = _build_body(self._data(traceback=[]))
+        assert '(none)' in body
 
     def test_no_user_data_in_output(self):
         data = self._data(
             exc_message='failed for user@example.com',
             traceback=['  File "/home/victorio/cli.py", line 1, in main\n'],
         )
-        body = _build_body(data)
+        _, body = _build_body(data)
         assert 'user@example.com' not in body
         assert '/home/victorio' not in body
 
     def test_contains_privacy_notice(self):
-        assert 'No user data included' in _build_body(self._data())
+        _, body = _build_body(self._data())
+        assert 'No user data included' in body
+
+    def test_contains_fingerprint_comment(self):
+        _, body = _build_body(self._data())
+        assert '<!-- drp-fingerprint:' in body
+
+    def test_fingerprint_in_body_matches_fingerprint_function(self):
+        import re
+        data = self._data()
+        _, body = _build_body(data)
+        m = re.search(r'<!-- drp-fingerprint: ([a-f0-9]{12}) -->', body)
+        assert m is not None
+        assert m.group(1) == _fingerprint(data)
 
     def test_missing_optional_fields_dont_crash(self):
-        # Only exc_type is truly required by the view; everything else has defaults
-        body = _build_body({'exc_type': 'ValueError'})
+        _, body = _build_body({'exc_type': 'ValueError'})
         assert 'ValueError' in body
