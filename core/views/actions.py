@@ -57,6 +57,11 @@ def rename_drop(request, ns, key):
     if Drop.objects.filter(ns=ns, key=new_key).exists():
         return JsonResponse({'error': 'Key already taken.'}, status=409)
 
+    # Bust presigned cache for the old key before renaming
+    if drop.kind == Drop.FILE:
+        from core.views.b2 import invalidate_presigned
+        invalidate_presigned(ns, key, filename=drop.filename or "")
+
     drop.key = new_key
     drop.save(update_fields=['key'])
 
@@ -77,6 +82,11 @@ def delete_drop(request, ns, key):
     err = _edit_error(drop, request)
     if err:
         return err
+
+    # Bust presigned cache before deleting
+    if drop.kind == Drop.FILE:
+        from core.views.b2 import invalidate_presigned
+        invalidate_presigned(ns, key, filename=drop.filename or "")
 
     ok = drop.hard_delete()
     if not ok:

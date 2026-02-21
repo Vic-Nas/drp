@@ -194,6 +194,8 @@ def _save_file(request, f, ns, key, existing, paid, anon_token):
         existing.filename       = f.name
         existing.filesize       = f.size
         existing.save(update_fields=["file_public_id", "file_url", "filename", "filesize"])
+        from core.views.b2 import invalidate_presigned
+        invalidate_presigned(ns, key, filename=f.name)
         if existing.owner_id:
             from django.db import models as db_models
             from core.models import UserProfile
