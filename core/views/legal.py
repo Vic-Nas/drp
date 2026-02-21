@@ -8,8 +8,11 @@ from django.shortcuts import render
 _LAST_UPDATED = "February 2026"
 
 
+from django.conf import settings
+
 def privacy_view(request):
-    return render(request, "legal/privacy.html", {"last_updated": _LAST_UPDATED})
+    domain = getattr(settings, "DOMAIN", None)
+    return render(request, "legal/privacy.html", {"last_updated": _LAST_UPDATED, "domain": domain})
 
 
 def terms_view(request):
