@@ -53,6 +53,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "core.context_processors.ads",
             ],
         },
     },
@@ -152,3 +153,9 @@ ANON_BIN_MAX_SIZE_MB  = 200
 CLIPBOARD_MAX_SIZE_KB = 500
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# ── Advertising ───────────────────────────────────────────────────────────────
+# Set ADSENSE_CLIENT=ca-pub-xxxxxxxxxxxxxxxx in Railway to enable AdSense.
+# Leave unset to show the Railway referral card instead.
+ADSENSE_CLIENT = os.environ.get("ADSENSE_CLIENT", "")
+ADSENSE_SLOT   = os.environ.get("ADSENSE_SLOT", "")

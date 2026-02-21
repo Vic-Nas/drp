@@ -1,0 +1,58 @@
+/* ── Ad slots ────────────────────────────────────────────────────────────────
+   Railway referral is the default. AdSense replaces it via env var —
+   no CSS changes needed when switching.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.ad-slot {
+  margin: 1.5rem 0 .5rem;
+}
+
+/* ── Railway referral card ── */
+.ad-railway {
+  display: inline-flex;
+  align-items: center;
+  gap: .75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .6rem 1rem;
+  text-decoration: none;
+  transition: border-color .15s, background .15s;
+  max-width: 100%;
+}
+.ad-railway:hover {
+  border-color: #7c3aed;
+  background: rgba(124, 58, 237, .05);
+  text-decoration: none;
+}
+.ad-railway__eyebrow {
+  font-size: .72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  white-space: nowrap;
+}
+.ad-railway__logo {
+  font-size: .9rem;
+  font-weight: 700;
+  color: #7c3aed;
+  white-space: nowrap;
+}
+.ad-railway__cta {
+  font-size: .8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  padding-left: .25rem;
+}
+
+/* ── Bottom/wide variant ── */
+.ad-slot--help-bottom .ad-railway {
+  width: 100%;
+  justify-content: space-between;
+}
+
+/* ── AdSense unit ── */
+.ad-adsense {
+  display: block;
+  min-height: 90px;
+}

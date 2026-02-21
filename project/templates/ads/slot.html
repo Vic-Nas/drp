@@ -1,0 +1,34 @@
+{% comment %}
+ads/slot.html — reusable ad slot.
+
+Usage:
+  {% include 'ads/slot.html' with placement="below-drop" %}
+
+Placements: below-drop, help-bottom
+
+Behaviour:
+  ADSENSE_CLIENT unset  → Railway referral card (default)
+  ADSENSE_CLIENT set    → AdSense responsive unit
+
+To go live with AdSense: set ADSENSE_CLIENT=ca-pub-xxxxxxxxxxxxxxxx
+in Railway env vars. No code changes needed.
+{% endcomment %}
+{% if adsense_client %}
+<div class="ad-slot ad-slot--{{ placement|default:'below-drop' }}">
+  <ins class="adsbygoogle ad-adsense"
+       style="display:block"
+       data-ad-client="{{ adsense_client }}"
+       data-ad-slot="{{ adsense_slot|default:'' }}"
+       data-ad-format="auto"
+       data-full-width-responsive="true"></ins>
+  <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+</div>
+{% else %}
+<div class="ad-slot ad-slot--{{ placement|default:'below-drop' }}">
+  <a href="https://railway.com?referralCode=ZIdvo-" target="_blank" rel="noopener sponsored" class="ad-railway">
+    <span class="ad-railway__eyebrow">hosted on</span>
+    <span class="ad-railway__logo">Railway</span>
+    <span class="ad-railway__cta">Deploy your own →</span>
+  </a>
+</div>
+{% endif %}

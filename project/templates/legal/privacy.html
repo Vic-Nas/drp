@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}drp — Privacy Policy{% endblock %}
+{% block content %}
+<div class="help-page">
+  <h1>Privacy Policy</h1>
+  <p class="tagline">Last updated: {{ last_updated }}</p>
+
+  <section>
+    <h2>Who we are</h2>
+    <p>drp is a file and text sharing service operated by Vic Nas, reachable at drp.vicnas.me.</p>
+  </section>
+
+  <section>
+    <h2>What we collect</h2>
+    <h3>Anonymous use</h3>
+    <p>We store the content you drop (text or file) on our servers and in Backblaze B2 cloud storage. We associate it with an anonymous session cookie so you can manage it during your session. We do not collect your IP address beyond what Railway logs transiently for abuse prevention.</p>
+    <h3>Accounts</h3>
+    <p>We store your email address and a hashed password. We associate drops you create with your account. We store your plan status and storage usage. Payment card details are never stored by us — payments are handled by Lemon Squeezy.</p>
+    <h3>Usage data</h3>
+    <p>We record view counts and last-accessed timestamps per drop. We do not run analytics scripts, tracking pixels, or third-party behavioural trackers.</p>
+  </section>
+
+  <section>
+    <h2>How we use your data</h2>
+    <p>Your data is used solely to operate the service: storing and serving your drops, enforcing plan limits, and sending transactional emails (password reset, account confirmation). We do not sell your data. We do not use your content to train machine learning models.</p>
+  </section>
+
+  <section>
+    <h2>Third-party services</h2>
+    <p><strong>Backblaze B2</strong> — file content is stored in B2. Files are served via presigned URLs that expire after one hour.</p>
+    <p><strong>Railway</strong> — the application runs on Railway's hosting platform. Railway may log request metadata for infrastructure purposes.</p>
+    <p><strong>Lemon Squeezy</strong> — paid plan subscriptions are processed by Lemon Squeezy. We receive only a customer ID and subscription status.</p>
+    <p><strong>Resend</strong> — transactional emails are sent via Resend. Only your email address and the email content are transmitted.</p>
+    <p><strong>Advertising</strong> — this site may display ads. If Google AdSense is active, Google may set cookies for ad personalisation. You can opt out via <a href="https://adssettings.google.com" target="_blank" rel="noopener">Google's ad settings</a>.</p>
+  </section>
+
+  <section>
+    <h2>Cookies</h2>
+    <p>We use one first-party session cookie to keep you logged in, and one anonymous token cookie for anonymous drop management. We do not use advertising cookies ourselves. If AdSense is active, Google may set its own cookies.</p>
+  </section>
+
+  <section>
+    <h2>Data retention</h2>
+    <p>Anonymous drops expire after 7 days (text) or 90 days (files) of inactivity. Paid drops follow the explicit expiry you set. When a drop expires or is deleted, its content is permanently removed. Account data is retained until you request deletion.</p>
+  </section>
+
+  <section>
+    <h2>Your rights</h2>
+    <p>You may request a copy of your data, correction of inaccurate data, or deletion of your account by contacting us. We will respond within 30 days.</p>
+  </section>
+
+  <section>
+    <h2>Contact</h2>
+    <p><a href="mailto:nasci.victorio@gmail.com">nasci.victorio@gmail.com</a></p>
+  </section>
+</div>
+{% endblock %}

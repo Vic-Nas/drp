@@ -3,31 +3,25 @@ from django.contrib.auth import views as auth_views
 from core import views
 from core.views.error_reporting import report_error
 from core.views.drops import raw_view
+from core.views.legal import privacy_view, terms_view
 
 KEY = r"(?P<key>[^/\s]+)"
 
 urlpatterns = [
-    # ── Utilities ─────────────────────────────────────────────────────────────
     path("api/report-error/",   report_error,          name="report_error"),
     path("save/",               views.save_drop,        name="save_drop"),
     path("check-key/",          views.check_key,        name="check_key"),
-
-    # ── CLI direct-upload (prepare → PUT to B2 → confirm) ────────────────────
     path("upload/prepare/",     views.upload_prepare,   name="upload_prepare"),
     path("upload/confirm/",     views.upload_confirm,   name="upload_confirm"),
-
-    # ── Raw text ──────────────────────────────────────────────────────────────
     re_path(rf"^raw/{KEY}/$",   raw_view,               name="raw_view"),
-
-    # ── Auth ──────────────────────────────────────────────────────────────────
+    path("privacy/",            privacy_view,           name="privacy"),
+    path("terms/",              terms_view,             name="terms"),
     path("auth/register/",      views.register_view,    name="register"),
     path("auth/login/",         views.login_view,       name="login"),
     path("auth/logout/",        views.logout_view,      name="logout"),
     path("auth/account/",       views.account_view,     name="account"),
     path("auth/account/export/", views.export_drops,    name="export_drops"),
     path("auth/account/import/", views.import_drops,    name="import_drops"),
-
-    # ── Password reset ────────────────────────────────────────────────────────
     path("auth/forgot-password/",
          auth_views.PasswordResetView.as_view(
              template_name="registration/password_reset_form.html",
@@ -50,8 +44,6 @@ urlpatterns = [
              template_name="registration/password_reset_complete.html",
          ),
          name="password_reset_complete"),
-
-    # ── File drops ────────────────────────────────────────────────────────────
     re_path(rf"^f/{KEY}/download/$", views.download_drop,                      name="download_drop"),
     re_path(rf"^f/{KEY}/rename/$",   views.rename_drop,   {"ns": "f"},        name="rename_file"),
     re_path(rf"^f/{KEY}/delete/$",   views.delete_drop,   {"ns": "f"},        name="delete_file"),
@@ -60,8 +52,6 @@ urlpatterns = [
     re_path(rf"^f/{KEY}/save/$",     views.save_bookmark, {"ns": "f"},        name="save_bookmark_file"),
     re_path(rf"^f/{KEY}/unsave/$",   views.unsave_bookmark, {"ns": "f"},      name="unsave_bookmark_file"),
     re_path(rf"^f/{KEY}/$",          views.file_view,                          name="file_view"),
-
-    # ── Clipboard drops ───────────────────────────────────────────────────────
     re_path(rf"^{KEY}/rename/$",  views.rename_drop,     {"ns": "c"},         name="rename_clipboard"),
     re_path(rf"^{KEY}/delete/$",  views.delete_drop,     {"ns": "c"},         name="delete_clipboard"),
     re_path(rf"^{KEY}/renew/$",   views.renew_drop,      {"ns": "c"},         name="renew_clipboard"),

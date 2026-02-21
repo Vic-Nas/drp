@@ -5,6 +5,7 @@ from .drops import (
 from .actions import rename_drop, delete_drop, renew_drop, copy_drop
 from .auth import register_view, login_view, logout_view, account_view, export_drops, import_drops
 from .bookmarks import save_bookmark, unsave_bookmark
+from .legal import privacy_view, terms_view
 
 __all__ = [
     "home", "check_key", "save_drop", "clipboard_view", "file_view", "download_drop",
@@ -13,4 +14,5 @@ __all__ = [
     "register_view", "login_view", "logout_view", "account_view",
     "export_drops", "import_drops",
     "save_bookmark", "unsave_bookmark",
+    "privacy_view", "terms_view",
 ]

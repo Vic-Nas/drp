@@ -7,8 +7,12 @@
   {% load static %}
   <link rel="stylesheet" href="{% static 'css/main.css' %}"/>
   <link rel="stylesheet" href="{% static 'css/bookmark.css' %}"/>
+  <link rel="stylesheet" href="{% static 'css/ads.css' %}"/>
   {% block extra_css %}{% endblock %}
   <link rel="icon" href="{% static 'favicon.ico' %}">
+  {% if adsense_client %}
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ adsense_client }}" crossorigin="anonymous"></script>
+  {% endif %}
 </head>
 <body>
   <header>
@@ -35,6 +39,8 @@
       anon: text 7d · files 90d ·
       paid: explicit expiry, renewable ·
       <a href="/help/">help</a> ·
+      <a href="/privacy/">privacy</a> ·
+      <a href="/terms/">terms</a> ·
       <a href="https://github.com/vicnasdev/drp">source</a> ·
       <a href="https://github.com/vicnasdev/drp/issues">report a bug</a>
     </small>
