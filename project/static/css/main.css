@@ -53,15 +53,12 @@ main {
   padding: 2.5rem 1.5rem;
 }
 
-/* Treat the rail as the left wall — pad body by the rail width so
-   margin:auto on main centers within the remaining space, not the
-   full viewport. Mirrors the exact same min() the rail uses. */
+/* Rail is the left wall — push main right by the rail width so it
+   centers in the remaining space. Header and footer are unaffected. */
 @media (min-width: 1000px) {
-  body {
-    padding-left: min(300px, calc((100vw - 900px) / 2 - 16px));
-  }
-  header, footer {
-    padding-left: calc(min(300px, calc((100vw - 900px) / 2 - 16px)) + 2rem);
+  main {
+    margin-left: min(300px, calc((100vw - 900px) / 2 - 16px));
+    margin-right: auto;
   }
 }
 
