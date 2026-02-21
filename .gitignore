@@ -6,7 +6,7 @@ __pycache__/
 *.py[cod]
 *.$py.class
 
-.history
+.history/
 *.db
 *.sqlite
 *.sqlite3

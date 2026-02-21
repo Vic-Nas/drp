@@ -349,8 +349,7 @@ class TestCmdCp:
     @patch('cli.commands.cp.config')
     @patch('cli.commands.cp.requests')
     @patch('cli.commands.cp.auto_login')
-    @patch('cli.commands.cp.api')
-    def test_cp_no_host_exits(self, mock_api, mock_login, mock_req, mock_config):
+    def test_cp_no_host_exits(self, mock_login, mock_req, mock_config):
         mock_config.load.return_value = {}
         import cli.commands.cp as cp
         with pytest.raises(SystemExit):
@@ -360,12 +359,20 @@ class TestCmdCp:
     @patch('cli.commands.cp.config')
     @patch('cli.commands.cp.requests')
     @patch('cli.commands.cp.auto_login')
-    @patch('cli.commands.cp.api')
-    def test_cp_calls_copy(self, mock_api, mock_login, mock_req, mock_config):
+    @patch('cli.commands.cp.get_csrf', return_value='csrf-token')
+    def test_cp_posts_to_copy_endpoint(self, mock_csrf, mock_login, mock_req, mock_config):
         mock_config.load.return_value = {'host': 'https://x.com'}
-        mock_api.copy.return_value = 'dst'
+        mock_session = MagicMock()
+        mock_req.Session.return_value = mock_session
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json.return_value = {'key': 'dst'}
+        mock_session.post.return_value = mock_response
         args = MagicMock(key='src', new_key='dst', file=False, clip=False)
         import cli.commands.cp as cp
         with patch('builtins.print'):
-            cp.cmd_cp(args)
-        mock_api.copy.assert_called()
+            with patch('cli.commands.cp.Spinner'):
+                cp.cmd_cp(args)
+        mock_session.post.assert_called_once()
+        call_url = mock_session.post.call_args[0][0]
+        assert '/src/copy/' in call_url
