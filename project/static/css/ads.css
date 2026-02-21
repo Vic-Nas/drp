@@ -14,7 +14,8 @@
   display: none; /* hidden by default; shown only at wide viewports below */
   position: fixed;
   /* Align vertically: below sticky header (~57px) + comfortable gap */
-  top: 80px;
+  top: 50%;
+  transform: translateY(-50%);
   /* Center within the left gutter.
      Gutter width = (100vw - 900px) / 2
      Rail width   = 140px
